@@ -12,7 +12,7 @@ export default function Home() {
       if (user.role === 'admin') router.push('/admin');
       else router.push('/dashboard');
     } else {
-      router.push('/auth');
+      router.push('/login');
     }
   }, []);
 
