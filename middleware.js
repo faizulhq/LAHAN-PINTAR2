@@ -11,8 +11,6 @@ export async function middleware(request) {
   }
 
   const accessToken = request.cookies.get('access_token')?.value || null;
-  let currentUser = request.cookies.get('user')?.value || null;
-  
   const loginUrl = new URL('/login', request.url);
 
   if (!accessToken) {
@@ -20,14 +18,15 @@ export async function middleware(request) {
   }
   
   try {
-    currentUser = currentUser ? JSON.parse(currentUser) : null;
+    const userCookie = request.cookies.get('user')?.value;
+    const currentUser = userCookie ? JSON.parse(userCookie) : null;
 
     const secret = new TextEncoder().encode(
       'django-insecure-*h_(c9)yydu8u7lsp)9d#z!p*5j6b%6m)4)y2$b%-pfcpp5lz6'
     );
     
     await jwtVerify(accessToken, secret);
-
+    
     if (pathname.startsWith('/admin') && (currentUser?.role !== 'Admin' && currentUser?.role !== 'Superadmin')) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }

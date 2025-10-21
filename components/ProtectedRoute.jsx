@@ -5,20 +5,42 @@ import { useRouter } from 'next/navigation';
 import useAuthStore from '@/lib/store/authStore';
 
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { isAuthenticated, isHydrated } = useAuthStore((state) => ({
+    isAuthenticated: state.isAuthenticated,
+    isHydrated: state.isHydrated,
+  }));
   const router = useRouter();
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      router.replace('/login');
-    }
-  }, [isAuthenticated, router]);
+  console.log("🛡️ [ProtectedRoute] Dijalankan. State:", { isAuthenticated, isHydrated });
 
-  if (!isAuthenticated) {
-    return <div>Loading...</div>; 
+  useEffect(() => {
+    // WAJIB: Tunggu hydration selesai
+    if (!isHydrated) {
+      console.log("🛡️ [ProtectedRoute] Menunggu AuthHydrator...");
+      return;
+    }
+
+    // SETELAH hydrated, baru cek auth
+    if (!isAuthenticated) {
+      console.log("🛡️ [ProtectedRoute] Gagal! (Hydrated tapi !Auth). Redirect ke /login.");
+      router.replace('/login');
+    } else {
+      console.log("🛡️ [ProtectedRoute] Lolos! (Hydrated & Auth).");
+    }
+  }, [isAuthenticated, isHydrated, router]);
+
+  // Tampilkan loading jika belum hydrated
+  if (!isHydrated) {
+    return <div>Loading...</div>;
   }
 
-  return children;
+  // Jika hydrated DAN authenticated, tampilkan halaman
+  if (isAuthenticated) {
+    return children;
+  }
+
+  // Fallback jika !isAuthenticated (selama proses redirect)
+  return <div>Loading...</div>; // Atau bisa null
 };
 
 export default ProtectedRoute;

@@ -11,16 +11,17 @@ import * as productionAPI from '@/lib/api/production';
 import * as profitDistributionAPI from '@/lib/api/profit_distribution';
 import * as expenseAPI from '@/lib/api/expense';
 import * as distributionDetailAPI from '@/lib/api/distribution_detail';
+import * as dashboardAPI from '@/lib/api/dashboard';
+import * as reportingAPI from '@/lib/api/reporting';
 
-// Helper component untuk menampilkan hasil
 const ResultCard = ({ title, status, data, error }) => {
   const isSuccess = status === 'success';
   const isError = status === 'error';
   const isLoading = status === 'loading';
 
-  let backgroundColor = '#f0f0f0'; // default/loading
-  if (isSuccess) backgroundColor = '#e8f5e9'; // green
-  if (isError) backgroundColor = '#ffebee'; // red
+  let backgroundColor = '#f0f0f0';
+  if (isSuccess) backgroundColor = '#e8f5e9';
+  if (isError) backgroundColor = '#ffebee';
 
   return (
     <div style={{ border: '1px solid #ccc', borderRadius: '8px', margin: '10px 0', backgroundColor }}>
@@ -44,7 +45,6 @@ export default function TestAllApiPage() {
     }));
   };
 
-  // 1. Fungsi untuk Login
   const handleLogin = async () => {
     const key = 'login';
     setTestResult(key, 'loading');
@@ -52,19 +52,15 @@ export default function TestAllApiPage() {
       const username = 'testuser_' + Date.now();
       const password = 'testpassword123';
       
-      // Step 1: Register
       await authAPI.register({
         username: username,
         email: `${username}@example.com`,
         password: password,
         password2: password,
-        role: 'Viewer' // Sesuai backend
+        role: 'Viewer'
       });
 
-      // Step 2: Login
       const response = await authAPI.login({ username, password });
-      localStorage.setItem('access_token', response.data.access);
-      localStorage.setItem('refresh_token', response.data.refresh);
       setTestResult(key, 'success', response.data);
       return true;
     } catch (err) {
@@ -74,19 +70,16 @@ export default function TestAllApiPage() {
     }
   };
 
-  // 2. Fungsi untuk Test Semua GET Endpoint
   const handleTestAllGet = async () => {
     setIsLoading(true);
-    setResults({}); // Clear previous results
+    setResults({});
 
-    // Step 1: Login dulu
     const loggedIn = await handleLogin();
     if (!loggedIn) {
       setIsLoading(false);
-      return; // Stop jika login gagal
+      return;
     }
 
-    // Step 2: Jalankan semua test GET
     const tests = [
       { key: 'getProjects', fn: projectAPI.getProjects },
       { key: 'getAssets', fn: assetAPI.getAssets },
@@ -99,6 +92,8 @@ export default function TestAllApiPage() {
       { key: 'getProfitDistributions', fn: profitDistributionAPI.getProfitDistributions },
       { key: 'getExpenses', fn: expenseAPI.getExpenses },
       { key: 'getDistributionDetails', fn: distributionDetailAPI.getDistributionDetails },
+      { key: 'getDashboardData', fn: dashboardAPI.getDashboardData },
+      { key: 'getFinancialReport', fn: reportingAPI.getFinancialReport },
     ];
 
     for (const test of tests) {
@@ -112,7 +107,9 @@ export default function TestAllApiPage() {
     results.forEach((result, index) => {
       const key = tests[index].key;
       if (result.status === 'fulfilled') {
-        setTestResult(key, 'success', result.value.data);
+        // Cek jika data adalah array kosong, yang juga sukses
+        const data = result.value.data || result.value;
+        setTestResult(key, 'success', data);
       } else {
         console.error(`Error [${key}]:`, result.reason.response?.data || result.reason.message);
         setTestResult(key, 'error', null, result.reason.response?.data || result.reason.message);
@@ -125,7 +122,7 @@ export default function TestAllApiPage() {
   return (
     <div style={{ padding: '20px', fontFamily: 'sans-serif' }}>
       <h1>🧪 Test All API Endpoints</h1>
-      <p>Test ini akan (1) Register user baru, (2) Login, (3) Menyimpan token, (4) Menjalankan semua fungsi GET dari 11 file API.</p>
+      <p>Test ini akan (1) Register user baru, (2) Login via cookie, (3) Menjalankan semua fungsi GET dari 13 file API.</p>
       
       <button 
         onClick={handleTestAllGet} 
