@@ -1,46 +1,61 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useAuthStore from '@/lib/store/authStore';
+import Cookies from 'js-cookie'; 
 
 const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, isHydrated } = useAuthStore((state) => ({
-    isAuthenticated: state.isAuthenticated,
-    isHydrated: state.isHydrated,
-  }));
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(true);
 
-  console.log("🛡️ [ProtectedRoute] Dijalankan. State:", { isAuthenticated, isHydrated });
+  // --- PERBAIKAN PENTING ---
+  // Pisahkan selector state dan fungsi untuk menghindari infinite loop
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const setUser = useAuthStore((state) => state.setUser);
+  // -------------------------
 
   useEffect(() => {
-    // WAJIB: Tunggu hydration selesai
-    if (!isHydrated) {
-      console.log("🛡️ [ProtectedRoute] Menunggu AuthHydrator...");
+    // 1. Jika state sudah authenticated (misal baru login), lolos.
+    if (isAuthenticated) {
+      setIsLoading(false);
       return;
     }
 
-    // SETELAH hydrated, baru cek auth
-    if (!isAuthenticated) {
-      console.log("🛡️ [ProtectedRoute] Gagal! (Hydrated tapi !Auth). Redirect ke /login.");
-      router.replace('/login');
-    } else {
-      console.log("🛡️ [ProtectedRoute] Lolos! (Hydrated & Auth).");
-    }
-  }, [isAuthenticated, isHydrated, router]);
+    // 2. Jika state belum auth, coba baca cookie 'user'.
+    const userCookie = Cookies.get('user');
 
-  // Tampilkan loading jika belum hydrated
-  if (!isHydrated) {
-    return <div>Loading...</div>;
+    if (userCookie) {
+      try {
+        const userData = JSON.parse(userCookie);
+        // Set state dari cookie. Ini akan memicu re-render
+        setUser(userData); 
+        // useEffect akan jalan lagi, dan lolos di kondisi #1
+      } catch (e) {
+        // Cookie rusak
+        Cookies.remove('user');
+        router.replace('/login');
+      }
+    } else {
+      // 3. Tidak ada state, tidak ada cookie, tendang.
+      router.replace('/login');
+    }
+
+  }, [isAuthenticated, router, setUser]); 
+
+  // Tampilkan loading saat proses pengecekan awal
+  if (isLoading) {
+    return <div>Loading...</div>; 
   }
 
-  // Jika hydrated DAN authenticated, tampilkan halaman
+  // Jika sudah lolos pengecekan (isLoading=false) dan 
+  // state-nya sudah benar (isAuthenticated=true), render children.
   if (isAuthenticated) {
     return children;
   }
 
-  // Fallback jika !isAuthenticated (selama proses redirect)
-  return <div>Loading...</div>; // Atau bisa null
+  // Fallback (seharusnya tidak tampil lama)
+  return <div>Loading...</div>;
 };
 
 export default ProtectedRoute;
