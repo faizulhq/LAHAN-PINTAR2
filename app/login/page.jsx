@@ -12,9 +12,13 @@ export default function LoginPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
     if (!username || !password) {
+      alert('Username dan Password harus diisi');
       return;
     }
+
+    console.log('🔐 Attempting login...');
     loginMutation.mutate({ username, password });
   };
 
@@ -60,6 +64,12 @@ export default function LoginPage() {
         {loginMutation.isError && (
           <p style={{ color: 'red', textAlign: 'center', marginTop: '10px' }}>
             {loginMutation.error.response?.data?.error || 'Login gagal. Periksa kembali username dan password.'}
+          </p>
+        )}
+
+        {loginMutation.isSuccess && (
+          <p style={{ color: 'green', textAlign: 'center', marginTop: '10px' }}>
+            Login berhasil! Redirecting...
           </p>
         )}
 
