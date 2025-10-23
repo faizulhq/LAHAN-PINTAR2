@@ -1,3 +1,4 @@
+// Di app/admin/page.jsx
 'use client';
 
 import React from 'react';
@@ -8,6 +9,11 @@ import { useQuery } from '@tanstack/react-query';
 import { getDashboardData } from '@/lib/api/dashboard';
 import { getFinancialReport } from '@/lib/api/reporting';
 import { useRouter } from 'next/navigation';
+import { Layout, Row, Col, Card, Statistic, Avatar, Typography, Flex, Spin, Alert, Button, Progress } from 'antd'; // Import komponen antd
+import { UserOutlined, FileTextOutlined, DollarCircleOutlined, EnvironmentOutlined } from '@ant-design/icons'; // Import ikon antd
+import { LuWheat } from 'react-icons/lu';
+
+const { Title, Text } = Typography;
 
 function AdminDashboardContent() {
   const user = useAuthStore((state) => state.user);
@@ -16,7 +22,9 @@ function AdminDashboardContent() {
 
   const {
     data: dashboardData,
-    isLoading: isLoadingDashboard
+    isLoading: isLoadingDashboard,
+    isError: isErrorDashboard,
+    error: errorDashboard,
   } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardData
@@ -24,7 +32,9 @@ function AdminDashboardContent() {
 
   const {
     data: reportData,
-    isLoading: isLoadingReport
+    isLoading: isLoadingReport,
+    isError: isErrorReport,
+    error: errorReport,
   } = useQuery({
     queryKey: ['financialReport'],
     queryFn: getFinancialReport
@@ -34,239 +44,124 @@ function AdminDashboardContent() {
     logoutMutation.mutate();
   };
 
-  // Redirect jika bukan Admin/Superadmin
-  React.useEffect(() => {
-    if (user && user.role !== 'Admin' && user.role !== 'Superadmin') {
-      router.replace('/dashboard');
-    }
-  }, [user, router]);
+  // Redirect jika bukan Admin/Superadmin (ini bisa dihapus jika ProtectedRoute sudah handle)
+  // React.useEffect(() => {
+  //   if (user && user.role !== 'Admin' && user.role !== 'Superadmin') {
+  //     router.replace('/dashboard');
+  //   }
+  // }, [user, router]);
 
-  if (!user || (user.role !== 'Admin' && user.role !== 'Superadmin')) {
-    return <div style={{ padding: '20px' }}>Access Denied. Redirecting...</div>;
-  }
+  // Loading state bisa dicek di ProtectedRoute, tapi bisa juga di sini sebagai fallback
+  // if (!user || (user.role !== 'Admin' && user.role !== 'Superadmin')) {
+  //   return <div style={{ padding: '20px' }}>Loading or Access Denied...</div>;
+  // }
+
+  const isLoading = isLoadingDashboard || isLoadingReport;
+  const isError = isErrorDashboard || isErrorReport;
+  const error = errorDashboard || errorReport;
+
+  // Helper format Rupiah
+  const formatRupiah = (value) => value != null ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
+
 
   return (
-    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-        <div>
-          <h1 style={{ margin: 0 }}>Admin Dashboard</h1>
-          <p style={{ margin: '5px 0', color: '#666' }}>
-            Selamat datang, {user.username}! (Role: {user.role})
-          </p>
-        </div>
-        <button
-          onClick={handleLogout}
-          disabled={logoutMutation.isPending}
-          style={{
-            padding: '10px 20px',
-            background: '#dc3545',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          {logoutMutation.isPending ? 'Logging out...' : 'Logout'}
-        </button>
-      </div>
-
-      <hr style={{ margin: '20px 0' }} />
-
-      {/* Dashboard Statistics */}
-      <section style={{ marginBottom: '30px' }}>
-        <h2>Ringkasan Dashboard</h2>
-        {isLoadingDashboard ? (
-          <p>Memuat data dashboard...</p>
-        ) : dashboardData ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px' }}>
-            <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#666' }}>Total Assets</h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#28a745' }}>
-                {dashboardData.total_assets || 0}
-              </p>
-            </div>
-            <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#666' }}>Total Funding</h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#007bff' }}>
-                Rp {Number(dashboardData.total_funding || 0).toLocaleString('id-ID')}
-              </p>
-            </div>
-            <div style={{ padding: '20px', background: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '16px', color: '#666' }}>Total Yield</h3>
-              <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#ffc107' }}>
-                Rp {Number(dashboardData.total_yield || 0).toLocaleString('id-ID')}
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p style={{ color: '#dc3545' }}>Gagal memuat data dashboard.</p>
-        )}
-      </section>
-
-      {/* Ownership Percentage */}
-      {dashboardData?.ownership_percentage && dashboardData.ownership_percentage.length > 0 && (
-        <section style={{ marginBottom: '30px' }}>
-          <h2>Ownership Distribution</h2>
-          <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-            {dashboardData.ownership_percentage.map((owner, index) => (
-              <div key={index} style={{ marginBottom: '15px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                  <span style={{ fontWeight: '500' }}>{owner.name}</span>
-                  <span style={{ fontWeight: 'bold', color: '#007bff' }}>{owner.percentage}%</span>
-                </div>
-                <div style={{ background: '#e9ecef', height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      background: '#007bff',
-                      height: '100%',
-                      width: `${owner.percentage}%`,
-                      transition: 'width 0.3s ease'
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      <hr style={{ margin: '30px 0' }} />
-
-      {/* Financial Report */}
-      <section>
-        <h2>Laporan Keuangan</h2>
-        {isLoadingReport ? (
-          <p>Memuat laporan keuangan...</p>
-        ) : reportData ? (
-          <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', border: '1px solid #dee2e6' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ margin: '0 0 15px 0', fontSize: '18px' }}>Ringkasan Dana</h3>
-              <div style={{ display: 'grid', gap: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'white', borderRadius: '4px' }}>
-                  <span>Total Dana Masuk:</span>
-                  <span style={{ fontWeight: 'bold' }}>Rp {Number(reportData.ringkasan_dana?.total_dana_masuk || 0).toLocaleString('id-ID')}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'white', borderRadius: '4px' }}>
-                  <span>Total Pengeluaran:</span>
-                  <span style={{ fontWeight: 'bold', color: '#dc3545' }}>Rp {Number(reportData.ringkasan_dana?.total_pengeluaran || 0).toLocaleString('id-ID')}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px', background: 'white', borderRadius: '4px' }}>
-                  <span>Sisa Dana:</span>
-                  <span style={{ fontWeight: 'bold', color: '#28a745' }}>Rp {Number(reportData.ringkasan_dana?.sisa_dana || 0).toLocaleString('id-ID')}</span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Total Yield</h3>
-              <div style={{ padding: '10px', background: 'white', borderRadius: '4px' }}>
-                <span style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
-                  Rp {Number(reportData.total_yield || 0).toLocaleString('id-ID')}
-                </span>
-              </div>
-            </div>
-
+    // Kita tidak perlu Layout/Header/Sider lagi karena sudah ada di app/admin/layout.jsx
+    <div style={{ padding: '0px' }}> {/* Hapus padding jika sudah ada di layout utama */}
+      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
             <div>
-              <h3 style={{ margin: '0 0 10px 0', fontSize: '18px' }}>Laba/Rugi</h3>
-              <div style={{ padding: '15px', background: 'white', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '20px', fontWeight: 'bold' }}>
-                  Rp {Number(reportData.laba_rugi?.Jumlah || 0).toLocaleString('id-ID')}
-                </span>
-                <span
-                  style={{
-                    padding: '5px 15px',
-                    borderRadius: '20px',
-                    fontWeight: 'bold',
-                    background: reportData.laba_rugi?.Status === 'Laba' ? '#d4edda' : reportData.laba_rugi?.Status === 'Rugi' ? '#f8d7da' : '#e2e3e5',
-                    color: reportData.laba_rugi?.Status === 'Laba' ? '#155724' : reportData.laba_rugi?.Status === 'Rugi' ? '#721c24' : '#383d41'
-                  }}
-                >
-                  {reportData.laba_rugi?.Status || 'Impas'}
-                </span>
-              </div>
+              <Title level={2} style={{ margin: 0, color: '#111928' }}>
+                Admin Dashboard
+              </Title>
+              <Text type="secondary" style={{ fontSize: '16px' }}>
+                Ringkasan data dan aktivitas sistem Lahan Pintar.
+              </Text>
             </div>
-          </div>
-        ) : (
-          <p style={{ color: '#dc3545' }}>Gagal memuat laporan keuangan.</p>
-        )}
-      </section>
+            {/* Tombol Logout bisa dipindahkan ke dropdown profil di Header (layout.jsx) */}
+            {/* <Button type="primary" danger onClick={handleLogout} loading={logoutMutation.isPending}>Logout</Button> */}
+      </Flex>
 
-      {/* Admin Tools Section - Only for Superadmin */}
-      {user.role === 'Superadmin' && (
+
+      {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
+      {isError && !isLoading && <Alert message="Error Memuat Data" description={error?.message || 'Gagal memuat data dashboard atau laporan.'} type="error" showIcon />}
+
+      {!isLoading && !isError && dashboardData && (
         <>
-          <hr style={{ margin: '30px 0' }} />
-          <section>
-            <h2>Superadmin Tools</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-              <button
-                style={{
-                  padding: '15px',
-                  background: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500'
-                }}
-              >
-                Manage Users
-              </button>
-              <button
-                style={{
-                  padding: '15px',
-                  background: '#6c757d',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500'
-                }}
-              >
-                System Settings
-              </button>
-              <button
-                style={{
-                  padding: '15px',
-                  background: '#17a2b8',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500'
-                }}
-              >
-                View Logs
-              </button>
-              <button
-                style={{
-                  padding: '15px',
-                  background: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: '500'
-                }}
-              >
-                Export Data
-              </button>
-            </div>
-          </section>
+          {/* Kartu Statistik */}
+          <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
+            <Col xs={24} lg={8}>
+              <Card hoverable>
+                <Statistic
+                  title={<Text style={{ fontSize: '18px', color: '#585858' }}>Total Aset</Text>}
+                  value={dashboardData.total_assets || 0}
+                  valueStyle={{ fontSize: '31px', color: '#111928' }}
+                  prefix={<FileTextOutlined style={{ color: '#0958D9', fontSize: '34px', marginRight: '16px' }} />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card hoverable>
+                <Statistic
+                  title={<Text style={{ fontSize: '18px', color: '#585858' }}>Total Pendanaan</Text>}
+                  value={formatRupiah(dashboardData.total_funding)}
+                  valueStyle={{ fontSize: '31px', color: '#111928' }}
+                  prefix={<DollarCircleOutlined style={{ color: '#7CB305', fontSize: '34px', marginRight: '16px' }} />}
+                />
+              </Card>
+            </Col>
+             <Col xs={24} lg={8}>
+              <Card hoverable>
+                <Statistic
+                   title={<Text style={{ fontSize: '18px', color: '#585858' }}>Total Hasil Produksi</Text>}
+                   value={formatRupiah(dashboardData.total_yield)}
+                   valueStyle={{ fontSize: '31px', color: '#111928' }}
+                   prefix={<LuWheat style={{ color: '#FAAD14', fontSize: '34px', marginRight: '16px' }} />}
+                />
+              </Card>
+            </Col>
+          </Row>
+
+          {/* Distribusi Kepemilikan */}
+          {dashboardData?.ownership_percentage && dashboardData.ownership_percentage.length > 0 && (
+            <Card title="Distribusi Kepemilikan" style={{ marginBottom: 24 }}>
+                {dashboardData.ownership_percentage.map((owner, index) => (
+                  <div key={index} style={{ marginBottom: 16 }}>
+                    <Flex justify="space-between">
+                       <Text strong>{owner.name}</Text>
+                       <Text type="secondary">{owner.percentage.toFixed(2)}%</Text>
+                     </Flex>
+                     <Progress percent={owner.percentage} showInfo={false} />
+                   </div>
+               ))}
+            </Card>
+          )}
         </>
       )}
+
+      {/* Laporan Keuangan (jika diperlukan di dashboard admin juga) */}
+      {!isLoading && !isError && reportData && (
+           <Card title="Ringkasan Keuangan Cepat">
+               {/* Tampilkan summary singkat dari reportData jika perlu */}
+               <Statistic
+                    title={`Status Keuangan (${reportData.laba_rugi?.Status || 'Impas'})`}
+                    value={formatRupiah(reportData.laba_rugi?.Jumlah)}
+                    valueStyle={{ color: reportData.laba_rugi?.Status === 'Laba' ? '#52c41a' : reportData.laba_rugi?.Status === 'Rugi' ? '#f5222d' : '#8c8c8c' }}
+                />
+                {/* ... bisa tambahkan detail lain ... */}
+           </Card>
+       )}
+
+      {/* --- BAGIAN SUPERADMIN TOOLS DIHAPUS --- */}
+
     </div>
   );
 }
 
 export default function AdminDashboardPage() {
   return (
-    <ProtectedRoute>
+    // ProtectedRoute seharusnya sudah membungkus layout, jadi mungkin tidak perlu di sini lagi
+    // Jika layout belum dibungkus, tambahkan di sini
+    // <ProtectedRoute>
       <AdminDashboardContent />
-    </ProtectedRoute>
+    // </ProtectedRoute>
   );
 }
