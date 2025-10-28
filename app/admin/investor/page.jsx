@@ -1,9 +1,8 @@
-// File: app/admin/investor/page.jsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import {
-  Table, Button, Modal, Form, Input, DatePicker, InputNumber,
+  Table, Button, Modal, Form, Input, DatePicker, InputNumber, Select,
   Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag
 } from 'antd';
 import {
@@ -16,15 +15,16 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import {
   getInvestors, createInvestor, updateInvestor, deleteInvestor
 } from '@/lib/api/investor';
+import { getAvailableUsersForInvestor } from '@/lib/api/user'; // NEW IMPORT
 
 const { Title, Text } = Typography;
 const { Search } = Input;
+const { Option } = Select;
 
 // Helper format
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
 
-// Komponen Utama Halaman Investor
 function InvestorManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -38,16 +38,28 @@ function InvestorManagementContent() {
     queryFn: getInvestors,
   });
 
+  // NEW: Fetch available users untuk dropdown (hanya saat create)
+  const { data: availableUsers, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['availableUsersForInvestor'],
+    queryFn: getAvailableUsersForInvestor,
+    enabled: isModalOpen && !editingInvestor, // Hanya fetch saat modal create dibuka
+  });
+
   // --- Mutasi ---
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investors'] });
+      queryClient.invalidateQueries({ queryKey: ['availableUsersForInvestor'] }); // Refresh available users
       setIsModalOpen(false);
       setEditingInvestor(null);
       form.resetFields();
     },
     onError: (err) => {
-      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal'}`);
+      const errorMsg = err.response?.data?.detail || 
+                       JSON.stringify(err.response?.data) || 
+                       err.message || 
+                       'Gagal';
+      message.error(`Error: ${errorMsg}`);
     },
   };
 
@@ -74,6 +86,7 @@ function InvestorManagementContent() {
     onSuccess: () => {
       message.success('Investor berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['investors'] });
+      queryClient.invalidateQueries({ queryKey: ['availableUsersForInvestor'] });
     },
     onError: (err) => {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`);
@@ -90,6 +103,7 @@ function InvestorManagementContent() {
   const showEditModal = (investor) => {
     setEditingInvestor(investor);
     form.setFieldsValue({
+      // JANGAN set field 'user' saat edit
       contact: investor.contact,
       join_date: moment(investor.join_date),
       total_investment: parseFloat(investor.total_investment),
@@ -111,8 +125,11 @@ function InvestorManagementContent() {
     };
 
     if (editingInvestor) {
+      // Mode Edit: JANGAN kirim field 'user'
       updateMutation.mutate({ id: editingInvestor.id, data: investorData });
     } else {
+      // Mode Create: WAJIB kirim field 'user'
+      investorData.user = values.user;
       createMutation.mutate(investorData);
     }
   };
@@ -126,19 +143,30 @@ function InvestorManagementContent() {
     if (!investors) return [];
     return investors.filter(inv => {
       const contactMatch = inv.contact?.toLowerCase().includes(searchTerm.toLowerCase());
-      const userMatch = inv.user?.toString().includes(searchTerm);
-      return contactMatch || userMatch;
+      const usernameMatch = inv.username?.toLowerCase().includes(searchTerm.toLowerCase());
+      return contactMatch || usernameMatch;
     });
   }, [investors, searchTerm]);
 
   // --- Kolom Tabel ---
   const columns = [
     {
-      title: 'User ID',
-      dataIndex: 'user',
-      key: 'user',
-      render: (userId) => <Tag color="blue">User #{userId}</Tag>,
-      width: 120,
+      title: 'Username',
+      dataIndex: 'username',
+      key: 'username',
+      render: (username) => (
+        <Space>
+          <UserOutlined />
+          <Text strong>{username || '-'}</Text>
+        </Space>
+      ),
+      sorter: (a, b) => (a.username || '').localeCompare(b.username || ''),
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      ellipsis: true,
     },
     {
       title: 'Kontak',
@@ -215,7 +243,7 @@ function InvestorManagementContent() {
       {/* Filter & Search */}
       <Card style={{ marginBottom: 24 }}>
         <Search
-          placeholder="Cari kontak atau User ID..."
+          placeholder="Cari username, email, atau kontak..."
           allowClear
           enterButton={<Button type="primary" icon={<SearchOutlined />} style={{ backgroundColor: '#237804' }} />}
           size="large"
@@ -238,7 +266,7 @@ function InvestorManagementContent() {
             rowKey="id"
             loading={isLoading || deleteMutation.isPending}
             pagination={{ pageSize: 10, showSizeChanger: true }}
-            scroll={{ x: 900 }}
+            scroll={{ x: 1000 }}
           />
         </Card>
       )}
@@ -250,8 +278,37 @@ function InvestorManagementContent() {
         onCancel={handleCancel}
         footer={null}
         destroyOnClose
+        width={600}
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+          
+          {/* FIELD USER - Hanya muncul saat CREATE */}
+          {!editingInvestor && (
+            <Form.Item
+              name="user"
+              label="Pilih User Account"
+              rules={[{ required: true, message: 'User harus dipilih!' }]}
+              tooltip="Pilih user yang akan dijadikan investor. Hanya user dengan role Viewer/Investor yang tersedia."
+            >
+              <Select
+                placeholder="Pilih user"
+                loading={isLoadingUsers}
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  option.children.toLowerCase().includes(input.toLowerCase())
+                }
+              >
+                {availableUsers?.map(user => (
+                  <Option key={user.id} value={user.id}>
+                    {user.username} ({user.email}) - {user.role}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+          )}
+
+          {/* FIELD CONTACT */}
           <Form.Item
             name="contact"
             label="Kontak"
@@ -260,6 +317,7 @@ function InvestorManagementContent() {
             <Input.TextArea rows={3} placeholder="Email, telepon, atau info kontak lainnya" />
           </Form.Item>
 
+          {/* FIELD JOIN DATE */}
           <Form.Item
             name="join_date"
             label="Tanggal Bergabung"
@@ -268,6 +326,7 @@ function InvestorManagementContent() {
             <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
           </Form.Item>
 
+          {/* FIELD TOTAL INVESTMENT */}
           <Form.Item
             name="total_investment"
             label="Total Investasi (Rp)"

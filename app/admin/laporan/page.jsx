@@ -25,6 +25,15 @@ import { FaMoneyBill } from 'react-icons/fa';
 const formatRupiah = (value) => 
   value != null ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : 'Rp 0';
 
+const { data: reportData } = useQuery({
+  queryKey: ['financialReport', selectedAsset, selectedProject, selectedPeriod],
+  queryFn: () => getFinancialReport({ 
+    asset: selectedAsset, 
+    project: selectedProject, 
+    period: selectedPeriod 
+  })
+});
+
 // Card Component
 const Card = ({ children, title, className = '' }) => (
   <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${className}`}>

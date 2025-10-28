@@ -8,7 +8,7 @@ import {
 import { BiSolidDashboard, BiSolidCalculator, BiUser } from 'react-icons/bi';
 import { FileTextFilled, UserAddOutlined } from '@ant-design/icons';
 import { FaDollarSign } from 'react-icons/fa';
-import { HiUserGroup } from 'react-icons/hi';
+import { HiUserGroup, HiUsers } from 'react-icons/hi';
 import { GiPayMoney, GiSprout } from 'react-icons/gi';
 import { LuWheat } from 'react-icons/lu';
 import { AiFillDollarCircle, AiOutlineAreaChart, AiFillSetting } from 'react-icons/ai';
@@ -31,7 +31,8 @@ const menuConfig = [
   { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi' },
   { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil' },
   { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan' },
-  { key: '11', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan' },
+  { key: '11', icon: <HiUsers />, label: 'User Management', path: '/admin/user-management', superadminOnly: true },
+  { key: '12', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan' },
 ];
 
 export default function AdminLayout({ children }) {
@@ -113,40 +114,48 @@ export default function AdminLayout({ children }) {
   const iconTextGap = '10px';
 
   // Proses menu items tanpa Link (gunakan onClick untuk navigasi)
-  const processedMenuItems = menuConfig.map((item) => {
-    const isActive = selectedKey === item.key;
-    const currentStyle = isActive ? { ...baseStyle, ...activeStyleAddons } : baseStyle;
-    const iconColor = isActive ? '#237804' : 'rgba(0, 0, 0, 0.85)';
-    const textColor = isActive ? '#237804' : 'rgba(0, 0, 0, 0.85)';
+  const processedMenuItems = menuConfig
+    .filter(item => {
+      if (item.superadminOnly && user?.role !== 'Superadmin') {
+        return false;
+      }
+      return true;
+    })
+    .map((item) => {
+      const isActive = selectedKey === item.key;
+      const currentStyle = isActive ? { ...baseStyle, ...activeStyleAddons } : baseStyle;
+      const iconColor = isActive ? '#237804' : 'rgba(0, 0, 0, 0.85)';
+      const textColor = isActive ? '#237804' : 'rgba(0, 0, 0, 0.85)';
 
-    return {
-      key: item.key,
-      icon: React.cloneElement(item.icon, {
-        style: {
-          fontSize: baseIconSize,
-          color: iconColor,
-          width: baseIconSize,
-          height: baseIconSize,
-        },
-      }),
-      label: (
-        <span
-          style={{
-            color: textColor,
-            fontFamily: 'Roboto, sans-serif',
-            fontSize: '14px',
-            lineHeight: '22px',
-            marginLeft: iconTextGap,
-            flexGrow: 1,
-          }}
-        >
-          {item.label}
-        </span>
-      ),
-      style: currentStyle,
-      onClick: () => router.push(item.path), // Navigasi dengan onClick
-    };
-  });
+      return {
+        key: item.key,
+        icon: React.cloneElement(item.icon, {
+          style: {
+            fontSize: baseIconSize,
+            color: iconColor,
+            width: baseIconSize,
+            height: baseIconSize,
+          },
+        }),
+        label: (
+          <span
+            style={{
+              color: textColor,
+              fontFamily: 'Roboto, sans-serif',
+              fontSize: '14px',
+              lineHeight: '22px',
+              marginLeft: iconTextGap,
+              flexGrow: 1,
+            }}
+          >
+            {item.label}
+          </span>
+        ),
+        style: currentStyle,
+        onClick: () => router.push(item.path), // Navigasi dengan onClick
+      };
+    }
+  );
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#F9FAFB' }} suppressHydrationWarning>
