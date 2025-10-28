@@ -1,36 +1,36 @@
-// Di app/admin/pengeluaran/page.jsx
+// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-9ebe2a759744e60857214f21d26b1c7ae9d0c9aa/app/admin/pengeluaran/page.jsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import {
   Table, Button, Modal, Form, Select, InputNumber, DatePicker,
-  Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag, Upload // Upload untuk proof_url
+  Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag, Upload
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UploadOutlined, // Ikon upload
-  MoneyCollectOutlined // Ikon Pengeluaran
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UploadOutlined,
+  MoneyCollectOutlined
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // Impor useAuthStore
 import {
   getExpenses, createExpense, updateExpense, deleteExpense,
-} from '@/lib/api/expense'; //
-// Impor API untuk data relasi
+} from '@/lib/api/expense';
+// ... (impor API relasi Anda tetap sama) ...
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
 import { getFundings } from '@/lib/api/funding';
-import { getFundingSources } from '@/lib/api/funding_source'; // Untuk menampilkan nama sumber dana
+import { getFundingSources } from '@/lib/api/funding_source';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { Search } = Input;
 
-// Helper format
+// ... (Helper format dan kategori Anda tetap sama) ...
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
 
-// Kategori dari backend model
 const expenseCategories = {
     'material': 'Material',
     'tenaga kerja': 'Tenaga Kerja',
@@ -49,23 +49,26 @@ function ExpenseManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('semua');
   const [form] = Form.useForm();
-  // State untuk file upload (jika diperlukan)
   const [fileList, setFileList] = useState([]);
 
-  // --- Fetch Data ---
+  // --- Ambil data user dari store ---
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+
+  // --- Fetch Data --- (tetap sama)
   const { data: expenses, isLoading: isLoadingExpenses, isError: isErrorExpenses, error: errorExpenses } = useQuery({
     queryKey: ['expenses'], queryFn: getExpenses,
   });
+  // ... (sisa fetch data relasi tetap sama) ...
   const { data: projects, isLoading: isLoadingProjects } = useQuery({ queryKey: ['projects'], queryFn: getProjects });
   const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
   const { data: fundings, isLoading: isLoadingFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
-  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources }); // Untuk map nama sumber
+  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
 
-  // --- Data Mapping ---
+  // --- Data Mapping --- (tetap sama)
   const projectMap = useMemo(() => projects ? projects.reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {}) : {}, [projects]);
   const assetMap = useMemo(() => assets ? assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {}) : {}, [assets]);
   const sourceMap = useMemo(() => fundingSources ? fundingSources.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {}) : {}, [fundingSources]);
-  // Buat map funding ID ke deskripsi funding (nama sumber + jumlah)
   const fundingMap = useMemo(() => {
      if (!fundings || !sourceMap) return {};
      return fundings.reduce((acc, f) => {
@@ -73,12 +76,12 @@ function ExpenseManagementContent() {
          return acc;
      }, {});
   }, [fundings, sourceMap]);
-
-  // --- Mutasi ---
+  
+  // --- Mutasi --- (tetap sama)
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      setIsModalOpen(false); setEditingExpense(null); form.resetFields(); setFileList([]); // Reset file list
+      setIsModalOpen(false); setEditingExpense(null); form.resetFields(); setFileList([]);
     },
     onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal'}`); },
   };
@@ -86,12 +89,12 @@ function ExpenseManagementContent() {
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => updateExpense(id, data), ...mutationOptions, onSuccess: (...args) => { message.success('Pengeluaran berhasil diperbarui'); mutationOptions.onSuccess(...args); } });
   const deleteMutation = useMutation({ mutationFn: deleteExpense, onSuccess: () => { message.success('Pengeluaran berhasil dihapus'); queryClient.invalidateQueries({ queryKey: ['expenses'] }); }, onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); } });
 
-  // --- Handlers ---
+  // --- Handlers --- (tetap sama)
   const showAddModal = () => { setEditingExpense(null); form.resetFields(); setFileList([]); setIsModalOpen(true); };
   const showEditModal = (expense) => {
+    // ... (sisa handler tetap sama) ...
     setEditingExpense(expense);
-    // TODO: Handle existing proof_url if needed (e.g., display filename)
-    setFileList([]); // Kosongkan file list saat edit, user harus upload ulang jika ingin ganti
+    setFileList([]); 
     form.setFieldsValue({
       category: expense.category,
       amount: parseFloat(expense.amount),
@@ -100,24 +103,20 @@ function ExpenseManagementContent() {
       project_id: expense.project_id,
       funding_id: expense.funding_id,
       asset_id: expense.asset_id,
-      // proof_url tidak di-set di form, tapi mungkin ditampilkan terpisah
     });
     setIsModalOpen(true);
   };
   const handleCancel = () => { setIsModalOpen(false); setEditingExpense(null); form.resetFields(); setFileList([]); };
-
   const handleFormSubmit = async (values) => {
-    // TODO: Implement actual file upload logic here if needed
-    // Saat ini hanya menyimpan nama file atau placeholder
-    // Idealnya: upload file ke backend/storage, dapatkan URL, simpan URL.
-    const proofUrlPlaceholder = fileList.length > 0 ? `/path/to/proof/${fileList[0].name}` : (editingExpense?.proof_url || null); // Placeholder URL
+    // ... (sisa handler tetap sama) ...
+    const proofUrlPlaceholder = fileList.length > 0 ? `/path/to/proof/${fileList[0].name}` : (editingExpense?.proof_url || null);
 
     const expenseData = {
       category: values.category,
       amount: values.amount,
       date: values.date.format('YYYY-MM-DD'),
       description: values.description,
-      proof_url: proofUrlPlaceholder, // Simpan URL bukti
+      proof_url: proofUrlPlaceholder,
       project_id: values.project_id,
       funding_id: values.funding_id,
       asset_id: values.asset_id,
@@ -131,7 +130,7 @@ function ExpenseManagementContent() {
   };
   const handleDelete = (id) => { deleteMutation.mutate(id); };
 
-  // --- Filter ---
+  // --- Filter --- (tetap sama)
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
     return expenses.filter(e => {
@@ -141,8 +140,9 @@ function ExpenseManagementContent() {
     });
   }, [expenses, searchTerm, selectedCategory]);
 
-  // --- Kolom Tabel ---
+  // --- Kolom Tabel (DENGAN MODIFIKASI) ---
   const columns = [
+    // ... (kolom lain tetap sama) ...
     { title: 'Tanggal', dataIndex: 'date', key: 'date', render: formatDate, sorter: (a, b) => moment(a.date).unix() - moment(b.date).unix(), width: 120 },
     {
       title: 'Kategori', dataIndex: 'category', key: 'category',
@@ -164,10 +164,16 @@ function ExpenseManagementContent() {
       title: 'Aksi', key: 'action', width: 120, align: 'center', fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
-          <Popconfirm title="Hapus Pengeluaran?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {/* --- MODIFIKASI DI SINI --- */}
+          {isAdmin && (
+            <>
+              <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
+              <Popconfirm title="Hapus Pengeluaran?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending }}>
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
+          )}
+          {/* Jika bukan admin, kolom aksi akan kosong */}
         </Space>
       ),
     },
@@ -176,17 +182,17 @@ function ExpenseManagementContent() {
   const isLoadingInitialData = isLoadingExpenses || isLoadingProjects || isLoadingAssets || isLoadingFundings || isLoadingSources;
   const isErrorInitialData = isErrorExpenses || !projects || !assets || !fundings || !fundingSources;
 
-  // --- Upload Props ---
+  // --- Upload Props --- (tetap sama)
   const uploadProps = {
     onRemove: (file) => { setFileList(current => current.filter(f => f.uid !== file.uid)); },
-    beforeUpload: (file) => { setFileList([file]); return false; }, // Hanya izinkan 1 file & cegah upload otomatis
+    beforeUpload: (file) => { setFileList([file]); return false; },
     fileList,
     maxCount: 1,
   };
 
   return (
     <>
-      {/* Header Halaman */}
+      {/* ... (Header, Filter, Search, Loading, Modal Anda tetap sama) ... */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}><MoneyCollectOutlined /> Manajemen Pengeluaran</Title>
@@ -201,7 +207,6 @@ function ExpenseManagementContent() {
         </Button>
       </Flex>
 
-      {/* Filter & Search */}
       <Card style={{ marginBottom: 24 }}>
          <Flex gap="middle" wrap="wrap">
             <Search
@@ -216,32 +221,30 @@ function ExpenseManagementContent() {
                 <Option value="semua">Semua Kategori</Option>
                 {Object.entries(expenseCategories).map(([value, text]) => <Option key={value} value={value}>{text}</Option>)}
             </Select>
-            {/* Filter lain bisa ditambahkan di sini (misal Project, Asset) */}
          </Flex>
       </Card>
 
-      {/* Tabel Data */}
       {isLoadingInitialData && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
       {isErrorInitialData && !isLoadingInitialData && <Alert message="Error Memuat Data Awal" description={errorExpenses?.message || 'Gagal memuat data relasi'} type="error" showIcon />}
       {!isLoadingInitialData && !isErrorInitialData && (
-         <Card bodyStyle={{ padding: 0 }}> {/* Hapus padding Card agar Tabel rapat */}
+         <Card bodyStyle={{ padding: 0 }}>
             <Table
                 columns={columns}
                 dataSource={Array.isArray(filteredExpenses) ? filteredExpenses : []}
                 rowKey="id"
                 loading={isLoadingExpenses || deleteMutation.isPending}
                 pagination={{ pageSize: 10, showSizeChanger: true }}
-                scroll={{ x: 1300 }} // Sesuaikan agar semua kolom muat
+                scroll={{ x: 1300 }}
             />
          </Card>
       )}
 
-      {/* Modal Tambah/Edit */}
       <Modal
         title={editingExpense ? 'Edit Pengeluaran' : 'Tambah Pengeluaran Baru'}
         open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+          {/* ... (Semua Form.Item Anda tetap sama) ... */}
           <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori harus dipilih!' }]}>
             <Select placeholder="Pilih kategori pengeluaran">
               {Object.entries(expenseCategories).map(([value, text]) => <Option key={value} value={value}>{text}</Option>)}
@@ -275,7 +278,7 @@ function ExpenseManagementContent() {
              <Upload {...uploadProps}>
                 <Button icon={<UploadOutlined />}>Pilih File</Button>
             </Upload>
-            {editingExpense?.proof_url && fileList.length === 0 && ( // Tampilkan link bukti lama jika ada dan belum upload baru
+            {editingExpense?.proof_url && fileList.length === 0 && (
                 <Text type="secondary" style={{display: 'block', marginTop: 8}}>Bukti tersimpan: <a href={editingExpense.proof_url} target="_blank" rel="noopener noreferrer">Lihat</a></Text>
             )}
           </Form.Item>

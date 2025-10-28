@@ -1,4 +1,4 @@
-// Di app/admin/produksi/page.jsx
+// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-9ebe2a759744e60857214f21d26b1c7ae9d0c9aa/app/admin/produksi/page.jsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -6,24 +6,23 @@ import {
   Table, Button, Modal, Form, Select, InputNumber, DatePicker,
   Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card,
 } from 'antd';
-// 1. Impor ikon Ant Design standar
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
 } from '@ant-design/icons';
-// 2. Impor ikon LuWheat dari react-icons/lu
 import { LuWheat } from 'react-icons/lu';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // Impor useAuthStore
 import {
   getProductions, createProduction, patchProduction, deleteProduction,
-} from '@/lib/api/production'; //
-import { getAssets } from '@/lib/api/asset'; //
+} from '@/lib/api/production';
+import { getAssets } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// Helper format
+// ... (Helper format Anda tetap sama) ...
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
 const formatNumber = (value) => value != null ? Number(value).toLocaleString('id-ID') : '0';
@@ -36,37 +35,39 @@ function ProductionManagementContent() {
   const [selectedAsset, setSelectedAsset] = useState('semua');
   const [form] = Form.useForm();
 
-  // Fetch Data
+  // --- Ambil data user dari store ---
+  const user = useAuthStore((state) => state.user);
+  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+
+  // --- Fetch Data --- (tetap sama)
   const { data: productions, isLoading: isLoadingProductions, isError: isErrorProductions, error: errorProductions } = useQuery({
     queryKey: ['productions'],
     queryFn: getProductions,
   });
   const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
 
-  // Data Mapping
+  // --- Data Mapping --- (tetap sama)
   const assetMap = useMemo(() => assets ? assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {}) : {}, [assets]);
 
-  // Mutasi
+  // --- Mutasi --- (tetap sama)
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productions'] });
-      // Pertimbangkan invalidate query lain jika produksi mempengaruhi dashboard/laporan
-      // queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      // queryClient.invalidateQueries({ queryKey: ['financialReport'] });
       setIsModalOpen(false); setEditingProduction(null); form.resetFields();
     },
     onError: (err) => { message.error(`Error: ${err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message || 'Gagal'}`); },
   };
   const createMutation = useMutation({ mutationFn: createProduction, ...mutationOptions, onSuccess: (...args) => { message.success('Data produksi berhasil ditambahkan'); mutationOptions.onSuccess(...args); } });
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => patchProduction(id, data), // Gunakan patch
+    mutationFn: ({ id, data }) => patchProduction(id, data),
     ...mutationOptions, onSuccess: (...args) => { message.success('Data produksi berhasil diperbarui'); mutationOptions.onSuccess(...args); }
   });
   const deleteMutation = useMutation({ mutationFn: deleteProduction, onSuccess: () => { message.success('Data produksi berhasil dihapus'); queryClient.invalidateQueries({ queryKey: ['productions'] }); }, onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); } });
 
-  // Handlers
+  // --- Handlers --- (tetap sama)
   const showAddModal = () => { setEditingProduction(null); form.resetFields(); setIsModalOpen(true); };
   const showEditModal = (production) => {
+    // ... (sisa handler tetap sama) ...
     setEditingProduction(production);
     form.setFieldsValue({
       asset: production.asset,
@@ -79,20 +80,20 @@ function ProductionManagementContent() {
   };
   const handleCancel = () => { setIsModalOpen(false); setEditingProduction(null); form.resetFields(); };
   const handleFormSubmit = (values) => {
+    // ... (sisa handler tetap sama) ...
     const productionData = {
       asset: values.asset,
       date: values.date.format('YYYY-MM-DD'),
       quantity: values.quantity,
       unit: values.unit,
       unit_price: values.unit_price,
-      // total_value dihitung backend
     };
     if (editingProduction) { updateMutation.mutate({ id: editingProduction.id, data: productionData }); }
     else { createMutation.mutate(productionData); }
   };
   const handleDelete = (id) => { deleteMutation.mutate(id); };
 
-  // Filter Data
+  // --- Filter Data --- (tetap sama)
   const filteredProductions = useMemo(() => {
     if (!productions) return [];
     let data = productions;
@@ -102,8 +103,9 @@ function ProductionManagementContent() {
     return data;
   }, [productions, selectedAsset]);
 
-  // Kolom Tabel
+  // --- Kolom Tabel (DENGAN MODIFIKASI) ---
   const columns = [
+    // ... (kolom lain tetap sama) ...
     { title: 'Tanggal', dataIndex: 'date', key: 'date', render: formatDate, sorter: (a, b) => moment(a.date).unix() - moment(b.date).unix(), width: 120 },
     {
       title: 'Aset', dataIndex: 'asset', key: 'asset',
@@ -120,10 +122,16 @@ function ProductionManagementContent() {
       title: 'Aksi', key: 'action', width: 120, align: 'center', fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
-          <Popconfirm title="Hapus Data Produksi?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending }}>
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
+          {/* --- MODIFIKASI DI SINI --- */}
+          {isAdmin && (
+            <>
+              <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
+              <Popconfirm title="Hapus Data Produksi?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending }}>
+                <Button size="small" danger icon={<DeleteOutlined />} />
+              </Popconfirm>
+            </>
+          )}
+          {/* Jika bukan admin, kolom aksi akan kosong */}
         </Space>
       ),
     },
@@ -134,11 +142,11 @@ function ProductionManagementContent() {
 
   return (
     <>
+      {/* ... (Header, Filter, Search, Loading, Modal Anda tetap sama) ... */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
-          {/* 3. Gunakan ikon react-icons di header */}
           <Title level={2} style={{ margin: 0, color: '#111928' }}>
-              <LuWheat style={{ marginRight: '8px', verticalAlign: 'middle', fontSize: '24px' }}/> {/* Sesuaikan style jika perlu */}
+              <LuWheat style={{ marginRight: '8px', verticalAlign: 'middle', fontSize: '24px' }}/>
               Manajemen Produksi
           </Title>
           <Text type="secondary" style={{ fontSize: '16px' }}>Catat hasil produksi dari setiap aset.</Text>
@@ -185,6 +193,7 @@ function ProductionManagementContent() {
         open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+          {/* ... (Semua Form.Item Anda tetap sama) ... */}
           <Form.Item name="asset" label="Aset Penghasil" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
             <Select placeholder="Pilih aset" loading={isLoadingAssets} showSearch optionFilterProp="children">
               {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}

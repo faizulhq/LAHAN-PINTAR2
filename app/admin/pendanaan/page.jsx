@@ -328,7 +328,7 @@ function FundingManagementContent() {
           </Form.Item>
           <Form.Item name="status" label="Status" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
             <Select placeholder="Pilih status dana">
-              <Option value="avaliable">Tersedia</Option>
+              <Option value="available">Tersedia</Option>
               <Option value="allocated">Teralokasi</Option>
               <Option value="used">Terpakai</Option>
             </Select>

@@ -63,7 +63,7 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
       <Space direction="vertical" style={{ marginTop: 24, marginBottom: 24, width: '100%' }} size="middle">
         <Space><EnvironmentOutlined style={{ color: '#CF1322' }} /><Text type="secondary">{asset.location}</Text></Space>
         <Space><ArrowsAltOutlined style={{ color: '#D46B08' }} /><Text type="secondary">{asset.size} m²</Text></Space>
-        <Space><CalendarOutlined style={{ color: '#531DAB' }} /><Text type="secondary">{formatDate(asset.acquistion_date)}</Text></Space>
+        <Space><CalendarOutlined style={{ color: '#531DAB' }} /><Text type="secondary">{formatDate(asset.acquisition_date)}</Text></Space>
       </Space>
 
       {/* Actions */}
@@ -185,7 +185,7 @@ const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingO
         <InputNumber style={{ width: '100%' }} placeholder="Masukkan nilai" min={0} />
       </Form.Item>
 
-      <Form.Item label="Tanggal Akuisisi" name="acquistion_date" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
+      <Form.Item label="Tanggal Akuisisi" name="acquisition_date" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
         <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
       </Form.Item>
 
@@ -274,7 +274,7 @@ const AssetDetailModal = ({ open, asset, ownerMap, onCancel }) => (
         <Descriptions.Item label="Lokasi">{asset.location}</Descriptions.Item>
         <Descriptions.Item label="Ukuran">{asset.size} m²</Descriptions.Item>
         <Descriptions.Item label="Nilai">{formatRupiah(asset.value)}</Descriptions.Item>
-        <Descriptions.Item label="Tanggal Akuisisi">{formatDate(asset.acquistion_date)}</Descriptions.Item>
+        <Descriptions.Item label="Tanggal Akuisisi">{formatDate(asset.acquisition_date)}</Descriptions.Item>
         <Descriptions.Item label="Status Kepemilikan">
           {OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}
         </Descriptions.Item>
@@ -375,7 +375,7 @@ function AssetManagementContent() {
       location: asset.location,
       size: asset.size,
       value: asset.value,
-      acquistion_date: asset.acquistion_date ? moment(asset.acquistion_date) : null,
+      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
       ownership_status: asset.ownership_status,
       landowner: asset.landowner,
       landowner_share_percentage: asset.landowner_share_percentage || 10,
@@ -394,7 +394,7 @@ function AssetManagementContent() {
   const handleFormSubmit = async (values) => {
     const formData = {
       ...values,
-      acquistion_date: values.acquistion_date ? values.acquistion_date.format('YYYY-MM-DD') : null,
+      acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
       document_url: fileList.length > 0 ? fileList[0].name : null,
     };
 

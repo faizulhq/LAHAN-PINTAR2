@@ -2,7 +2,8 @@
 'use client';
 import React, { useState } from 'react';
 import { Form, Input, Button, Card, Typography, Flex, Alert, Spin } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { GiSprout } from 'react-icons/gi';
 import { useRegister } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -47,7 +48,7 @@ export default function RegisterPage() {
     <Flex align="center" justify="center" style={{ minHeight: '100vh', background: '#F9FAFB' }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}>
         <Flex vertical align="center" gap="middle" style={{ marginBottom: 24 }}>
-          <AppstoreOutlined style={{ fontSize: 48, color: '#237804' }} />
+          <GiSprout style={{ fontSize: '44px', color: '#237804' }} />
           <Title level={3} style={{ margin: 0 }}>Buat Akun Baru</Title>
         </Flex>
 

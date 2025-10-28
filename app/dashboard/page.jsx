@@ -30,8 +30,8 @@ import {
   FallOutlined, // Untuk Rugi
   MinusOutlined, // Untuk Impas
   WalletOutlined, // Untuk Sisa Dana
-  AppstoreOutlined, // Logo
 } from '@ant-design/icons';
+import { GiSprout } from 'react-icons/gi';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import { useLogout } from '@/lib/hooks/useAuth';
@@ -142,7 +142,7 @@ function DashboardContent() {
         }}
       >
         <Flex align="center" gap="middle">
-          <AppstoreOutlined style={{ fontSize: 32, color: '#237804' }} />
+          <GiSprout style={{ fontSize: '32px', color: '#237804' }} />
           <Title level={4} style={{ margin: 0, color: '#111928', whiteSpace: 'nowrap' }}>
             Lahan Pintar
           </Title>

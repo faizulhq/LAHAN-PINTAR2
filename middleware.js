@@ -1,6 +1,13 @@
+// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-9ebe2a759744e60857214f21d26b1c7ae9d0c9aa/middleware.js
 import { NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/register', '/', '/test-dashboard'];
+// Definisikan halaman yang boleh diakses Oprator di dalam /admin
+const OPRATOR_ADMIN_PATHS = [
+  '/admin', // Halaman dashboard admin
+  '/admin/pengeluaran',
+  '/admin/produksi',
+];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -19,12 +26,9 @@ export async function middleware(request) {
   const loginUrl = new URL('/login', request.url);
 
   // 3. Periksa apakah SALAH SATU cookie hilang
-  // Pengguna BISA memalsukan 'userCookie', tapi TIDAK BISA memalsukan 'accessToken' (HttpOnly).
-  // Dengan memeriksa 'accessToken', kita memastikan sesi ini sah dari backend.
   if (!accessToken || !userCookie) {
     console.log("Middleware: Salah satu cookie hilang, redirect ke login.");
     
-    // Hapus cookie 'user' yang mungkin palsu/usang jika ada
     const response = NextResponse.redirect(loginUrl);
     response.cookies.delete('user');
     
@@ -36,16 +40,33 @@ export async function middleware(request) {
   // 4. Jika kedua cookie ada, lanjutkan pengecekan role
   try {
     const currentUser = JSON.parse(userCookie);
+    const userRole = currentUser?.role;
 
-    // Role-based access control (logika ini sudah benar)
+    // Role-based access control (LOGIKA BARU)
     if (pathname.startsWith('/admin')) {
-      if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Superadmin') {
-        // Jika role tidak sesuai, redirect ke dashboard
-        return NextResponse.redirect(new URL('/dashboard', request.url));
+      
+      // Admin & Superadmin boleh akses semua /admin
+      if (userRole === 'Admin' || userRole === 'Superadmin') {
+        return NextResponse.next();
       }
+
+      // Oprator hanya boleh akses halaman tertentu
+      if (userRole === 'Oprator') {
+        // Cek apakah halaman saat ini ada di daftar OPRATOR_ADMIN_PATHS
+        const isAllowed = OPRATOR_ADMIN_PATHS.some(allowedPath => pathname.startsWith(allowedPath));
+        if (isAllowed) {
+          return NextResponse.next();
+        } else {
+          // Jika Oprator mencoba akses /admin/asset, redirect ke dashboard /admin
+          return NextResponse.redirect(new URL('/admin', request.url));
+        }
+      }
+
+      // Role lain (Investor, Viewer) tidak boleh akses /admin sama sekali
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
 
-    // Jika lolos semua, izinkan request
+    // Jika lolos semua (misal, ke /dashboard), izinkan request
     return NextResponse.next();
 
   } catch (err) {

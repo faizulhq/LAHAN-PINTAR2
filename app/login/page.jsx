@@ -3,6 +3,7 @@
 import React from 'react';
 import { Form, Input, Button, Card, Typography, Flex, Alert, Spin } from 'antd';
 import { UserOutlined, LockOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { GiSprout } from 'react-icons/gi';
 import { useLogin } from '@/lib/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link'; // Gunakan Link Next.js untuk navigasi
@@ -23,8 +24,8 @@ export default function LoginPage() {
     <Flex align="center" justify="center" style={{ minHeight: '100vh', background: '#F9FAFB' }}>
       <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)' }}>
         <Flex vertical align="center" gap="middle" style={{ marginBottom: 24 }}>
-          <AppstoreOutlined style={{ fontSize: 48, color: '#237804' }} />
-          <Title level={3} style={{ margin: 0 }}>Login Lahan Pintar</Title>
+          <GiSprout style={{ fontSize: '44px', color: '#237804' }} />
+          <Title level={2} style={{ margin: 0 }}>Lahan Pintar</Title>
         </Flex>
 
         {loginMutation.isError && (
