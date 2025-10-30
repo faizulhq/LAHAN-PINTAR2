@@ -1,4 +1,3 @@
-// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-9ebe2a759744e60857214f21d26b1c7ae9d0c9aa/middleware.js
 import { NextResponse } from 'next/server';
 
 const PUBLIC_PATHS = ['/login', '/register', '/', '/test-dashboard'];
@@ -17,8 +16,6 @@ export async function middleware(request) {
     return NextResponse.next();
   }
 
-  // --- PERBAIKAN KEAMANAN DIMULAI DI SINI ---
-
   // 2. Ambil KEDUA cookie
   const accessToken = request.cookies.get('access_token')?.value || null;
   const userCookie = request.cookies.get('user')?.value || null;
@@ -34,8 +31,6 @@ export async function middleware(request) {
     
     return response;
   }
-  
-  // --- SELESAI PERBAIKAN KEAMANAN ---
 
   // 4. Jika kedua cookie ada, lanjutkan pengecekan role
   try {

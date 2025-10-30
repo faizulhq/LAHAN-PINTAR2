@@ -1,63 +1,288 @@
 'use client';
 
-'use client';
+// --- IMPORTS ---
+import React, { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
+// 'moment' dihapus untuk menghindari error, diganti dengan Date()
+// import moment from 'moment';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
+// Icons
+import {
+  TrendingUp,
+  TrendingDown,
   DollarSign,
-  BarChart3,
-  PieChart,
-  Receipt,
+  PieChart as PieChartIcon,
   ArrowUpRight,
   ArrowDownRight,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  Wallet, // Pengganti GiMoneyStack
+  ArrowDownCircle, // Pengganti GiPayMoney
+  ArrowUpCircle, // Pengganti GiReceiveMoney
+  ArrowLeftRight, // Pengganti FaMoneyBillTransfer
+  Newspaper, // Pengganti FaMoneyBills
 } from 'lucide-react';
+// react-icons dihapus untuk menghindari error
+// import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
+// import { FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
+
+// UI Libraries
+import { Card } from 'antd';
+// Impor Recharts
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+
+// Internal Components & API (Dikembalikan ke impor asli Anda)
+import ProtectedRoute from '@/components/ProtectedRoute';
 import * as reportingAPI from '@/lib/api/reporting';
-import { FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
-import { FaMoneyBill } from 'react-icons/fa';
+import { getAssets } from '@/lib/api/asset';
+import { getProjects } from '@/lib/api/project';
 
-const formatRupiah = (value) => 
-  value != null ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : 'Rp 0';
+// --- HELPERS ---
 
-const { data: reportData } = useQuery({
-  queryKey: ['financialReport', selectedAsset, selectedProject, selectedPeriod],
-  queryFn: () => getFinancialReport({ 
-    asset: selectedAsset, 
-    project: selectedProject, 
-    period: selectedPeriod 
-  })
-});
+/**
+ * Memformat angka menjadi string mata uang Rupiah.
+ */
+const formatRupiah = (value) =>
+  value != null
+    ? `Rp ${Number(value).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}`
+    : '-';
 
-// Card Component
-const Card = ({ children, title, className = '' }) => (
-  <div className={`bg-white border border-gray-200 rounded-xl shadow-sm ${className}`}>
-    {title && (
-      <div className="px-6 py-4 border-b border-gray-100">
-        <h3 className="font-semibold text-xl text-gray-900">{title}</h3>
+/**
+ * Custom Tooltip untuk Recharts (format Rupiah)
+ */
+const CustomTooltip = ({ active, payload, label }) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white border border-gray-300 shadow-lg rounded-md p-3 text-sm">
+        <p className="font-bold text-gray-900 mb-1">{label}</p>
+        {payload.map((entry, index) => (
+          <p key={`item-${index}`} style={{ color: entry.color }}>
+            {entry.name}: {formatRupiah(entry.value)}
+          </p>
+        ))}
       </div>
-    )}
-    <div className="p-6">{children}</div>
-  </div>
-);
+    );
+  }
+  return null;
+};
 
-// Statistic Component
-const Statistic = ({ title, value, icon: Icon, iconColor, valueStyle = {}, suffix }) => (
-  <div className="flex items-start gap-6">
+/**
+ * Custom Tooltip untuk Pie Chart
+ */
+const CustomPieTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0];
+    return (
+      <div className="bg-white border border-gray-300 shadow-lg rounded-md p-3 text-sm">
+        <p className="font-bold" style={{ color: data.color }}>
+          {data.name}: {formatRupiah(data.value)} ({data.payload.percent}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
+// --- UI COMPONENTS ---
+
+/**
+ * Kartu untuk menampilkan rincian dana proyek dengan progress bar.
+ */
+// --- INI KOMPONEN YANG DIPERBARUI DENGAN RECHARTS ---
+
+const RincianDanaProyek = ({ data, isLoading }) => {
+  if (isLoading) {
+    return (
+      <div className="bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
+        <h2 className="text-[22px] font-bold text-gray-900 mb-4">
+          Rincian Dana Berdasarkan Proyek
+        </h2>
+        <p className="text-gray-500 text-center py-8">Tidak ada data proyek</p>
+      </div>
+    );
+  }
+
+  const projectData = data[0];
+  const {
+    project_name,
+    anggaran,
+    total_dana_masuk,
+    total_pengeluaran,
+    sisa_dana,
+  } = projectData;
+
+  // Data untuk chart pendanaan
+  const fundingData = [
+    {
+      name: 'Pendanaan',
+      'Dana Masuk': total_dana_masuk,
+      'Sisa Anggaran': Math.max(0, anggaran - total_dana_masuk),
+    },
+  ];
+
+  // Data untuk chart pengeluaran
+  const expenseData = [
+    {
+      name: 'Pengeluaran',
+      Pengeluaran: total_pengeluaran,
+      'Sisa Dana': sisa_dana,
+    },
+  ];
+
+  const fundingPercent =
+    anggaran > 0 ? ((total_dana_masuk / anggaran) * 100).toFixed(0) : 0;
+  const expensePercent =
+    total_dana_masuk > 0
+      ? ((total_pengeluaran / total_dana_masuk) * 100).toFixed(0)
+      : 0;
+  // Perhitungan sisa dana persen yang benar
+  const sisaDanaPercent =
+    total_dana_masuk > 0
+      ? ((sisa_dana / total_dana_masuk) * 100).toFixed(0)
+      : 0;
+
+  return (
+    <div className="bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
+      <h2 className="text-[22px] font-bold text-gray-900 mb-4">
+        Rincian Dana Berdasarkan Proyek
+      </h2>
+
+      <div className="flex flex-col gap-1 mb-5">
+        <h3 className="text-[16px] font-medium text-gray-900">
+          {project_name}
+        </h3>
+        <p className="text-[16px] text-gray-600">
+          Anggaran: {formatRupiah(anggaran)}
+        </p>
+        <p className="text-[16px] text-gray-600">
+          Total Dana Masuk: {formatRupiah(total_dana_masuk)}
+        </p>
+      </div>
+
+      {/* Chart Pendanaan */}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-1 text-sm font-semibold">
+          <span className="text-green-700">Dana Masuk: {fundingPercent}%</span>
+          <span className="text-gray-500">
+            Sisa Anggaran: {100 - fundingPercent}%
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={40}>
+          <BarChart layout="vertical" data={fundingData} stackOffset="expand">
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="name" hide />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="Dana Masuk" stackId="a" fill="#22c55e" radius={[4, 0, 0, 4]} />
+            <Bar
+              dataKey="Sisa Anggaran"
+              stackId="a"
+              fill="#e5e7eb"
+              radius={[0, 4, 4, 0]}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="flex justify-between text-sm mt-1">
+          <p className="text-gray-700">
+            Total Dana Masuk:{' '}
+            <span className="font-semibold text-green-700">
+              {formatRupiah(total_dana_masuk)}
+            </span>
+          </p>
+          <p className="text-gray-700">
+            Anggaran:{' '}
+            <span className="font-semibold text-gray-900">
+              {formatRupiah(anggaran)}
+            </span>
+          </p>
+        </div>
+      </div>
+
+      {/* Chart Pengeluaran */}
+      <div className="mb-2">
+        <div className="flex justify-between items-center mb-1 text-sm font-semibold">
+          <span className="text-blue-700">Pengeluaran: {expensePercent}%</span>
+          <span className="text-purple-700">
+            Sisa Dana: {sisaDanaPercent}%
+          </span>
+        </div>
+        <ResponsiveContainer width="100%" height={40}>
+          <BarChart layout="vertical" data={expenseData} stackOffset="expand">
+            <XAxis type="number" hide />
+            <YAxis type="category" dataKey="name" hide />
+            <Tooltip content={<CustomTooltip />} />
+            <Bar dataKey="Pengeluaran" stackId="b" fill="#3b82f6" radius={[4, 0, 0, 4]} />
+            <Bar dataKey="Sisa Dana" stackId="b" fill="#c4b5fd" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+        <div className="flex justify-between text-sm mt-1">
+          <p className="text-gray-700">
+            Pengeluaran:{' '}
+            <span className="font-semibold text-blue-700">
+              {formatRupiah(total_pengeluaran)}
+            </span>
+          </p>
+          <p className="text-gray-700">
+            Sisa:{' '}
+            <span className="font-semibold text-purple-700">
+              {formatRupiah(sisa_dana)}
+            </span>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+// --- BATAS KOMPONEN BARU ---
+
+/**
+ * Komponen statistik sederhana dengan ikon.
+ */
+const Statistic = ({
+  title,
+  value,
+  icon: Icon,
+  iconColor,
+  valueStyle = {},
+  suffix,
+}) => (
+  <div className="flex items-start gap-6" style={{ alignItems: 'center' }}>
     {Icon && (
-      <div className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" 
-           style={{ backgroundColor: `${iconColor}15` }}>
-        <Icon size={22} style={{ color: iconColor }} />
+      <div className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center">
+        <Icon size={34} style={{ color: iconColor }} />
       </div>
     )}
     <div className="flex-1">
       <div className="text-gray-600 text-lg font-semibold mb-2">{title}</div>
-      <div className="text-3xl font-bold text-gray-900 flex items-center gap-3" style={valueStyle}>
+      <div
+        className="text-3xl font-bold text-gray-900 flex items-center gap-3"
+        style={valueStyle}
+      >
         {value}
         {suffix}
       </div>
@@ -65,43 +290,66 @@ const Statistic = ({ title, value, icon: Icon, iconColor, valueStyle = {}, suffi
   </div>
 );
 
-// Table Component
-const Table = ({ columns, dataSource, rowKey }) => (
+/**
+ * Komponen tabel kustom sederhana.
+ */
+const Table = ({ columns, dataSource, rowKey, isLoading }) => (
   <div className="overflow-x-auto">
     <table className="w-full border-collapse">
       <thead className="bg-gray-50">
         <tr>
           {columns.map((col, idx) => (
-            <th key={idx} className="px-4 py-3.5 text-left text-sm font-medium text-gray-900 border-b">
+            <th
+              key={idx}
+              className="px-4 py-3.5 text-left text-sm font-medium text-gray-900 border-b"
+            >
               {col.title}
             </th>
           ))}
         </tr>
       </thead>
       <tbody>
-        {dataSource?.map((row, idx) => (
-          <tr key={row[rowKey] || idx} className="border-b hover:bg-gray-50 transition-colors">
-            {columns.map((col, colIdx) => (
-              <td key={colIdx} className="px-4 py-3 text-xs text-gray-700" style={{ textAlign: col.align || 'left' }}>
-                {col.render ? col.render(row[col.dataIndex], row) : row[col.dataIndex]}
-              </td>
-            ))}
+        {isLoading && (
+          <tr>
+            <td colSpan={columns.length} className="text-center p-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+            </td>
           </tr>
-        ))}
+        )}
+        {!isLoading && (!dataSource || dataSource.length === 0) && (
+          <tr>
+            <td colSpan={columns.length} className="text-center p-8 text-gray-500">
+              Tidak ada data
+            </td>
+          </tr>
+        )}
+        {!isLoading &&
+          dataSource?.map((row, idx) => (
+            <tr
+              key={row[rowKey] || idx}
+              className="border-b hover:bg-gray-50 transition-colors"
+            >
+              {columns.map((col, colIdx) => (
+                <td
+                  key={colIdx}
+                  className="px-4 py-3 text-xs text-gray-700"
+                  style={{ textAlign: col.align || 'left' }}
+                >
+                  {col.render
+                    ? col.render(row[col.dataIndex], row)
+                    : row[col.dataIndex]}
+                </td>
+              ))}
+            </tr>
+          ))}
       </tbody>
     </table>
   </div>
 );
 
-// Progress Bar Component
-const ProgressBar = ({ percent, color = '#7CB305' }) => (
-  <div className="w-full bg-gray-200 rounded-full h-1.5">
-    <div className="h-1.5 rounded-full transition-all" 
-         style={{ width: `${Math.min(percent, 100)}%`, backgroundColor: color }}></div>
-  </div>
-);
-
-// Tag Component
+/**
+ * Komponen Tag (label) kustom.
+ */
 const Tag = ({ children, color = 'default' }) => {
   const colorMap = {
     success: 'bg-green-50 text-green-700 border-green-200',
@@ -111,147 +359,272 @@ const Tag = ({ children, color = 'default' }) => {
     default: 'bg-gray-100 text-gray-700 border-gray-300',
   };
   return (
-    <span className={`px-3 py-1.5 rounded-md text-xs font-semibold border ${colorMap[color] || colorMap.default}`}>
+    <span
+      className={`px-3 py-1.5 rounded-md text-xs font-semibold border ${
+        colorMap[color] || colorMap.default
+      }`}
+    >
       {children}
     </span>
   );
 };
 
-// Simple Bar Chart
-const SimpleBarChart = ({ data, dataKey, xKey, height = 280, colors = ['#2B72FB', '#64BDC6', '#EECA34', '#FE6A35', '#FA4B42', '#EE60E0'] }) => {
-  if (!data || data.length === 0) return (
-    <div className="text-gray-500 text-center py-8">Tidak ada data</div>
-  );
-  
-  const maxValue = Math.max(...data.map(d => d[dataKey]));
-  
+/**
+ * Komponen Bar Chart sederhana (manual).
+ */
+// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
+const SimpleBarChart = ({
+  data,
+  dataKey,
+  xKey,
+  height = 300,
+  colors = [
+    '#2B72FB',
+    '#64BDC6',
+    '#EECA34',
+    '#FE6A35',
+    '#FA4B42',
+    '#EE60E0',
+  ],
+  isLoading,
+}) => {
+  if (isLoading)
+    return (
+      <div className="text-center py-8" style={{ height: `${height}px` }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+      </div>
+    );
+  if (!data || data.length === 0)
+    return (
+      <div
+        className="text-gray-500 text-center py-8"
+        style={{ height: `${height}px` }}
+      >
+        Tidak ada data
+      </div>
+    );
+
   return (
     <div className="w-full" style={{ height }}>
-      <div className="flex items-end justify-around h-full gap-3 pb-10">
-        {data.map((item, idx) => {
-          const barHeight = maxValue > 0 ? (item[dataKey] / maxValue) * 70 : 0;
-          const barColor = colors[idx % colors.length];
-          return (
-            <div key={idx} className="flex flex-col items-center flex-1">
-              <div 
-                className="w-full rounded-t transition-all hover:opacity-80" 
-                style={{ 
-                  height: `${barHeight}%`, 
-                  backgroundColor: barColor, 
-                  minHeight: '30px',
-                  maxWidth: '60px'
-                }}
-              ></div>
-              <div className="text-xs text-gray-700 mt-3 text-center font-medium">
-                {item[xKey]}
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 5, right: 0, left: 0, bottom: 50 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey={xKey}
+            angle={-45}
+            textAnchor="end"
+            interval={0}
+            tick={{ fontSize: 10 }}
+          />
+          <YAxis tickFormatter={formatRupiah} tick={{ fontSize: 10 }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Bar dataKey={dataKey} name="Jumlah">
+            {data.map((entry, index) => (
+              <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
+            ))}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };
 
-// Grouped Bar Chart
-const GroupedBarChart = ({ data, height = 280 }) => {
-  if (!data || data.length === 0) return (
-    <div className="text-gray-500 text-center py-8">Tidak ada data</div>
-  );
-  
-  const maxValue = Math.max(...data.flatMap(d => [d.income || 0, d.expense || 0]));
-  
+/**
+ * Komponen Grouped Bar Chart (manual).
+ */
+// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
+const GroupedBarChart = ({ data, height = 300, isLoading }) => {
+  if (isLoading)
+    return (
+      <div className="text-center py-8" style={{ height: `${height}px` }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+      </div>
+    );
+  if (!data || data.length === 0)
+    return (
+      <div
+        className="text-gray-500 text-center py-8"
+        style={{ height: `${height}px` }}
+      >
+        Tidak ada data
+      </div>
+    );
+
   return (
     <div className="w-full" style={{ height }}>
-      <div className="flex justify-end gap-4 mb-4 text-xs">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span className="font-medium">Pendapatan</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-red-500 rounded"></div>
-          <span className="font-medium">Pengeluaran</span>
-        </div>
-      </div>
-      <div className="flex items-end justify-around h-full gap-4 pb-10">
-        {data.map((item, idx) => {
-          const incomeHeight = maxValue > 0 ? ((item.income || 0) / maxValue) * 70 : 0;
-          const expenseHeight = maxValue > 0 ? ((item.expense || 0) / maxValue) * 70 : 0;
-          return (
-            <div key={idx} className="flex flex-col items-center flex-1 max-w-[60px]">
-              <div className="flex gap-1.5 w-full items-end justify-center">
-                <div className="w-6 bg-blue-500 rounded-t" 
-                     style={{ height: `${incomeHeight}%`, minHeight: '10px' }}>
-                </div>
-                <div className="w-6 bg-red-500 rounded-t" 
-                     style={{ height: `${expenseHeight}%`, minHeight: '10px' }}>
-                </div>
-              </div>
-              <div className="text-xs text-gray-700 mt-3 font-medium">{item.month}</div>
-            </div>
-          );
-        })}
-      </div>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+          <YAxis tickFormatter={formatRupiah} tick={{ fontSize: 10 }} />
+          <Tooltip content={<CustomTooltip />} />
+          <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+          <Bar
+            dataKey="income"
+            name="Pendapatan"
+            fill="#22c55e"
+            radius={[4, 4, 0, 0]}
+          />
+          <Bar
+            dataKey="expense"
+            name="Pengeluaran"
+            fill="#ef4444"
+            radius={[4, 4, 0, 0]}
+          />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 };
 
-// Donut Chart
-const DonutChart = ({ data, colors = ['#3B82F6', '#A855F7'] }) => {
-  if (!data || data.length === 0) return (
-    <div className="text-gray-500 text-center py-8">Tidak ada data</div>
-  );
-  
-  const total = data.reduce((sum, item) => sum + item.value, 0);
-  let currentAngle = 0;
-  
-  const slices = data.map((item, idx) => {
-    const percentage = total > 0 ? (item.value / total) * 100 : 0;
-    const angle = total > 0 ? (item.value / total) * 360 : 0;
-    const startAngle = currentAngle;
-    currentAngle += angle;
-    return { 
-      ...item, 
-      percentage: percentage.toFixed(1), 
-      startAngle, 
-      angle, 
-      color: colors[idx % colors.length] 
-    };
-  });
-  
+/**
+ * Komponen Donut Chart kustom (manual SVG).
+ */
+// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
+const DonutChart = ({
+  data,
+  colors = ['#1C64F2', '#9061F9'],
+  isLoading,
+}) => {
+  if (isLoading)
+    return (
+      <div className="text-center py-8" style={{ height: '300px' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+      </div>
+    );
+  if (!data || data.length === 0)
+    return (
+      <div
+        className="text-gray-500 text-center py-8"
+        style={{ height: '300px' }}
+      >
+        Tidak ada data
+      </div>
+    );
+
+  const total = data.reduce((sum, item) => sum + (item.value || 0), 0);
+  if (total === 0)
+    return (
+      <div
+        className="text-gray-500 text-center py-8"
+        style={{ height: '300px' }}
+      >
+        Tidak ada data
+      </div>
+    );
+
+  const chartData = data.map((item) => ({
+    ...item,
+    percent: total > 0 ? ((item.value / total) * 100).toFixed(0) : 0,
+  }));
+
+  const RADIAN = Math.PI / 180;
+  const renderCustomizedLabel = ({
+    cx,
+    cy,
+    midAngle,
+    innerRadius,
+    outerRadius,
+    percent,
+    index,
+  }) => {
+     // Hanya tampilkan label jika persentase cukup besar
+    if (percent < 10) return null;
+    
+    const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text
+        x={x}
+        y={y}
+        fill="white"
+        textAnchor={x > cx ? 'start' : 'end'}
+        dominantBaseline="central"
+        className="font-semibold text-sm"
+      >
+        {`${percent}%`}
+      </text>
+    );
+  };
+
   return (
-    <div className="flex flex-col items-center">
-      <svg width="245" height="245" viewBox="0 0 200 200" className="mb-4">
-        <circle cx="100" cy="100" r="70" fill="none" stroke="#f0f0f0" strokeWidth="30"/>
-        {slices.map((slice, idx) => {
-          if (slice.angle === 0) return null;
-          const startAngle = slice.startAngle - 90;
-          const endAngle = startAngle + slice.angle;
-          const x1 = 100 + 70 * Math.cos((startAngle * Math.PI) / 180);
-          const y1 = 100 + 70 * Math.sin((startAngle * Math.PI) / 180);
-          const x2 = 100 + 70 * Math.cos((endAngle * Math.PI) / 180);
-          const y2 = 100 + 70 * Math.sin((endAngle * Math.PI) / 180);
-          const largeArc = slice.angle > 180 ? 1 : 0;
-          return (
-            <path 
-              key={idx} 
-              d={`M 100 100 L ${x1} ${y1} A 70 70 0 ${largeArc} 1 ${x2} ${y2} Z`} 
-              fill={slice.color} 
-              opacity="0.9" 
-            />
-          );
-        })}
-        <circle cx="100" cy="100" r="45" fill="white"/>
-        <text x="100" y="105" textAnchor="middle" className="text-2xl font-bold fill-gray-900">
-          100%
-        </text>
-      </svg>
-      <div className="flex gap-4">
-        {slices.map((slice, idx) => (
-          <div key={idx} className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: slice.color }}></div>
-            <span className="text-xs text-gray-700 font-medium">
-              {slice.name}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '24px',
+        width: '100%',
+        height: '300px',
+      }}
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <PieChart>
+          <Pie
+            data={chartData}
+            cx="50%"
+            cy="50%"
+            labelLine={false}
+            label={renderCustomizedLabel}
+            outerRadius={100}
+            innerRadius={60}
+            fill="#8884d8"
+            dataKey="value"
+            paddingAngle={5}
+          >
+            {chartData.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={colors[index % colors.length]}
+                stroke={colors[index % colors.length]}
+              />
+            ))}
+          </Pie>
+          <Tooltip content={<CustomPieTooltip />} />
+        </PieChart>
+      </ResponsiveContainer>
+
+      {/* Legend */}
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '16px',
+          width: '100%',
+          marginTop: '-40px', // Tarik legend ke atas
+        }}
+      >
+        {chartData.map((item, idx) => (
+          <div
+            key={`legend-${idx}`}
+            style={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: '4px',
+            }}
+          >
+            <div
+              style={{
+                width: '8px',
+                height: '8px',
+                background: colors[idx % colors.length],
+                borderRadius: '50%',
+              }}
+            ></div>
+            <span
+              style={{
+                fontWeight: 500,
+                fontSize: '12px',
+                lineHeight: '12px',
+                color: '#6B7280',
+              }}
+            >
+              {item.name}
             </span>
           </div>
         ))}
@@ -259,9 +632,15 @@ const DonutChart = ({ data, colors = ['#3B82F6', '#A855F7'] }) => {
     </div>
   );
 };
+// --- BATAS KOMPONEN BARU ---
 
-// Pagination Component
+
+/**
+ * Komponen Paginasi sederhana.
+ */
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
+  if (totalPages <= 1) return null;
+
   const pages = [];
   for (let i = 1; i <= totalPages; i++) {
     pages.push(i);
@@ -269,30 +648,30 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 
   return (
     <div className="flex items-center justify-center gap-2 mt-6">
-      <button 
+      <button
         onClick={() => onPageChange(currentPage - 1)}
         disabled={currentPage === 1}
-        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="p-2 rounded-md border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
       >
         <ChevronLeft size={16} />
       </button>
-      {pages.map(page => (
-        <button 
+      {pages.map((page) => (
+        <button
           key={page}
           onClick={() => onPageChange(page)}
-          className={`w-8 h-8 flex items-center justify-center border rounded ${
-            currentPage === page 
-              ? 'border-blue-500 bg-blue-500 text-white' 
-              : 'border-gray-300 hover:bg-gray-50'
+          className={`px-3 py-1 rounded-md ${
+            currentPage === page
+              ? 'bg-blue-600 text-white'
+              : 'border border-gray-300 hover:bg-gray-50'
           }`}
         >
           {page}
         </button>
       ))}
-      <button 
+      <button
         onClick={() => onPageChange(currentPage + 1)}
         disabled={currentPage === totalPages}
-        className="w-8 h-8 flex items-center justify-center border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="p-2 rounded-md border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
       >
         <ChevronRight size={16} />
       </button>
@@ -300,254 +679,257 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
+// --- MAIN CONTENT COMPONENT ---
+
 function ReportingContent() {
-  const [loading, setLoading] = useState(true);
-  const [reportData, setReportData] = useState(null);
-  const [categoryData, setCategoryData] = useState([]);
-  const [topExpenses, setTopExpenses] = useState([]);
-  const [incomeExpense, setIncomeExpense] = useState([]);
-  const [quarterlyData, setQuarterlyData] = useState([]);
-  const [yieldData, setYieldData] = useState(null);
-  const [investorYield, setInvestorYield] = useState([]);
-  const [fundingProgress, setFundingProgress] = useState(null);
-  
-  // Raw data for filtering
-  const [rawExpenses, setRawExpenses] = useState([]);
-  const [rawProductions, setRawProductions] = useState([]);
-  
-  // Filter states
+  // --- STATE UNTUK FILTER ---
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
-  
-  // Options for filters
-  const [assetOptions, setAssetOptions] = useState([]);
-  const [projectOptions, setProjectOptions] = useState([]);
-  const [periodOptions, setPeriodOptions] = useState([]);
-  
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // Fetch initial data
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [report, category, top, income, quarterly, yield_, investor, funding] = await Promise.all([
-          reportingAPI.getFinancialReport(),
-          reportingAPI.getExpenseByCategory(),
-          reportingAPI.getTopExpenses(),
-          reportingAPI.getIncomeVsExpense(),
-          reportingAPI.getQuarterlyReport(),
-          reportingAPI.getYieldReport(),
-          reportingAPI.getInvestorYield(),
-          reportingAPI.getFundingProgress(),
-        ]);
-        
-        setReportData(report);
-        setCategoryData(category);
-        setTopExpenses(top);
-        setRawExpenses(top); // Store raw data
-        setIncomeExpense(income);
-        setQuarterlyData(quarterly);
-        setYieldData(yield_);
-        setInvestorYield(investor);
-        setFundingProgress(funding);
-        
-        // Extract unique assets from expenses
-        const assets = [...new Set(top.map(exp => exp.asset).filter(Boolean))];
-        setAssetOptions(['all', ...assets]);
-        
-        // Extract unique projects (if available in data)
-        const projects = [...new Set(top.map(exp => exp.funding).filter(Boolean))];
-        setProjectOptions(['all', ...projects]);
-        
-        // Generate period options (quarters)
-        const periods = ['all', 'Q1 2025', 'Q2 2025', 'Q3 2025', 'Q4 2025'];
-        setPeriodOptions(periods);
-        
-      } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
-  // Apply filters when filter values change
-  useEffect(() => {
-    if (!rawExpenses.length) return;
-    
-    let filtered = [...rawExpenses];
-    
-    // Filter by asset
-    if (selectedAsset !== 'all') {
-      filtered = filtered.filter(exp => exp.asset === selectedAsset);
-    }
-    
-    // Filter by project
-    if (selectedProject !== 'all') {
-      filtered = filtered.filter(exp => exp.funding === selectedProject);
-    }
-    
-    // Filter by period (based on date)
-    if (selectedPeriod !== 'all') {
-      const periodMap = {
-        'Q1 2025': { start: '2025-01-01', end: '2025-03-31' },
-        'Q2 2025': { start: '2025-04-01', end: '2025-06-30' },
-        'Q3 2025': { start: '2025-07-01', end: '2025-09-30' },
-        'Q4 2025': { start: '2025-10-01', end: '2025-12-31' },
-      };
-      
-      const period = periodMap[selectedPeriod];
-      if (period) {
-        filtered = filtered.filter(exp => {
-          const expDate = new Date(exp.date);
-          const startDate = new Date(period.start);
-          const endDate = new Date(period.end);
-          return expDate >= startDate && expDate <= endDate;
-        });
-      }
-    }
-    
-    // Update filtered data
-    setTopExpenses(filtered);
-    
-    // Recalculate category data from filtered expenses
-    const categoryMap = {};
-    filtered.forEach(exp => {
-      const cat = exp.category || 'Lainnya';
-      categoryMap[cat] = (categoryMap[cat] || 0) + parseFloat(exp.amount || 0);
-    });
-    
-    const newCategoryData = Object.entries(categoryMap).map(([category, amount]) => ({
-      category,
-      amount
-    })).sort((a, b) => b.amount - a.amount);
-    
-    setCategoryData(newCategoryData);
-    
-    // Recalculate summary
-    const totalExpense = filtered.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
-    if (reportData) {
-      setReportData({
-        ...reportData,
-        ringkasan_dana: {
-          ...reportData.ringkasan_dana,
-          total_pengeluaran: totalExpense,
-          sisa_dana: reportData.ringkasan_dana.total_dana_masuk - totalExpense
-        }
-      });
-    }
-    
-    // Reset pagination
-    setCurrentPage(1);
-    
-  }, [selectedAsset, selectedProject, selectedPeriod, rawExpenses]);
-
-  if (loading) return (
-    <div className="flex items-center justify-center h-screen">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
-    </div>
+  // --- BUAT OBJEK PARAMETER FILTER ---
+  const filterParams = useMemo(
+    () => ({
+      asset: selectedAsset === 'all' ? undefined : selectedAsset,
+      project: selectedProject === 'all' ? undefined : selectedProject,
+      period: selectedPeriod === 'all' ? undefined : selectedPeriod,
+    }),
+    [selectedAsset, selectedProject, selectedPeriod]
   );
 
-  const ringkasanDana = reportData?.ringkasan_dana;
-  const labaRugi = reportData?.laba_rugi;
+  // --- FETCH DATA DROPDOWN FILTER ---
+  const { data: assetOptionsData, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assetsForFilter'],
+    queryFn: getAssets,
+  });
+  const { data: projectOptionsData, isLoading: isLoadingProjects } = useQuery({
+    queryKey: ['projectsForFilter'],
+    queryFn: getProjects,
+  });
+
+  // Periode statis
+  const periodOptions = [
+    { value: 'all', label: 'Semua Periode' },
+    { value: '2025', label: 'Tahun 2025' },
+    { value: '2025-Q4', label: 'Kuartal 4 2025' },
+    { value: '2025-Q3', label: 'Kuartal 3 2025' },
+    { value: '2025-12', label: 'Desember 2025' },
+    { value: '2025-11', label: 'November 2025' },
+    { value: '2025-10', label: 'Oktober 2025' },
+  ];
+
+  // --- FETCH DATA LAPORAN ---
+  const {
+    data: reportData,
+    isLoading: isLoadingReport,
+    isError: isErrorReport,
+  } = useQuery({
+    queryKey: ['financialReport', filterParams],
+    queryFn: () => reportingAPI.getFinancialReport(filterParams),
+  });
+  const { data: rincianProyek, isLoading: isLoadingRincianProyek } = useQuery({
+    queryKey: ['rincianDanaProyek', filterParams],
+    queryFn: () => reportingAPI.getRincianDanaPerProyek(filterParams),
+  });
+  const { data: categoryData, isLoading: isLoadingCategory } = useQuery({
+    queryKey: ['expenseByCategory', filterParams],
+    queryFn: () => reportingAPI.getExpenseByCategory(filterParams),
+  });
+  const { data: topExpenses, isLoading: isLoadingTopExpenses } = useQuery({
+    queryKey: ['topExpenses', filterParams],
+    queryFn: () => reportingAPI.getTopExpenses(filterParams),
+  });
+  const { data: incomeExpense, isLoading: isLoadingIncomeExpense } = useQuery({
+    queryKey: ['incomeVsExpense', filterParams],
+    queryFn: () => reportingAPI.getIncomeVsExpense(filterParams),
+  });
+  const { data: quarterlyData, isLoading: isLoadingQuarterly } = useQuery({
+    queryKey: ['quarterlyReport', filterParams],
+    queryFn: () => reportingAPI.getQuarterlyReport(filterParams),
+  });
+  const { data: yieldData, isLoading: isLoadingYield } = useQuery({
+    queryKey: ['yieldReport', filterParams],
+    queryFn: () => reportingAPI.getYieldReport(filterParams),
+  });
+  const { data: investorYield, isLoading: isLoadingInvestorYield } = useQuery({
+    queryKey: ['investorYield', filterParams],
+    queryFn: () => reportingAPI.getInvestorYield(filterParams),
+  });
+  // Data ini sepertinya tidak terpakai di implementasi yg sudah diperbaiki,
+  // namun tetap di-fetch jika diperlukan di masa depan.
+  const { data: fundingProgress, isLoading: isLoadingFunding } = useQuery({
+    queryKey: ['fundingProgress', filterParams],
+    queryFn: () => reportingAPI.getFundingProgress(filterParams),
+  });
+
+  const isLoading = isLoadingReport || isLoadingAssets || isLoadingProjects;
+
+  // --- Variabel Data Olahan ---
+  const ringkasanDana = reportData?.ringkasan_dana || {};
+  const labaRugi = reportData?.laba_rugi || {};
+  const totalYield = reportData?.total_yield || 0;
+
   const labaRugiStatus = labaRugi?.Status;
-  const labaRugiColor = labaRugiStatus === 'Laba' ? '#7CB305' : labaRugiStatus === 'Rugi' ? '#CF1322' : '#8c8c8c';
-  const labaRugiTagColor = labaRugiStatus === 'Laba' ? 'success' : labaRugiStatus === 'Rugi' ? 'error' : 'default';
+  const LabaRugiIcon =
+    labaRugiStatus === 'Laba'
+      ? ArrowUpRight
+      : labaRugiStatus === 'Rugi'
+      ? ArrowDownRight
+      : TrendingUp;
+  const labaRugiColor =
+    labaRugiStatus === 'Laba'
+      ? '#7CB305'
+      : labaRugiStatus === 'Rugi'
+      ? '#CF1322'
+      : '#8c8c8c';
+  const labaRugiTagColor =
+    labaRugiStatus === 'Laba'
+      ? 'success'
+      : labaRugiStatus === 'Rugi'
+      ? 'error'
+      : 'default';
 
-  // Pagination logic
-  const totalPages = Math.ceil((investorYield?.length || 0) / itemsPerPage);
-  const paginatedInvestorYield = investorYield.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+  // Data untuk Donut Chart - URUTAN: Total Pengeluaran (Biru), Cash on Hand (Ungu)
+  const donutChartData = [
+    { name: 'Total Pengeluaran', value: ringkasanDana.total_pengeluaran || 0 },
+    { name: 'Cash on Hand', value: ringkasanDana.sisa_dana || 0 },
+  ];
+
+  // Data untuk Simple Bar Chart Kategori
+  const categoryChartData = useMemo(
+    () =>
+      categoryData?.map((item) => ({
+        category: item.category || 'Lainnya',
+        amount: item.total,
+      })) || [],
+    [categoryData]
   );
 
+  // Data untuk Grouped Bar Chart Income vs Expense
+  const incomeExpenseChartData = useMemo(() =>
+    (incomeExpense || []).map((item) => ({
+      name: item.month || item.name,
+      income: item.income,
+      expense: item.expense,
+    })), [incomeExpense]);
+
+  // Mendapatkan nama proyek terpilih untuk judul kartu
+  const getProjectName = () => {
+    if (selectedProject === 'all') return 'Ringkasan Semua Proyek';
+    if (isLoadingProjects || !projectOptionsData) return 'Memuat Nama Proyek...';
+    return (
+      projectOptionsData.find((p) => p.id.toString() === selectedProject)
+        ?.name || 'Proyek Terpilih'
+    );
+  };
+
+  // Pagination logic Investor Yield
+  const totalInvestorPages = Math.ceil(
+    (investorYield?.length || 0) / itemsPerPage
+  );
+  const paginatedInvestorYield =
+    investorYield?.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage
+    ) || [];
+
+  // Definisi Kolom Tabel
   const expenseColumns = [
-    { 
-      title: 'Tanggal', 
-      dataIndex: 'date', 
-      key: 'date', 
-      render: (date) => new Date(date).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    {
+      title: 'Tanggal',
+      dataIndex: 'date',
+      key: 'date',
+      render: (date) => new Date(date).toLocaleDateString('id-ID', { // Perbaikan: Ganti moment
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }),
     },
     { title: 'Kategori', dataIndex: 'category', key: 'category' },
     { title: 'Deskripsi', dataIndex: 'description', key: 'description' },
-    { 
-      title: 'Aset/Proyek', 
-      dataIndex: 'asset', 
-      key: 'asset', 
-      render: (text, record) => (
-        <span className="text-blue-600 font-medium">{text || record.funding || '-'}</span>
-      )
+    {
+      title: 'Aset/Proyek',
+      dataIndex: 'asset',
+      key: 'asset',
+      render: (text, record) => text || record.project || '-',
     },
-    { 
-      title: 'Jumlah', 
-      dataIndex: 'amount', 
-      key: 'amount', 
-      render: (val) => <span className="font-semibold">{formatRupiah(val)}</span>, 
-      align: 'right' 
+    {
+      title: 'Jumlah',
+      dataIndex: 'amount',
+      key: 'amount',
+      render: (val) => formatRupiah(val),
+      align: 'right',
     },
   ];
-
   const quarterlyColumns = [
     { title: 'Kuartal', dataIndex: 'quarter', key: 'quarter' },
-    { 
-      title: 'Pendanaan', 
-      dataIndex: 'funding', 
-      key: 'funding', 
+    {
+      title: 'Pendanaan',
+      dataIndex: 'funding',
+      key: 'funding',
       render: (val) => formatRupiah(val),
-      align: 'right'
+      align: 'right',
     },
-    { 
-      title: 'Pengeluaran', 
-      dataIndex: 'expense', 
-      key: 'expense', 
+    {
+      title: 'Pengeluaran',
+      dataIndex: 'expense',
+      key: 'expense',
       render: (val) => formatRupiah(val),
-      align: 'right'
+      align: 'right',
     },
-    { 
-      title: 'Yield', 
-      dataIndex: 'yield', 
-      key: 'yield', 
+    {
+      title: 'Yield',
+      dataIndex: 'yield',
+      key: 'yield',
       render: (val) => formatRupiah(val),
-      align: 'right'
+      align: 'right',
     },
-    { 
-      title: 'Laba Bersih', 
-      dataIndex: 'net_profit', 
-      key: 'net_profit', 
-      render: (val) => <span className="font-semibold">{formatRupiah(val)}</span>,
-      align: 'right'
+    {
+      title: 'Laba Bersih',
+      dataIndex: 'net_profit',
+      key: 'net_profit',
+      render: (val) => formatRupiah(val),
+      align: 'right',
+      className: 'font-semibold',
     },
   ];
-
   const investorColumns = [
     { title: 'Investor', dataIndex: 'investor', key: 'investor' },
-    { 
-      title: 'Total Pendanaan', 
-      dataIndex: 'total_funding', 
-      key: 'total_funding', 
+    {
+      title: 'Total Pendanaan',
+      dataIndex: 'total_funding',
+      key: 'total_funding',
       render: (val) => formatRupiah(val),
-      align: 'right'
+      align: 'right',
     },
-    { 
-      title: 'Total Yield', 
-      dataIndex: 'total_yield', 
-      key: 'total_yield', 
+    {
+      title: 'Total Yield',
+      dataIndex: 'total_yield',
+      key: 'total_yield',
       render: (val) => formatRupiah(val),
-      align: 'right'
+      align: 'right',
     },
-    { 
-      title: 'Yield (%)', 
-      dataIndex: 'yield_percent', 
-      key: 'yield_percent', 
-      render: (val) => <span className="font-semibold text-blue-600">{val}%</span>,
-      align: 'right'
+    {
+      title: 'Yield (%)',
+      dataIndex: 'yield_percent',
+      key: 'yield_percent',
+      render: (val) => `${val}%`,
+      align: 'right',
+      className: 'font-semibold text-blue-600',
     },
   ];
 
+  // Handler reset filter
+  const resetFilters = () => {
+    setSelectedAsset('all');
+    setSelectedProject('all');
+    setSelectedPeriod('all');
+    setCurrentPage(1);
+  };
+
+  // --- RENDER JSX ---
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -556,341 +938,326 @@ function ReportingContent() {
         <p className="text-gray-600 text-base mt-1.5">
           Analisis komprehensif kinerja keuangan dan operasional
         </p>
-        
+
         {/* Filters */}
-        <div className="flex gap-4 mt-6">
+        <div className="flex flex-wrap gap-4 mt-6">
+          {/* Filter Aset */}
           <div>
-            <label className="block text-xl font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Aset
             </label>
             <div className="relative">
-              <select 
+              <select
                 value={selectedAsset}
-                onChange={(e) => setSelectedAsset(e.target.value)}
-                className="appearance-none px-3 py-2.5 pr-10 border border-gray-300 rounded-md text-sm bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                onChange={(e) => {
+                  setSelectedAsset(e.target.value);
+                  setCurrentPage(1);
+                }}
+                disabled={isLoadingAssets}
+                className="appearance-none block w-full px-3 py-2 pr-8 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm cursor-pointer disabled:bg-gray-100"
               >
                 <option value="all">Semua Aset</option>
-                {assetOptions.filter(opt => opt !== 'all').map(asset => (
-                  <option key={asset} value={asset}>{asset}</option>
-                ))}
+                {Array.isArray(assetOptionsData) &&
+                  assetOptionsData.map((asset) => (
+                    <option key={asset.id} value={asset.id}>
+                      {asset.name}
+                    </option>
+                  ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
+          {/* Filter Proyek */}
           <div>
-            <label className="block text-xl font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Proyek
             </label>
             <div className="relative">
-              <select 
+              <select
                 value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
-                className="appearance-none px-3 py-2.5 pr-10 border border-gray-300 rounded-md text-sm bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                onChange={(e) => {
+                  setSelectedProject(e.target.value);
+                  setCurrentPage(1);
+                }}
+                disabled={isLoadingProjects}
+                className="appearance-none block w-full px-3 py-2 pr-8 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm cursor-pointer disabled:bg-gray-100"
               >
                 <option value="all">Semua Proyek</option>
-                {projectOptions.filter(opt => opt !== 'all').map(project => (
-                  <option key={project} value={project}>{project}</option>
-                ))}
+                {Array.isArray(projectOptionsData) &&
+                  projectOptionsData.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
+          {/* Filter Periode */}
           <div>
-            <label className="block text-xl font-medium text-gray-900 mb-2">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Periode
             </label>
             <div className="relative">
-              <select 
+              <select
                 value={selectedPeriod}
-                onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="appearance-none px-3 py-2.5 pr-10 border border-gray-300 rounded-md text-sm bg-white min-w-[200px] focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                onChange={(e) => {
+                  setSelectedPeriod(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="appearance-none block w-full px-3 py-2 pr-8 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm cursor-pointer"
               >
-                {periodOptions.map(period => (
-                  <option key={period} value={period}>
-                    {period === 'all' ? 'Semua Periode' : period}
+                {periodOptions.map((period) => (
+                  <option key={period.value} value={period.value}>
+                    {period.label}
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
-          
           {/* Reset Button */}
-          {(selectedAsset !== 'all' || selectedProject !== 'all' || selectedPeriod !== 'all') && (
+          {(selectedAsset !== 'all' ||
+            selectedProject !== 'all' ||
+            selectedPeriod !== 'all') && (
             <div className="flex items-end">
               <button
-                onClick={() => {
-                  setSelectedAsset('all');
-                  setSelectedProject('all');
-                  setSelectedPeriod('all');
-                }}
-                className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-md transition-colors"
+                onClick={resetFilters}
+                className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium rounded-md transition-colors"
               >
                 Reset Filter
               </button>
             </div>
           )}
         </div>
-        
-        {/* Active Filters Indicator */}
-        {(selectedAsset !== 'all' || selectedProject !== 'all' || selectedPeriod !== 'all') && (
-          <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
-            <span className="font-medium">Filter aktif:</span>
-            {selectedAsset !== 'all' && (
-              <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-md">
-                Aset: {selectedAsset}
-              </span>
-            )}
-            {selectedProject !== 'all' && (
-              <span className="px-2 py-1 bg-green-100 text-green-700 rounded-md">
-                Proyek: {selectedProject}
-              </span>
-            )}
-            {selectedPeriod !== 'all' && (
-              <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-md">
-                Periode: {selectedPeriod}
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
       {/* Main Content */}
       <div className="px-8 py-6 space-y-8">
-        {/* Ringkasan Dana */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Ringkasan Dana</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-            <Card>
-              <Statistic 
-                title="Total Dana Masuk" 
-                value={formatRupiah(ringkasanDana?.total_dana_masuk)}
-                icon={GiReceiveMoney}
-                iconColor="#7CB305"
-              />
-            </Card>
-            <Card>
-              <Statistic 
-                title="Total Pengeluaran" 
-                value={formatRupiah(ringkasanDana?.total_pengeluaran)}
-                icon={GiPayMoney}
-                iconColor="#1C64F2"
-              />
-            </Card>
+        {(isLoading || isLoadingReport) && ( // Tampilkan loading
+          <div className="text-center p-10">Memuat data laporan...</div>
+        )}
+        {!isLoading && isErrorReport && ( // Tampilkan error
+          <div className="text-center p-10 text-red-600">
+            Gagal memuat laporan
           </div>
-          <Card>
-            <Statistic 
-              title="Cash on Hand" 
-              value={formatRupiah(ringkasanDana?.sisa_dana)}
-              icon={GiMoneyStack}
-              iconColor="#9061F9"
-            />
-          </Card>
-        </section>
+        )}
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Card title="Persentase Penggunaan Dana">
-            <DonutChart 
-              data={[
-                { name: 'Dana Tersedia', value: ringkasanDana?.sisa_dana || 0 },
-                { name: 'Dana Terpakai', value: ringkasanDana?.total_pengeluaran || 0 }
-              ]} 
-              colors={['#3B82F6', '#A855F7']}
-            />
-          </Card>
-          
-          <Card title="Rincian Dana Berdasarkan Proyek">
-            {fundingProgress && (
-              <div className="space-y-5">
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-base font-semibold text-gray-900">Proyek A</span>
+        {!isLoading && !isErrorReport && reportData && ( // Tampilkan konten jika data sukses dimuat
+          <>
+            {/* Ringkasan Dana */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                Ringkasan Dana
+              </h2>
+              {isLoadingReport ? (
+                <div className="text-center p-8">Loading...</div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+                    <Card>
+                      <Statistic
+                        title="Total Dana Masuk"
+                        value={formatRupiah(ringkasanDana.total_dana_masuk)}
+                        icon={ArrowUpCircle} // Perbaikan icon
+                        iconColor="#7CB305"
+                      />
+                    </Card>
+                    <Card>
+                      <Statistic
+                        title="Total Pengeluaran"
+                        value={formatRupiah(ringkasanDana.total_pengeluaran)}
+                        icon={ArrowDownCircle} // Perbaikan icon
+                        iconColor="#1C64F2"
+                      />
+                    </Card>
                   </div>
-                  <div className="mb-2.5 space-y-1 text-sm text-gray-600">
-                    <div>Anggaran: <span className="font-medium">{formatRupiah((fundingProgress.funding.amount || 0) + (fundingProgress.expense.amount || 0))}</span></div>
-                    <div>Total Dana Masuk: <span className="font-medium text-green-600">{formatRupiah(fundingProgress.funding.amount)}</span></div>
-                  </div>
-                  <div className="flex justify-between mb-2.5 gap-3">
-                    <Tag color="success">{fundingProgress.funding.percent}%</Tag>
-                    <Tag color="default">{fundingProgress.expense.percent}%</Tag>
-                  </div>
-                  <ProgressBar percent={fundingProgress.funding.percent} color="#7CB305" />
-                  <div className="flex justify-between mt-2.5 text-xs text-gray-600">
-                    <span>Total Dana Masuk: {formatRupiah(fundingProgress.funding.amount)}</span>
-                    <span>Anggaran: {formatRupiah((fundingProgress.funding.amount || 0) + (fundingProgress.expense.amount || 0))}</span>
-                  </div>
-                </div>
+                  <Card>
+                    <Statistic
+                      title="Cash on Hand"
+                      value={formatRupiah(ringkasanDana.sisa_dana)}
+                      icon={Wallet} // Perbaikan icon
+                      iconColor="#9061F9"
+                    />
+                  </Card>
+                </>
+              )}
+            </section>
+
+            {/* Charts Row 1 */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1">
+                <Card title="Persentase Penggunaan Dana">
+                  <DonutChart
+                    data={donutChartData}
+                    colors={['#1C64F2', '#9061F9']}
+                    isLoading={isLoadingReport}
+                  />
+                </Card>
               </div>
-            )}
-          </Card>
-        </div>
 
-        {/* Pengeluaran Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Pengeluaran</h2>
-          
-          <Card className="mb-6">
-            <Statistic 
-              title="Total Pengeluaran" 
-              value={formatRupiah(ringkasanDana?.total_pengeluaran)}
-              icon={GiPayMoney}
-              iconColor="#1C64F2"
-            />
-          </Card>
+              <div className="lg:col-span-2">
+                {/* Komponen Rincian Dana Proyek yang baru */}
+                <RincianDanaProyek
+                  data={rincianProyek}
+                  isLoading={isLoadingRincianProyek}
+                />
+              </div>
+            </div>
 
-          <Card title="Pengeluaran Per Kategori" className="mb-6">
-            <SimpleBarChart 
-              data={categoryData} 
-              dataKey="amount" 
-              xKey="category" 
-              colors={['#2B72FB', '#64BDC6', '#EECA34', '#FE6A35', '#FA4B42', '#EE60E0']}
-              height={280}
-            />
-          </Card>
+            {/* Pengeluaran Section */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                Pengeluaran
+              </h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card title="Pengeluaran Per Kategori">
+                  {/* Komponen SimpleBarChart yang baru */}
+                  <SimpleBarChart
+                    data={categoryChartData}
+                    dataKey="amount"
+                    xKey="category"
+                    height={300}
+                    isLoading={isLoadingCategory}
+                  />
+                </Card>
+                <Card title="Top 5 Pengeluaran Terbesar">
+                  <Table
+                    dataSource={topExpenses}
+                    columns={expenseColumns}
+                    rowKey="id"
+                    isLoading={isLoadingTopExpenses}
+                  />
+                </Card>
+              </div>
+            </section>
 
-          <Card title="Top 5 Pengeluaran Terbesar">
-            <Table 
-              dataSource={topExpenses.slice(0, 5)} 
-              columns={expenseColumns} 
-              rowKey="id" 
-            />
-          </Card>
-        </section>
+            {/* Laba Rugi Section */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                Laba Rugi
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <Card>
+                  <Statistic
+                    title="Total Pendapatan"
+                    value={formatRupiah(totalYield)}
+                    icon={TrendingUp}
+                    iconColor="#7CB305"
+                  />
+                </Card>
+                <Card>
+                  <Statistic
+                    title="Total Pengeluaran"
+                    value={formatRupiah(ringkasanDana.total_pengeluaran)}
+                    icon={TrendingDown}
+                    iconColor="#F5222D"
+                    valueStyle={{ color: '#F5222D' }}
+                  />
+                </Card>
+                <Card>
+                  <Statistic
+                    title="Net Profit"
+                    value={formatRupiah(yieldData?.hasil_bersih)}
+                    icon={LabaRugiIcon}
+                    iconColor={labaRugiColor}
+                    valueStyle={{ color: labaRugiColor }}
+                    suffix={<Tag color={labaRugiTagColor}>{labaRugiStatus}</Tag>}
+                  />
+                </Card>
+                <Card>
+                  <Statistic
+                    title="Margin Laba (%)"
+                    value={`${yieldData?.margin_laba || 0}%`}
+                    icon={PieChartIcon}
+                    iconColor="#1C64F2"
+                  />
+                </Card>
+              </div>
+              <Card title="Pendapatan vs Pengeluaran">
+                {/* Komponen GroupedBarChart yang baru */}
+                <GroupedBarChart
+                  data={incomeExpenseChartData}
+                  height={300}
+                  isLoading={isLoadingIncomeExpense}
+                />
+              </Card>
+            </section>
 
-        {/* Laba Rugi Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Laba Rugi</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <Card>
-              <Statistic 
-                title="Pendapatan" 
-                value={formatRupiah(labaRugi?.Jumlah)}
-                icon={labaRugiStatus === 'Laba' ? ArrowUpRight : ArrowDownRight}
-                iconColor={labaRugiColor}
-                valueStyle={{ color: labaRugiColor }}
-                suffix={<Tag color={labaRugiTagColor}>{labaRugi?.Status}</Tag>}
-              />
-            </Card>
-            <Card>
-              <Statistic 
-                title="Total Pengeluaran" 
-                value={formatRupiah(ringkasanDana?.total_pengeluaran)}
-                icon={GiPayMoney}
-                iconColor="#CF1322"
-                valueStyle={{ color: '#CF1322' }}
-              />
-            </Card>
-          </div>
+            {/* Ringkasan Per Kuartal */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                Ringkasan Keuangan Per Kuartal
+              </h2>
+              <Card>
+                <Table
+                  dataSource={quarterlyData}
+                  columns={quarterlyColumns}
+                  rowKey="quarter"
+                  isLoading={isLoadingQuarterly}
+                />
+              </Card>
+            </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <Card>
-              <Statistic 
-                title="Net Profit" 
-                value={formatRupiah(yieldData?.hasil_bersih)}
-                icon={TrendingUp}
-                iconColor="#1C64F2"
-                valueStyle={{ color: '#1C64F2' }}
-              />
-            </Card>
-            <Card>
-              <Statistic 
-                title="Margin Laba (%)" 
-                value={`${yieldData?.margin_laba || 0}%`}
-                icon={BarChart3}
-                iconColor="#9061F9"
-                valueStyle={{ color: '#9061F9' }}
-              />
-            </Card>
-          </div>
-
-          <Card title="Pendapatan vs Pengeluaran">
-            <GroupedBarChart data={incomeExpense} height={280} />
-          </Card>
-        </section>
-
-        {/* Ringkasan Per Kuartal */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Ringkasan Keuangan Per Kuartal</h2>
-          <Card>
-            <Table 
-              dataSource={quarterlyData} 
-              columns={quarterlyColumns} 
-              rowKey="quarter" 
-            />
-          </Card>
-        </section>
-
-        {/* Yield Section */}
-        <section>
-          <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
-          
-          <Card className="mb-6">
-            <Statistic 
-              title="Total Investasi Investor" 
-              value={formatRupiah(yieldData?.total_investasi)}
-              icon={FaMoneyBillTransfer}
-              iconColor="#7CB305"
-            />
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <Card>
-              <Statistic 
-                title="Total Bagi Hasil Investor" 
-                value={formatRupiah(ringkasanDana?.total_dana_masuk)}
-                icon={GiPayMoney}
-                iconColor="#1C64F2"
-              />
-            </Card>
-            <Card>
-              <Statistic 
-                title="Total Yield" 
-                value={formatRupiah(reportData?.total_yield)}
-                icon={FaMoneyBills}
-                iconColor="#9061F9"
-              />
-            </Card>
-          </div>
-
-          {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-            <Card>
-              <Statistic 
-                title="Persentase ROI" 
-                value={`${((reportData?.total_yield / yieldData?.total_investasi * 100) || 0).toFixed(1)}%`}
-                icon={PieChart}
-                iconColor="#1C64F2"
-              />
-            </Card>
-            <Card>
-              <Statistic 
-                title="Jumlah Proyek" 
-                value={quarterlyData?.length || 0}
-                icon={BarChart3}
-                iconColor="#9061F9"
-              />
-            </Card>
-          </div> */}
-
-          <Card title="Investor Yield %">
-            <Table 
-              dataSource={paginatedInvestorYield} 
-              columns={investorColumns} 
-              rowKey="investor" 
-            />
-            
-            {totalPages > 1 && (<Pagination 
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-              />
-            )}
-          </Card>
-        </section>
+            {/* Yield Section */}
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <Card>
+                  <Statistic
+                    title="Total Investasi"
+                    value={formatRupiah(yieldData?.total_investasi)}
+                    icon={ArrowLeftRight} // Perbaikan icon
+                    iconColor="#7CB305"
+                  />
+                </Card>
+                <Card>
+                  <Statistic
+                    title="Total Hasil Produksi"
+                    value={formatRupiah(yieldData?.total_hasil_produksi)}
+                    icon={Newspaper} // Perbaikan icon
+                    iconColor="#1C64F2"
+                  />
+                </Card>
+                <Card>
+                  <Statistic
+                    title="Hasil Bersih"
+                    value={formatRupiah(yieldData?.hasil_bersih)}
+                    icon={DollarSign}
+                    iconColor="#9061F9"
+                  />
+                </Card>
+              </div>
+              <Card title="Investor Yield %">
+                <Table
+                  dataSource={paginatedInvestorYield}
+                  columns={investorColumns}
+                  rowKey="investor"
+                  // --- INI PERBAIKANNYA ---
+                  isLoading={isLoadingInvestorYield}
+                />
+                {totalInvestorPages > 1 && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalInvestorPages}
+                    onPageChange={setCurrentPage}
+                  />
+                )}
+              </Card>
+            </section>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-export default ReportingContent;
+// --- PAGE EXPORT ---
+
+export default function LaporanPage() {
+  return (
+    <ProtectedRoute>
+      <ReportingContent />
+    </ProtectedRoute>
+  );
+}

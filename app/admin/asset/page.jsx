@@ -1,3 +1,4 @@
+// File: app/admin/asset/page.jsx
 'use client';
 import React, { useState, useMemo } from 'react';
 import {
@@ -6,12 +7,15 @@ import {
 } from 'antd';
 import {
   FileTextOutlined, DollarOutlined, EnvironmentOutlined, PlusOutlined, SearchOutlined,
-  ArrowsAltOutlined, CalendarOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined
+  ArrowsAltOutlined, CalendarOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined,
+  // --- IMPORT IKON BARU UNTUK FORM OWNER ---
+  UserOutlined, PhoneOutlined, BankOutlined, HomeOutlined
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { getAssets, createAsset, updateAsset, deleteAsset, getOwners } from '@/lib/api/asset';
+// --- IMPORT FUNGSI API BARU ---
+import { getAssets, createAsset, updateAsset, deleteAsset, getOwners, createOwner } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -41,7 +45,7 @@ const getAssetTypeProps = (type) => ASSET_TYPE_PROPS[type] || { text: type, colo
 
 // ==================== COMPONENTS ====================
 
-// Asset Card Component
+// Asset Card Component (Tidak Berubah)
 const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
   const typeProps = getAssetTypeProps(asset.type);
   const isDeleting = onDelete.isPending && onDelete.variables === asset.id;
@@ -85,7 +89,7 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
   );
 };
 
-// Statistics Cards Component
+// Statistics Cards Component (Tidak Berubah)
 const StatisticsCards = ({ stats, isLoading }) => (
   <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
     <Col xs={24} lg={8}>
@@ -124,7 +128,7 @@ const StatisticsCards = ({ stats, isLoading }) => (
   </Row>
 );
 
-// Search and Filter Component
+// Search and Filter Component (Tidak Berubah)
 const SearchFilter = ({ searchTerm, onSearchChange, selectedType, onTypeChange }) => (
   <Card style={{ marginBottom: 24 }}>
     <Title level={4} style={{ marginTop: 0 }}>Pencarian & Filter</Title>
@@ -151,14 +155,59 @@ const SearchFilter = ({ searchTerm, onSearchChange, selectedType, onTypeChange }
   </Card>
 );
 
-// Asset Form Modal Component
-const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingOwners, onCancel, onSubmit, isSubmitting, onFileChange }) => (
+// --- MODAL FORM OWNER BARU ---
+const OwnerFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
+  <Modal
+    title="Tambah Pemilik Lahan Baru"
+    open={open}
+    onCancel={onCancel}
+    footer={null} // Footer kustom di dalam form
+    width={500}
+    zIndex={1001} // Pastikan modal ini di atas modal Aset
+    destroyOnClose // Reset form saat ditutup
+  >
+    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
+      <Form.Item label="Nama Pemilik" name="nama" rules={[{ required: true, message: 'Nama wajib diisi' }]}>
+        <Input prefix={<UserOutlined />} placeholder="Masukkan nama lengkap" />
+      </Form.Item>
+      <Form.Item label="Kontak (HP/Email)" name="kontak" rules={[{ required: true, message: 'Kontak wajib diisi' }]}>
+        <Input prefix={<PhoneOutlined />} placeholder="cth: 08123456789" />
+      </Form.Item>
+      <Form.Item label="Alamat" name="alamat">
+        <Input.TextArea placeholder="Masukkan alamat lengkap" rows={3} />
+      </Form.Item>
+      <Form.Item label="Bank" name="bank">
+        <Input prefix={<BankOutlined />} placeholder="cth: BCA, Mandiri, BRI" />
+      </Form.Item>
+      <Form.Item label="No. Rekening" name="no_rekening">
+        <Input placeholder="Masukkan nomor rekening" />
+      </Form.Item>
+      <Form.Item style={{ textAlign: 'right', marginTop: 16, marginBottom: 0 }}>
+        <Space>
+          <Button onClick={onCancel}>Batal</Button>
+          <Button type="primary" htmlType="submit" loading={isSubmitting}>
+            Simpan Pemilik
+          </Button>
+        </Space>
+      </Form.Item>
+    </Form>
+  </Modal>
+);
+
+// Asset Form Modal Component (Telah Direfactor)
+const AssetFormModal = ({ 
+  open, editingAsset, form, fileList, owners, isLoadingOwners, 
+  onCancel, onSubmit, isSubmitting, onFileChange, 
+  // --- PROPS BARU ---
+  onAddOwner 
+}) => (
   <Modal
     title={editingAsset ? 'Edit Aset' : 'Tambah Aset Baru'}
     open={open}
     onCancel={onCancel}
     footer={null}
     width={600}
+    zIndex={1000} // zIndex default
   >
     <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
       <Form.Item label="Nama Aset" name="name" rules={[{ required: true, message: 'Nama aset wajib diisi' }]}>
@@ -182,7 +231,13 @@ const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingO
       </Form.Item>
 
       <Form.Item label="Nilai (Rp)" name="value" rules={[{ required: true, message: 'Nilai wajib diisi' }]}>
-        <InputNumber style={{ width: '100%' }} placeholder="Masukkan nilai" min={0} />
+        <InputNumber 
+          style={{ width: '100%' }} 
+          placeholder="Masukkan nilai" 
+          min={0}
+          formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+          parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
+        />
       </Form.Item>
 
       <Form.Item label="Tanggal Akuisisi" name="acquisition_date" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
@@ -197,6 +252,7 @@ const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingO
         </Select>
       </Form.Item>
 
+      {/* --- FORM ITEM LANDOWNER (DIREFACTOR) --- */}
       <Form.Item 
         label="Pemilik Lahan" 
         name="landowner"
@@ -216,12 +272,22 @@ const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingO
           ))}
         </Select>
       </Form.Item>
+      {/* --- TOMBOL TAMBAH OWNER BARU --- */}
+      <Button 
+        type="link" 
+        icon={<PlusOutlined />} 
+        onClick={onAddOwner} 
+        style={{ paddingLeft: 0, marginTop: '-16px', marginBottom: '16px' }}
+      >
+        Tambah Pemilik Lahan Baru
+      </Button>
 
       <Form.Item 
         label="% Bagi Hasil Pemilik" 
         name="landowner_share_percentage"
         initialValue={10}
         tooltip="Persentase keuntungan untuk pemilik lahan (default 10%)"
+        rules={[{ required: true, message: '% Bagi Hasil wajib diisi' }]}
       >
         <InputNumber 
           style={{ width: '100%' }} 
@@ -258,8 +324,8 @@ const AssetFormModal = ({ open, editingAsset, form, fileList, owners, isLoadingO
   </Modal>
 );
 
-// Asset Detail Modal Component
-const AssetDetailModal = ({ open, asset, ownerMap, onCancel }) => (
+// Asset Detail Modal Component (Tidak Berubah)
+const AssetDetailModal = ({ open, asset, onCancel }) => (
   <Modal
     title="Detail Aset"
     open={open}
@@ -293,7 +359,7 @@ const AssetDetailModal = ({ open, asset, ownerMap, onCancel }) => (
   </Modal>
 );
 
-// ==================== MAIN COMPONENT ====================
+// ==================== MAIN COMPONENT (Telah Direfactor) ====================
 function AssetManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -304,6 +370,10 @@ function AssetManagementContent() {
   const [selectedType, setSelectedType] = useState('semua');
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState([]);
+  
+  // --- STATE BARU UNTUK MODAL OWNER ---
+  const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
+  const [ownerForm] = Form.useForm();
 
   // ========== DATA FETCHING ==========
   const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
@@ -318,6 +388,7 @@ function AssetManagementContent() {
 
   // ========== MUTATIONS ==========
   const mutationConfig = {
+    // Konfigurasi default untuk create/update ASET
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       setIsModalOpen(false);
@@ -358,8 +429,40 @@ function AssetManagementContent() {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus aset'}`);
     }
   });
+  
+  // --- MUTASI BARU UNTUK CREATE OWNER ---
+  const createOwnerMutation = useMutation({
+    mutationFn: createOwner,
+    onSuccess: (newOwner) => {
+      message.success(`Pemilik Lahan "${newOwner.nama}" berhasil ditambahkan`);
+      // 1. Refresh daftar owner di query cache
+      queryClient.invalidateQueries({ queryKey: ['owners'] });
+      // 2. Tutup modal owner
+      setIsOwnerModalOpen(false);
+      ownerForm.resetFields();
+      // 3. (OPSIONAL TAPI BAGUS) Otomatis pilih owner baru di form Aset
+      form.setFieldsValue({ landowner: newOwner.id });
+    },
+    onError: (err) => {
+      let errorMsg = 'Gagal menambahkan pemilik.';
+      if (err.response?.data) {
+        const errors = err.response.data;
+        const firstKey = Object.keys(errors)[0];
+        if (firstKey && Array.isArray(errors[firstKey])) {
+          errorMsg = `${errors[firstKey][0]}`; // Tampilkan pesan error spesifik
+        } else if (errors.detail) {
+          errorMsg = errors.detail;
+        }
+      } else {
+        errorMsg = err.message;
+      }
+      message.error(`Error: ${errorMsg}`);
+    }
+  });
 
   // ========== HANDLERS ==========
+  
+  // Handlers untuk Modal Aset
   const handleAddAsset = () => {
     setEditingAsset(null);
     form.resetFields();
@@ -377,10 +480,10 @@ function AssetManagementContent() {
       value: asset.value,
       acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
       ownership_status: asset.ownership_status,
-      landowner: asset.landowner,
+      landowner: asset.landowner, // ID landowner
       landowner_share_percentage: asset.landowner_share_percentage || 10,
     });
-    setFileList([]);
+    setFileList(asset.document_url ? [{ uid: '-1', name: asset.document_url, status: 'done' }] : []);
     setIsModalOpen(true);
   };
 
@@ -395,8 +498,14 @@ function AssetManagementContent() {
     const formData = {
       ...values,
       acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
-      document_url: fileList.length > 0 ? fileList[0].name : null,
+      // Cek jika fileList berisi file baru (punya originFileObj) atau file lama (tidak punya)
+      document_url: fileList.length > 0 ? (fileList[0].originFileObj ? fileList[0].name : editingAsset?.document_url) : null,
     };
+    
+    // Hapus landowner jika nilainya null/undefined (jika user clear pilihan)
+    if (!formData.landowner) {
+      formData.landowner = null;
+    }
 
     if (editingAsset) {
       updateMutation.mutate({ id: editingAsset.id, data: formData });
@@ -406,8 +515,24 @@ function AssetManagementContent() {
   };
 
   const handleViewDetail = (asset) => {
-    setDetailAsset(asset);
+    // Map ID landowner ke nama untuk ditampilkan di detail
+    const landownerName = owners?.find(o => o.id === asset.landowner)?.nama;
+    setDetailAsset({ ...asset, landowner_name: landownerName });
     setIsDetailModalOpen(true);
+  };
+  
+  // --- HANDLERS BARU UNTUK MODAL OWNER ---
+  const handleShowOwnerModal = () => {
+    setIsOwnerModalOpen(true);
+  };
+  
+  const handleCancelOwnerModal = () => {
+    setIsOwnerModalOpen(false);
+    ownerForm.resetFields();
+  };
+  
+  const handleOwnerFormSubmit = (values) => {
+    createOwnerMutation.mutate(values);
   };
 
   // ========== COMPUTED VALUES ==========
@@ -426,11 +551,8 @@ function AssetManagementContent() {
       return matchesSearch && matchesType;
     });
   }, [assets, searchTerm, selectedType]);
-
-  const ownerMap = useMemo(
-    () => owners ? owners.reduce((acc, o) => { acc[o.id] = o.nama; return acc; }, {}) : {},
-    [owners]
-  );
+  
+  // (ownerMap tidak lagi diperlukan karena DetailModal menerima nama)
 
   const isLoadingInitialData = isLoadingAssets || isLoadingOwners;
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
@@ -470,7 +592,7 @@ function AssetManagementContent() {
       />
 
       {/* Asset List */}
-      {isLoadingInitialData && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
+      {isLoadingInitialData && <Spin size="large"><div style={{ padding: 50, textAlign: 'center', width: '100%' }} /></Spin>}
       
       {isErrorAssets && !isLoadingInitialData && (
         <Alert message="Error Memuat Data" description={errorAssets?.message || 'Gagal memuat data'} type="error" showIcon />
@@ -495,7 +617,7 @@ function AssetManagementContent() {
         </Row>
       )}
 
-      {/* Modals */}
+      {/* --- RENDER SEMUA MODAL --- */}
       <AssetFormModal
         open={isModalOpen}
         editingAsset={editingAsset}
@@ -507,13 +629,23 @@ function AssetManagementContent() {
         onSubmit={handleFormSubmit}
         isSubmitting={isSubmitting}
         onFileChange={setFileList}
+        // --- PROP BARU DITERUSKAN ---
+        onAddOwner={handleShowOwnerModal}
       />
 
       <AssetDetailModal
         open={isDetailModalOpen}
         asset={detailAsset}
-        ownerMap={ownerMap}
         onCancel={() => setIsDetailModalOpen(false)}
+      />
+      
+      {/* --- MODAL OWNER BARU DIRENDER DI SINI --- */}
+      <OwnerFormModal
+        open={isOwnerModalOpen}
+        form={ownerForm}
+        onCancel={handleCancelOwnerModal}
+        onSubmit={handleOwnerFormSubmit}
+        isSubmitting={createOwnerMutation.isPending}
       />
     </>
   );
