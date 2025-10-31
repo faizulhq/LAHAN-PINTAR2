@@ -3,8 +3,7 @@
 // --- IMPORTS ---
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-// 'moment' dihapus untuk menghindari error, diganti dengan Date()
-// import moment from 'moment';
+import moment from 'moment'; // Dikembalikan
 
 // Icons
 import {
@@ -17,19 +16,15 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Wallet, // Pengganti GiMoneyStack
-  ArrowDownCircle, // Pengganti GiPayMoney
-  ArrowUpCircle, // Pengganti GiReceiveMoney
-  ArrowLeftRight, // Pengganti FaMoneyBillTransfer
-  Newspaper, // Pengganti FaMoneyBills
 } from 'lucide-react';
-// react-icons dihapus untuk menghindari error
-// import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
-// import { FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
+// === ICON DIKEMBALIKAN SESUAI PERMINTAAN ===
+import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
+import { FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
+// ==========================================
 
 // UI Libraries
 import { Card } from 'antd';
-// Impor Recharts
+// Impor Recharts (DIPERTAHANKAN)
 import {
   ResponsiveContainer,
   BarChart,
@@ -44,7 +39,7 @@ import {
   Cell,
 } from 'recharts';
 
-// Internal Components & API (Dikembalikan ke impor asli Anda)
+// Internal Components & API
 import ProtectedRoute from '@/components/ProtectedRoute';
 import * as reportingAPI from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
@@ -103,9 +98,8 @@ const CustomPieTooltip = ({ active, payload }) => {
 
 /**
  * Kartu untuk menampilkan rincian dana proyek dengan progress bar.
+ * (Ini adalah komponen RincianDanaProyek DENGAN RECHARTS)
  */
-// --- INI KOMPONEN YANG DIPERBARUI DENGAN RECHARTS ---
-
 const RincianDanaProyek = ({ data, isLoading }) => {
   if (isLoading) {
     return (
@@ -258,7 +252,6 @@ const RincianDanaProyek = ({ data, isLoading }) => {
     </div>
   );
 };
-// --- BATAS KOMPONEN BARU ---
 
 /**
  * Komponen statistik sederhana dengan ikon.
@@ -729,6 +722,7 @@ function ReportingContent() {
     queryKey: ['financialReport', filterParams],
     queryFn: () => reportingAPI.getFinancialReport(filterParams),
   });
+  // Ambil data rincian proyek dari API
   const { data: rincianProyek, isLoading: isLoadingRincianProyek } = useQuery({
     queryKey: ['rincianDanaProyek', filterParams],
     queryFn: () => reportingAPI.getRincianDanaPerProyek(filterParams),
@@ -841,11 +835,7 @@ function ReportingContent() {
       title: 'Tanggal',
       dataIndex: 'date',
       key: 'date',
-      render: (date) => new Date(date).toLocaleDateString('id-ID', { // Perbaikan: Ganti moment
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-      }),
+      render: (date) => moment(date).format('DD/MM/YYYY'), // Menggunakan moment
     },
     { title: 'Kategori', dataIndex: 'category', key: 'category' },
     { title: 'Deskripsi', dataIndex: 'description', key: 'description' },
@@ -964,7 +954,7 @@ function ReportingContent() {
                     </option>
                   ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
           {/* Filter Proyek */}
@@ -990,7 +980,7 @@ function ReportingContent() {
                     </option>
                   ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
           {/* Filter Periode */}
@@ -1013,7 +1003,7 @@ function ReportingContent() {
                   </option>
                 ))}
               </select>
-              <ChevronDown className="absolute right-3 top-1-2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
           {/* Reset Button */}
@@ -1059,7 +1049,7 @@ function ReportingContent() {
                       <Statistic
                         title="Total Dana Masuk"
                         value={formatRupiah(ringkasanDana.total_dana_masuk)}
-                        icon={ArrowUpCircle} // Perbaikan icon
+                        icon={GiReceiveMoney} // === DIKEMBALIKAN ===
                         iconColor="#7CB305"
                       />
                     </Card>
@@ -1067,7 +1057,7 @@ function ReportingContent() {
                       <Statistic
                         title="Total Pengeluaran"
                         value={formatRupiah(ringkasanDana.total_pengeluaran)}
-                        icon={ArrowDownCircle} // Perbaikan icon
+                        icon={GiPayMoney} // === DIKEMBALIKAN ===
                         iconColor="#1C64F2"
                       />
                     </Card>
@@ -1076,7 +1066,7 @@ function ReportingContent() {
                     <Statistic
                       title="Cash on Hand"
                       value={formatRupiah(ringkasanDana.sisa_dana)}
-                      icon={Wallet} // Perbaikan icon
+                      icon={GiMoneyStack} // === DIKEMBALIKAN ===
                       iconColor="#9061F9"
                     />
                   </Card>
@@ -1110,7 +1100,36 @@ function ReportingContent() {
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Pengeluaran
               </h2>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* === CARD PENGELUARAN BARU (SESUAI GAMBAR) === */}
+              {/* Card ini mengambil style dari CSS Anda: p-4 (16px), gap-7 (28px), h-118px, max-w-453px */}
+              <Card
+                className="mb-6 rounded-xl border border-gray-100 w-full max-w-[453px]"
+                bodyStyle={{ padding: '16px', height: '118px', boxSizing: 'border-box' }}
+                loading={isLoadingReport} // Tambahkan loading state
+              >
+                {/* CSS: display: flex, flex-direction: row, align-items: center, gap: 28px
+                  Tailwind: flex flex-row items-center gap-7 (Tailwind 7 = 1.75rem = 28px) 
+                */}
+                <div className="flex flex-row items-center gap-7 h-full">
+                  {/* Ikon */}
+                  <div className="shrink-0 w-[34px] h-[34px] flex items-center justify-center">
+                    <GiPayMoney size={34} style={{ color: '#1C64F2' }} /> {/* Ikon Biru */}
+                  </div>
+                  {/* Konten Value */}
+                  <div className="flex-1 flex flex-col justify-center">
+                    <div 
+                      className="font-bold text-[31px] text-[#CF1322] leading-[1.25]" // 31px, bold, Teks Merah
+                      style={{ fontFamily: 'Inter, sans-serif' }} // Sesuai CSS
+                    >
+                      {formatRupiah(ringkasanDana.total_pengeluaran)}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+              {/* ============================================== */}
+
+              <div className="grid mt-5 grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card title="Pengeluaran Per Kategori">
                   {/* Komponen SimpleBarChart yang baru */}
                   <SimpleBarChart
@@ -1207,7 +1226,7 @@ function ReportingContent() {
                   <Statistic
                     title="Total Investasi"
                     value={formatRupiah(yieldData?.total_investasi)}
-                    icon={ArrowLeftRight} // Perbaikan icon
+                    icon={FaMoneyBillTransfer} // === DIKEMBALIKAN ===
                     iconColor="#7CB305"
                   />
                 </Card>
@@ -1215,7 +1234,7 @@ function ReportingContent() {
                   <Statistic
                     title="Total Hasil Produksi"
                     value={formatRupiah(yieldData?.total_hasil_produksi)}
-                    icon={Newspaper} // Perbaikan icon
+                    icon={FaMoneyBills} // === DIKEMBALIKAN ===
                     iconColor="#1C64F2"
                   />
                 </Card>
@@ -1233,7 +1252,6 @@ function ReportingContent() {
                   dataSource={paginatedInvestorYield}
                   columns={investorColumns}
                   rowKey="investor"
-                  // --- INI PERBAIKANNYA ---
                   isLoading={isLoadingInvestorYield}
                 />
                 {totalInvestorPages > 1 && (
