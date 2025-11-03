@@ -1,3 +1,4 @@
+// faizulhq/lahan-pintar2/LAHAN-PINTAR2-dfe2664682ace9537893ea0569b86e928b07e701/app/page.jsx
 'use client';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -23,18 +24,19 @@ export default function Home() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      // Tunggu cookie tersedia
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const userRole = getRoleFromCookie();
       console.log('🏠 Home page - User role:', userRole);
       
       if (userRole) {
-        if (userRole === 'Admin' || userRole === 'Superadmin') {
+        // --- PERUBAHAN DI SINI ---
+        if (userRole === 'Admin' || userRole === 'Superadmin' || userRole === 'Operator') {
           router.replace('/admin');
         } else {
           router.replace('/dashboard');
         }
+        // --- BATAS PERUBAHAN ---
       } else {
         router.replace('/login');
       }

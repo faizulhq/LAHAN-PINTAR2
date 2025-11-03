@@ -1,4 +1,4 @@
-// app/admin/layout.jsx
+// faizulhq/lahan-pintar2/LAHAN-PINTAR2-dfe2664682ace9537893ea0569b86e928b07e701/app/admin/layout.jsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -22,17 +22,17 @@ const { Title, Text } = Typography;
 
 const menuConfig = [
   { key: '1', icon: <BiSolidDashboard />, label: 'Dashboard', path: '/admin' },
-  { key: '2', icon: <FileTextFilled />, label: 'Asset', path: '/admin/asset' },
-  { key: '3', icon: <BiUser />, label: 'Investor', path: '/admin/investor' },
-  { key: '4', icon: <FaDollarSign />, label: 'Pendanaan', path: '/admin/pendanaan' },
-  { key: '5', icon: <HiUserGroup />, label: 'Kepemilikan', path: '/admin/kepemilikan' },
+  { key: '2', icon: <FileTextFilled />, label: 'Asset', path: '/admin/asset', roles: ['Admin', 'Superadmin'] },
+  { key: '3', icon: <BiUser />, label: 'Investor', path: '/admin/investor', roles: ['Admin', 'Superadmin'] },
+  { key: '4', icon: <FaDollarSign />, label: 'Pendanaan', path: '/admin/pendanaan', roles: ['Admin', 'Superadmin'] },
+  { key: '5', icon: <HiUserGroup />, label: 'Kepemilikan', path: '/admin/kepemilikan', roles: ['Admin', 'Superadmin'] },
   { key: '6', icon: <GiPayMoney />, label: 'Pengeluaran', path: '/admin/pengeluaran' },
-  { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek' },
+  { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Admin', 'Superadmin'] },
   { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi' },
-  { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil' },
-  { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan' },
+  { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil', roles: ['Admin', 'Superadmin'] },
+  { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan' }, // Tunu bisa lihat
   { key: '11', icon: <HiUsers />, label: 'User Management', path: '/admin/user-management', superadminOnly: true },
-  { key: '12', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan' },
+  { key: '12', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan', roles: ['Admin', 'Superadmin'] },
 ];
 
 export default function AdminLayout({ children }) {
@@ -41,7 +41,6 @@ export default function AdminLayout({ children }) {
   const user = useAuthStore((state) => state.user);
   const logoutMutation = useLogout();
   
-  // Prevent hydration mismatch - hanya render menu di client
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -72,7 +71,7 @@ export default function AdminLayout({ children }) {
         {
           key: 'role',
           icon: <UserSwitchOutlined />,
-          label: user?.role || 'Role not found',
+          label: user?.role || 'Role not found', // Ini akan menampilkan 'Operator'
           disabled: true,
           style: { cursor: 'default', color: 'rgba(0, 0, 0, 0.88)' },
         },
@@ -87,14 +86,12 @@ export default function AdminLayout({ children }) {
     },
   ];
 
-  // Tentukan selected key
   let determinedKey = '1';
   const sortedMenuConfig = [...menuConfig].sort((a, b) => b.path.length - a.path.length);
   const matchedItem = sortedMenuConfig.find((item) => pathname.startsWith(item.path));
   if (matchedItem) determinedKey = matchedItem.key;
   const selectedKey = determinedKey;
 
-  // Style dasar untuk menu item
   const baseStyle = {
     height: '40px',
     display: 'flex',
@@ -113,10 +110,15 @@ export default function AdminLayout({ children }) {
   const baseIconSize = '18px';
   const iconTextGap = '10px';
 
-  // Proses menu items tanpa Link (gunakan onClick untuk navigasi)
   const processedMenuItems = menuConfig
     .filter(item => {
       if (item.superadminOnly && user?.role !== 'Superadmin') {
+        return false;
+      }
+      // --- PERUBAHAN DI SINI ---
+      // Cek role user (yang sekarang 'Operator')
+      if (item.roles && !item.roles.includes(user?.role)) {
+      // --- BATAS PERUBAHAN ---
         return false;
       }
       return true;
@@ -152,7 +154,7 @@ export default function AdminLayout({ children }) {
           </span>
         ),
         style: currentStyle,
-        onClick: () => router.push(item.path), // Navigasi dengan onClick
+        onClick: () => router.push(item.path),
       };
     }
   );
@@ -216,7 +218,6 @@ export default function AdminLayout({ children }) {
           theme="light"
           suppressHydrationWarning
         >
-          {/* Render menu hanya setelah mounted di client */}
           {mounted && (
             <Menu
               mode="inline"

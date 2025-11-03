@@ -3,7 +3,7 @@
 // --- IMPORTS ---
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import moment from 'moment'; // Dikembalikan
+import moment from 'moment'; 
 
 // Icons
 import {
@@ -17,14 +17,11 @@ import {
   ChevronRight,
   ChevronDown,
 } from 'lucide-react';
-// === ICON DIKEMBALIKAN SESUAI PERMINTAAN ===
 import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
-import { FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
-// ==========================================
+import { FaArrowTrendUp, FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
 
 // UI Libraries
-import { Card } from 'antd';
-// Impor Recharts (DIPERTAHANKAN)
+import { Card, Carousel } from 'antd';
 import {
   ResponsiveContainer,
   BarChart,
@@ -44,12 +41,10 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import * as reportingAPI from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
+import { AiFillDollarCircle } from 'react-icons/ai';
 
 // --- HELPERS ---
 
-/**
- * Memformat angka menjadi string mata uang Rupiah.
- */
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', {
@@ -58,9 +53,12 @@ const formatRupiah = (value) =>
       })}`
     : '-';
 
-/**
- * Custom Tooltip untuk Recharts (format Rupiah)
- */
+const formatJuta = (value) => {
+  if (value === 0) return '0';
+  if (!value) return '-';
+  return `${Number(value) / 1000000} Jt`;
+};
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
@@ -77,9 +75,6 @@ const CustomTooltip = ({ active, payload, label }) => {
   return null;
 };
 
-/**
- * Custom Tooltip untuk Pie Chart
- */
 const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
@@ -96,10 +91,6 @@ const CustomPieTooltip = ({ active, payload }) => {
 
 // --- UI COMPONENTS ---
 
-/**
- * Kartu untuk menampilkan rincian dana proyek dengan progress bar.
- * (Ini adalah komponen RincianDanaProyek DENGAN RECHARTS)
- */
 const RincianDanaProyek = ({ data, isLoading }) => {
   if (isLoading) {
     return (
@@ -131,7 +122,6 @@ const RincianDanaProyek = ({ data, isLoading }) => {
     sisa_dana,
   } = projectData;
 
-  // Data untuk chart pendanaan
   const fundingData = [
     {
       name: 'Pendanaan',
@@ -140,7 +130,6 @@ const RincianDanaProyek = ({ data, isLoading }) => {
     },
   ];
 
-  // Data untuk chart pengeluaran
   const expenseData = [
     {
       name: 'Pengeluaran',
@@ -155,19 +144,19 @@ const RincianDanaProyek = ({ data, isLoading }) => {
     total_dana_masuk > 0
       ? ((total_pengeluaran / total_dana_masuk) * 100).toFixed(0)
       : 0;
-  // Perhitungan sisa dana persen yang benar
   const sisaDanaPercent =
     total_dana_masuk > 0
       ? ((sisa_dana / total_dana_masuk) * 100).toFixed(0)
       : 0;
 
   return (
+    // Tambahkan h-full di sini agar tinggi card sama
     <div className="bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
       <h2 className="text-[22px] font-bold text-gray-900 mb-4">
         Rincian Dana Berdasarkan Proyek
       </h2>
 
-      <div className="flex flex-col gap-1 mb-5">
+      <div className="flex flex-col gap-1">
         <h3 className="text-[16px] font-medium text-gray-900">
           {project_name}
         </h3>
@@ -179,12 +168,11 @@ const RincianDanaProyek = ({ data, isLoading }) => {
         </p>
       </div>
 
-      {/* Chart Pendanaan */}
       <div className="mb-4">
         <div className="flex justify-between items-center mb-1 text-sm font-semibold">
-          <span className="text-green-700">Dana Masuk: {fundingPercent}%</span>
-          <span className="text-gray-500">
-            Sisa Anggaran: {100 - fundingPercent}%
+          <span className="text-green-700 bg-[#E3FEE1] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">{fundingPercent}%</span>
+          <span className="text-gray-500 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+            {100 - fundingPercent}%
           </span>
         </div>
         <ResponsiveContainer width="100%" height={40}>
@@ -201,7 +189,7 @@ const RincianDanaProyek = ({ data, isLoading }) => {
             />
           </BarChart>
         </ResponsiveContainer>
-        <div className="flex justify-between text-sm mt-1">
+        <div className="text-sm mt-1">
           <p className="text-gray-700">
             Total Dana Masuk:{' '}
             <span className="font-semibold text-green-700">
@@ -217,12 +205,11 @@ const RincianDanaProyek = ({ data, isLoading }) => {
         </div>
       </div>
 
-      {/* Chart Pengeluaran */}
       <div className="mb-2">
-        <div className="flex justify-between items-center mb-1 text-sm font-semibold">
-          <span className="text-blue-700">Pengeluaran: {expensePercent}%</span>
-          <span className="text-purple-700">
-            Sisa Dana: {sisaDanaPercent}%
+        <div className="flex justify-between items-center  text-sm font-semibold">
+          <span className="text-blue-700 bg-[#E1EFFE] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">{expensePercent}%</span>
+          <span className="text-purple-700 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+            {sisaDanaPercent}%
           </span>
         </div>
         <ResponsiveContainer width="100%" height={40}>
@@ -234,7 +221,7 @@ const RincianDanaProyek = ({ data, isLoading }) => {
             <Bar dataKey="Sisa Dana" stackId="b" fill="#c4b5fd" radius={[0, 4, 4, 0]} />
           </BarChart>
         </ResponsiveContainer>
-        <div className="flex justify-between text-sm mt-1">
+        <div className="text-sm mt-1">
           <p className="text-gray-700">
             Pengeluaran:{' '}
             <span className="font-semibold text-blue-700">
@@ -253,9 +240,6 @@ const RincianDanaProyek = ({ data, isLoading }) => {
   );
 };
 
-/**
- * Komponen statistik sederhana dengan ikon.
- */
 const Statistic = ({
   title,
   value,
@@ -283,66 +267,71 @@ const Statistic = ({
   </div>
 );
 
-/**
- * Komponen tabel kustom sederhana.
- */
+// --- PERBAIKAN PADA KOMPONEN TABLE ---
 const Table = ({ columns, dataSource, rowKey, isLoading }) => (
   <div className="overflow-x-auto">
-    <table className="w-full border-collapse">
-      <thead className="bg-gray-50">
-        <tr>
-          {columns.map((col, idx) => (
-            <th
-              key={idx}
-              className="px-4 py-3.5 text-left text-sm font-medium text-gray-900 border-b"
-            >
-              {col.title}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
+    {/* Menggunakan div agar lebih fleksibel dari <table> */}
+    <div className="w-full min-w-full" style={{ borderCollapse: 'collapse' }}>
+      {/* Header */}
+      <div className="bg-gray-50 flex">
+        {columns.map((col, idx) => (
+          <div
+            key={idx}
+            className="px-4 py-3.5 text-sm font-medium text-gray-900"
+            style={{ 
+              flex: col.width || 1, // Beri flex-grow
+              minWidth: col.width || 120, // Beri min-width
+              textAlign: col.align || 'left' 
+            }}
+          >
+            {col.title}
+          </div>
+        ))}
+      </div>
+      {/* Body */}
+      <div>
         {isLoading && (
-          <tr>
-            <td colSpan={columns.length} className="text-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-            </td>
-          </tr>
+          <div className="text-center p-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
+          </div>
         )}
         {!isLoading && (!dataSource || dataSource.length === 0) && (
-          <tr>
-            <td colSpan={columns.length} className="text-center p-8 text-gray-500">
-              Tidak ada data
-            </td>
-          </tr>
+          <div className="text-center p-8 text-gray-500">
+            Tidak ada data
+          </div>
         )}
         {!isLoading &&
           dataSource?.map((row, idx) => (
-            <tr
+            <div
               key={row[rowKey] || idx}
-              className="border-b hover:bg-gray-50 transition-colors"
+              className="flex border-b hover:bg-gray-50 transition-colors"
             >
               {columns.map((col, colIdx) => (
-                <td
+                <div
                   key={colIdx}
-                  className="px-4 py-3 text-xs text-gray-700"
-                  style={{ textAlign: col.align || 'left' }}
+                  className="px-4 py-3 text-sm text-gray-700" // Perbesar font ke text-sm
+                  style={{ 
+                    flex: col.width || 1,
+                    minWidth: col.width || 120,
+                    textAlign: col.align || 'left',
+                    // Memaksa pemotongan teks jika terlalu panjang
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                  }}
                 >
                   {col.render
                     ? col.render(row[col.dataIndex], row)
                     : row[col.dataIndex]}
-                </td>
+                </div>
               ))}
-            </tr>
+            </div>
           ))}
-      </tbody>
-    </table>
+      </div>
+    </div>
   </div>
 );
+// --- BATAS PERBAIKAN ---
 
-/**
- * Komponen Tag (label) kustom.
- */
 const Tag = ({ children, color = 'default' }) => {
   const colorMap = {
     success: 'bg-green-50 text-green-700 border-green-200',
@@ -362,10 +351,7 @@ const Tag = ({ children, color = 'default' }) => {
   );
 };
 
-/**
- * Komponen Bar Chart sederhana (manual).
- */
-// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
+// --- PERBAIKAN PADA KOMPONEN SimpleBarChart ---
 const SimpleBarChart = ({
   data,
   dataKey,
@@ -383,7 +369,7 @@ const SimpleBarChart = ({
 }) => {
   if (isLoading)
     return (
-      <div className="text-center py-8" style={{ height: `${height}px` }}>
+      <div className=" text-center py-8" style={{ height: `${height}px` }}>
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
       </div>
     );
@@ -400,16 +386,20 @@ const SimpleBarChart = ({
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 5, right: 0, left: 0, bottom: 50 }}>
+        <BarChart data={data} margin={{ top: 5, right: 0, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey={xKey}
-            angle={-45}
-            textAnchor="end"
-            interval={0}
-            tick={{ fontSize: 10 }}
+            tick={{ fontSize: 12, fill: '#6B7280' }} // Style Sumbu X
+            axisLine={false}
+            tickLine={false}
           />
-          <YAxis tickFormatter={formatRupiah} tick={{ fontSize: 10 }} />
+          <YAxis 
+            tickFormatter={formatJuta} // Format Sumbu Y
+            tick={{ fontSize: 10, fill: '#6B7280' }} // Style Sumbu Y
+            axisLine={false}
+            tickLine={false}
+          />
           <Tooltip content={<CustomTooltip />} />
           <Bar dataKey={dataKey} name="Jumlah">
             {data.map((entry, index) => (
@@ -421,11 +411,8 @@ const SimpleBarChart = ({
     </div>
   );
 };
+// --- BATAS PERBAIKAN ---
 
-/**
- * Komponen Grouped Bar Chart (manual).
- */
-// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
 const GroupedBarChart = ({ data, height = 300, isLoading }) => {
   if (isLoading)
     return (
@@ -442,26 +429,41 @@ const GroupedBarChart = ({ data, height = 300, isLoading }) => {
         Tidak ada data
       </div>
     );
+    
+  const formatXAxis = (tickItem) => {
+    return moment(tickItem, 'YYYY-MM').format('MMM');
+  };
 
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-          <YAxis tickFormatter={formatRupiah} tick={{ fontSize: 10 }} />
+          <XAxis 
+            dataKey="name" 
+            tick={{ fontSize: 12, fill: '#6B7280' }}
+            tickFormatter={formatXAxis} 
+            axisLine={false}
+            tickLine={false}
+          />
+          <YAxis 
+            tickFormatter={formatJuta}
+            tick={{ fontSize: 10, fill: '#6B7280' }}
+            axisLine={false}
+            tickLine={false}
+          />
           <Tooltip content={<CustomTooltip />} />
-          <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+          {/* <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} /> */}
           <Bar
             dataKey="income"
             name="Pendapatan"
-            fill="#22c55e"
+            fill="#2B72FB"
             radius={[4, 4, 0, 0]}
           />
           <Bar
             dataKey="expense"
             name="Pengeluaran"
-            fill="#ef4444"
+            fill="#CF1322"
             radius={[4, 4, 0, 0]}
           />
         </BarChart>
@@ -470,10 +472,6 @@ const GroupedBarChart = ({ data, height = 300, isLoading }) => {
   );
 };
 
-/**
- * Komponen Donut Chart kustom (manual SVG).
- */
-// --- GANTI KOMPONEN LAMA DENGAN RECHARTS ---
 const DonutChart = ({
   data,
   colors = ['#1C64F2', '#9061F9'],
@@ -512,6 +510,7 @@ const DonutChart = ({
   }));
 
   const RADIAN = Math.PI / 180;
+  
   const renderCustomizedLabel = ({
     cx,
     cy,
@@ -521,8 +520,7 @@ const DonutChart = ({
     percent,
     index,
   }) => {
-     // Hanya tampilkan label jika persentase cukup besar
-    if (percent < 10) return null;
+    if (percent < 0.1) return null;
     
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
@@ -533,7 +531,7 @@ const DonutChart = ({
         x={x}
         y={y}
         fill="white"
-        textAnchor={x > cx ? 'start' : 'end'}
+        textAnchor="middle"
         dominantBaseline="central"
         className="font-semibold text-sm"
       >
@@ -579,7 +577,6 @@ const DonutChart = ({
         </PieChart>
       </ResponsiveContainer>
 
-      {/* Legend */}
       <div
         style={{
           display: 'flex',
@@ -588,7 +585,7 @@ const DonutChart = ({
           alignItems: 'center',
           gap: '16px',
           width: '100%',
-          marginTop: '-40px', // Tarik legend ke atas
+          marginTop: '-40px', 
         }}
       >
         {chartData.map((item, idx) => (
@@ -625,12 +622,7 @@ const DonutChart = ({
     </div>
   );
 };
-// --- BATAS KOMPONEN BARU ---
 
-
-/**
- * Komponen Paginasi sederhana.
- */
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
 
@@ -675,14 +667,12 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 // --- MAIN CONTENT COMPONENT ---
 
 function ReportingContent() {
-  // --- STATE UNTUK FILTER ---
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // --- BUAT OBJEK PARAMETER FILTER ---
   const filterParams = useMemo(
     () => ({
       asset: selectedAsset === 'all' ? undefined : selectedAsset,
@@ -692,7 +682,6 @@ function ReportingContent() {
     [selectedAsset, selectedProject, selectedPeriod]
   );
 
-  // --- FETCH DATA DROPDOWN FILTER ---
   const { data: assetOptionsData, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assetsForFilter'],
     queryFn: getAssets,
@@ -702,7 +691,6 @@ function ReportingContent() {
     queryFn: getProjects,
   });
 
-  // Periode statis
   const periodOptions = [
     { value: 'all', label: 'Semua Periode' },
     { value: '2025', label: 'Tahun 2025' },
@@ -713,7 +701,6 @@ function ReportingContent() {
     { value: '2025-10', label: 'Oktober 2025' },
   ];
 
-  // --- FETCH DATA LAPORAN ---
   const {
     data: reportData,
     isLoading: isLoadingReport,
@@ -722,7 +709,6 @@ function ReportingContent() {
     queryKey: ['financialReport', filterParams],
     queryFn: () => reportingAPI.getFinancialReport(filterParams),
   });
-  // Ambil data rincian proyek dari API
   const { data: rincianProyek, isLoading: isLoadingRincianProyek } = useQuery({
     queryKey: ['rincianDanaProyek', filterParams],
     queryFn: () => reportingAPI.getRincianDanaPerProyek(filterParams),
@@ -751,8 +737,6 @@ function ReportingContent() {
     queryKey: ['investorYield', filterParams],
     queryFn: () => reportingAPI.getInvestorYield(filterParams),
   });
-  // Data ini sepertinya tidak terpakai di implementasi yg sudah diperbaiki,
-  // namun tetap di-fetch jika diperlukan di masa depan.
   const { data: fundingProgress, isLoading: isLoadingFunding } = useQuery({
     queryKey: ['fundingProgress', filterParams],
     queryFn: () => reportingAPI.getFundingProgress(filterParams),
@@ -760,7 +744,6 @@ function ReportingContent() {
 
   const isLoading = isLoadingReport || isLoadingAssets || isLoadingProjects;
 
-  // --- Variabel Data Olahan ---
   const ringkasanDana = reportData?.ringkasan_dana || {};
   const labaRugi = reportData?.laba_rugi || {};
   const totalYield = reportData?.total_yield || 0;
@@ -785,13 +768,11 @@ function ReportingContent() {
       ? 'error'
       : 'default';
 
-  // Data untuk Donut Chart - URUTAN: Total Pengeluaran (Biru), Cash on Hand (Ungu)
   const donutChartData = [
     { name: 'Total Pengeluaran', value: ringkasanDana.total_pengeluaran || 0 },
     { name: 'Cash on Hand', value: ringkasanDana.sisa_dana || 0 },
   ];
 
-  // Data untuk Simple Bar Chart Kategori
   const categoryChartData = useMemo(
     () =>
       categoryData?.map((item) => ({
@@ -801,7 +782,6 @@ function ReportingContent() {
     [categoryData]
   );
 
-  // Data untuk Grouped Bar Chart Income vs Expense
   const incomeExpenseChartData = useMemo(() =>
     (incomeExpense || []).map((item) => ({
       name: item.month || item.name,
@@ -809,7 +789,6 @@ function ReportingContent() {
       expense: item.expense,
     })), [incomeExpense]);
 
-  // Mendapatkan nama proyek terpilih untuk judul kartu
   const getProjectName = () => {
     if (selectedProject === 'all') return 'Ringkasan Semua Proyek';
     if (isLoadingProjects || !projectOptionsData) return 'Memuat Nama Proyek...';
@@ -819,7 +798,6 @@ function ReportingContent() {
     );
   };
 
-  // Pagination logic Investor Yield
   const totalInvestorPages = Math.ceil(
     (investorYield?.length || 0) / itemsPerPage
   );
@@ -829,22 +807,8 @@ function ReportingContent() {
       currentPage * itemsPerPage
     ) || [];
 
-  // Definisi Kolom Tabel
   const expenseColumns = [
-    {
-      title: 'Tanggal',
-      dataIndex: 'date',
-      key: 'date',
-      render: (date) => moment(date).format('DD/MM/YYYY'), // Menggunakan moment
-    },
     { title: 'Kategori', dataIndex: 'category', key: 'category' },
-    { title: 'Deskripsi', dataIndex: 'description', key: 'description' },
-    {
-      title: 'Aset/Proyek',
-      dataIndex: 'asset',
-      key: 'asset',
-      render: (text, record) => text || record.project || '-',
-    },
     {
       title: 'Jumlah',
       dataIndex: 'amount',
@@ -852,13 +816,37 @@ function ReportingContent() {
       render: (val) => formatRupiah(val),
       align: 'right',
     },
-  ];
-  const quarterlyColumns = [
-    { title: 'Kuartal', dataIndex: 'quarter', key: 'quarter' },
+    { title: 'Deskripsi', dataIndex: 'description', key: 'description' },
     {
-      title: 'Pendanaan',
-      dataIndex: 'funding',
-      key: 'funding',
+      title: 'Bukti Url',
+      dataIndex: 'proof_url',
+      key: 'proof_url',
+      render: (url) => url ? (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+          {url.length > 30 ? `${url.substring(0, 30)}...` : url}
+        </a>
+      ) : '-',
+    },
+    {
+      title: 'Tanggal',
+      dataIndex: 'date',
+      key: 'date',
+      render: (date) => moment(date).format('YYYY-MM-DD'),
+    },
+    {
+      title: 'Proyek',
+      dataIndex: 'project',
+      key: 'project',
+      render: (text, record) => text || record.project || '-',
+    },
+  ];
+
+  const monthlySummaryColumns = [
+    { title: 'Bulan', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Pendapatan',
+      dataIndex: 'income',
+      key: 'income',
       render: (val) => formatRupiah(val),
       align: 'right',
     },
@@ -870,32 +858,37 @@ function ReportingContent() {
       align: 'right',
     },
     {
-      title: 'Yield',
-      dataIndex: 'yield',
-      key: 'yield',
-      render: (val) => formatRupiah(val),
-      align: 'right',
-    },
-    {
       title: 'Laba Bersih',
-      dataIndex: 'net_profit',
+      dataIndex: 'income',
       key: 'net_profit',
-      render: (val) => formatRupiah(val),
+      render: (income, record) => formatRupiah(income - record.expense),
       align: 'right',
       className: 'font-semibold',
     },
+    {
+      title: 'Margin (%)',
+      dataIndex: 'income',
+      key: 'margin',
+      render: (income, record) => {
+        const net = income - record.expense;
+        const margin = income > 0 ? (net / income) * 100 : 0;
+        return `${margin.toFixed(1)}%`;
+      },
+      align: 'right',
+    },
   ];
+  
   const investorColumns = [
     { title: 'Investor', dataIndex: 'investor', key: 'investor' },
     {
-      title: 'Total Pendanaan',
+      title: 'Total Investasi',
       dataIndex: 'total_funding',
       key: 'total_funding',
       render: (val) => formatRupiah(val),
       align: 'right',
     },
     {
-      title: 'Total Yield',
+      title: 'Total Bagi Hasil',
       dataIndex: 'total_yield',
       key: 'total_yield',
       render: (val) => formatRupiah(val),
@@ -909,9 +902,21 @@ function ReportingContent() {
       align: 'right',
       className: 'font-semibold text-blue-600',
     },
+    {
+      title: 'Unit Kepemilikan',
+      dataIndex: 'units',
+      key: 'units',
+      render: (val, record) => `${record.units || 0} unit (${record.percentage || 0}%)`,
+      align: 'right',
+    },
+    {
+      title: 'Periode',
+      dataIndex: 'period',
+      key: 'period',
+      align: 'right',
+    },
   ];
 
-  // Handler reset filter
   const resetFilters = () => {
     setSelectedAsset('all');
     setSelectedProject('all');
@@ -919,19 +924,15 @@ function ReportingContent() {
     setCurrentPage(1);
   };
 
-  // --- RENDER JSX ---
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-8 py-6">
+      <div className="px-8">
         <h1 className="text-3xl font-bold text-gray-900">Laporan Keuangan</h1>
         <p className="text-gray-600 text-base mt-1.5">
           Analisis komprehensif kinerja keuangan dan operasional
         </p>
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-4 mt-6">
-          {/* Filter Aset */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Aset
@@ -957,7 +958,6 @@ function ReportingContent() {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
-          {/* Filter Proyek */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Proyek
@@ -983,7 +983,6 @@ function ReportingContent() {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
-          {/* Filter Periode */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Filter Periode
@@ -1006,7 +1005,6 @@ function ReportingContent() {
               <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             </div>
           </div>
-          {/* Reset Button */}
           {(selectedAsset !== 'all' ||
             selectedProject !== 'all' ||
             selectedPeriod !== 'all') && (
@@ -1022,20 +1020,18 @@ function ReportingContent() {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="px-8 py-6 space-y-8">
-        {(isLoading || isLoadingReport) && ( // Tampilkan loading
+        {(isLoading || isLoadingReport) && (
           <div className="text-center p-10">Memuat data laporan...</div>
         )}
-        {!isLoading && isErrorReport && ( // Tampilkan error
+        {!isLoading && isErrorReport && (
           <div className="text-center p-10 text-red-600">
             Gagal memuat laporan
           </div>
         )}
 
-        {!isLoading && !isErrorReport && reportData && ( // Tampilkan konten jika data sukses dimuat
+        {!isLoading && !isErrorReport && reportData && (
           <>
-            {/* Ringkasan Dana */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Ringkasan Dana
@@ -1045,28 +1041,29 @@ function ReportingContent() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                    <Card>
+                    <Card className='border-gray-200 shadow-md rounded-lg'>
                       <Statistic
                         title="Total Dana Masuk"
                         value={formatRupiah(ringkasanDana.total_dana_masuk)}
-                        icon={GiReceiveMoney} // === DIKEMBALIKAN ===
+                        icon={GiReceiveMoney}
                         iconColor="#7CB305"
+                        sty
                       />
                     </Card>
-                    <Card>
+                    <Card className='border-gray-200 shadow-md rounded-lg'>
                       <Statistic
                         title="Total Pengeluaran"
                         value={formatRupiah(ringkasanDana.total_pengeluaran)}
-                        icon={GiPayMoney} // === DIKEMBALIKAN ===
+                        icon={GiPayMoney}
                         iconColor="#1C64F2"
                       />
                     </Card>
                   </div>
-                  <Card>
+                  <Card className='border-gray-200 shadow-md rounded-lg'>
                     <Statistic
                       title="Cash on Hand"
                       value={formatRupiah(ringkasanDana.sisa_dana)}
-                      icon={GiMoneyStack} // === DIKEMBALIKAN ===
+                      icon={GiMoneyStack}
                       iconColor="#9061F9"
                     />
                   </Card>
@@ -1074,10 +1071,12 @@ function ReportingContent() {
               )}
             </section>
 
-            {/* Charts Row 1 */}
+            {/* --- PERUBAHAN PADA GRID INI --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
-                <Card title="Persentase Penggunaan Dana">
+                {/* Tambahkan h-full agar tingginya sama */}
+                <Card className="h-full border-gray-200 shadow-md rounded-lg">
+                  <h2 className='text-[22px]'>Persentase Penggunaan Dana</h2>
                   <DonutChart
                     data={donutChartData}
                     colors={['#1C64F2', '#9061F9']}
@@ -1085,106 +1084,106 @@ function ReportingContent() {
                   />
                 </Card>
               </div>
-
+              
+              {/* Komponen RincianDanaProyek sudah memiliki h-full di dalamnya */}
               <div className="lg:col-span-2">
-                {/* Komponen Rincian Dana Proyek yang baru */}
                 <RincianDanaProyek
                   data={rincianProyek}
                   isLoading={isLoadingRincianProyek}
                 />
               </div>
             </div>
+            {/* --- BATAS PERUBAHAN --- */}
 
-            {/* Pengeluaran Section */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Pengeluaran
               </h2>
               
-              {/* === CARD PENGELUARAN BARU (SESUAI GAMBAR) === */}
-              {/* Card ini mengambil style dari CSS Anda: p-4 (16px), gap-7 (28px), h-118px, max-w-453px */}
               <Card
-                className="mb-6 rounded-xl border border-gray-100 w-full max-w-[453px]"
+                className="mb-6 border-gray-200 shadow-md rounded-lg w-full max-w-[453px]"
                 bodyStyle={{ padding: '16px', height: '118px', boxSizing: 'border-box' }}
-                loading={isLoadingReport} // Tambahkan loading state
+                loading={isLoadingReport}
               >
-                {/* CSS: display: flex, flex-direction: row, align-items: center, gap: 28px
-                  Tailwind: flex flex-row items-center gap-7 (Tailwind 7 = 1.75rem = 28px) 
-                */}
                 <div className="flex flex-row items-center gap-7 h-full">
-                  {/* Ikon */}
                   <div className="shrink-0 w-[34px] h-[34px] flex items-center justify-center">
-                    <GiPayMoney size={34} style={{ color: '#1C64F2' }} /> {/* Ikon Biru */}
+                    <GiPayMoney size={34} style={{ color: '#1C64F2' }} />
                   </div>
-                  {/* Konten Value */}
                   <div className="flex-1 flex flex-col justify-center">
                     <div 
-                      className="font-bold text-[31px] text-[#CF1322] leading-[1.25]" // 31px, bold, Teks Merah
-                      style={{ fontFamily: 'Inter, sans-serif' }} // Sesuai CSS
+                      className="font-bold text-[31px] text-[#CF1322] leading-tight"
+                      style={{ fontFamily: 'Inter, sans-serif' }}
                     >
                       {formatRupiah(ringkasanDana.total_pengeluaran)}
                     </div>
                   </div>
                 </div>
               </Card>
-              {/* ============================================== */}
 
-              <div className="grid mt-5 grid-cols-1 lg:grid-cols-2 gap-6">
-                <Card title="Pengeluaran Per Kategori">
-                  {/* Komponen SimpleBarChart yang baru */}
-                  <SimpleBarChart
-                    data={categoryChartData}
-                    dataKey="amount"
-                    xKey="category"
-                    height={300}
-                    isLoading={isLoadingCategory}
-                  />
-                </Card>
-                <Card title="Top 5 Pengeluaran Terbesar">
-                  <Table
-                    dataSource={topExpenses}
-                    columns={expenseColumns}
-                    rowKey="id"
-                    isLoading={isLoadingTopExpenses}
-                  />
-                </Card>
+              {/* --- PERUBAHAN PADA GRID INI --- */}
+              {/* Ganti grid-rows-2 menjadi grid-cols-2 */}
+              <div className="grid mt-5 grid-cols-1 lg:grid-rows-2 gap-6">
+                {/* Bungkus Card dengan div abu-abu */}
+                <div className="bg-gray-50 rounded-lg">
+                  <Card className="h-full border-gray-200 shadow-md rounded-lg p-">
+                    <h2 className='text-[22px] pt-0 text-black-700 mb-8'>Pengeluaran Per Kategori</h2>
+                    <SimpleBarChart
+                      data={categoryChartData}
+                      dataKey="amount"
+                      xKey="category"
+                      height={300}
+                      isLoading={isLoadingCategory}
+                    />
+                  </Card>
+                </div>
+                {/* Bungkus Card dengan div abu-abu */}
+                <div className="bg-gray-50 rounded-lg">
+                  <Card className="h-full border-gray-200 shadow-md rounded-lg">
+                    <h2 className='text-[22px] mb-5'>Top 5 Pengeluaran Terbesar</h2>
+                    <Table
+                      dataSource={topExpenses}
+                      columns={expenseColumns}
+                      rowKey="id"
+                      isLoading={isLoadingTopExpenses}
+                    />
+                  </Card>
+                </div>
               </div>
+              {/* --- BATAS PERUBAHAN --- */}
             </section>
 
-            {/* Laba Rugi Section */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Laba Rugi
               </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                <Card>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-rows-2 gap-6 mb-6">
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
                     title="Total Pendapatan"
                     value={formatRupiah(totalYield)}
-                    icon={TrendingUp}
+                    icon={AiFillDollarCircle}
                     iconColor="#7CB305"
                   />
                 </Card>
-                <Card>
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
                     title="Total Pengeluaran"
                     value={formatRupiah(ringkasanDana.total_pengeluaran)}
-                    icon={TrendingDown}
+                    icon={GiPayMoney}
                     iconColor="#F5222D"
                     valueStyle={{ color: '#F5222D' }}
                   />
                 </Card>
-                <Card>
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
                     title="Net Profit"
                     value={formatRupiah(yieldData?.hasil_bersih)}
-                    icon={LabaRugiIcon}
-                    iconColor={labaRugiColor}
-                    valueStyle={{ color: labaRugiColor }}
-                    suffix={<Tag color={labaRugiTagColor}>{labaRugiStatus}</Tag>}
+                    icon={FaArrowTrendUp}
+                    iconColor='#1C64F2'
+                    valueStyle={{ color: '#111928' }}
                   />
                 </Card>
-                <Card>
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
                     title="Margin Laba (%)"
                     value={`${yieldData?.margin_laba || 0}%`}
@@ -1193,75 +1192,92 @@ function ReportingContent() {
                   />
                 </Card>
               </div>
-              <Card title="Pendapatan vs Pengeluaran">
-                {/* Komponen GroupedBarChart yang baru */}
-                <GroupedBarChart
-                  data={incomeExpenseChartData}
-                  height={300}
-                  isLoading={isLoadingIncomeExpense}
-                />
-              </Card>
-            </section>
-
-            {/* Ringkasan Per Kuartal */}
-            <section>
-              <h2 className="text-2xl font-bold text-gray-900 mb-5">
-                Ringkasan Keuangan Per Kuartal
-              </h2>
-              <Card>
-                <Table
-                  dataSource={quarterlyData}
-                  columns={quarterlyColumns}
-                  rowKey="quarter"
-                  isLoading={isLoadingQuarterly}
-                />
-              </Card>
-            </section>
-
-            {/* Yield Section */}
-            <section>
-              <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <Card>
-                  <Statistic
-                    title="Total Investasi"
-                    value={formatRupiah(yieldData?.total_investasi)}
-                    icon={FaMoneyBillTransfer} // === DIKEMBALIKAN ===
-                    iconColor="#7CB305"
+              
+              <div className="bg-gray-50 rounded-lg">
+                <Card className='border-gray-200 shadow-md rounded-lg'>
+                  <h2 className='text-[22px] mb-5'>Pendapatan vs Pengeluaran (Bulanan)</h2>
+                  <GroupedBarChart
+                    data={incomeExpenseChartData}
+                    height={300}
+                    isLoading={isLoadingIncomeExpense}
                   />
                 </Card>
-                <Card>
+              </div>
+              
+            </section>
+
+            {/* --- PERUBAHAN PADA SECTION INI --- */}
+            <section>
+              {/* Bungkus Card dengan div abu-abu */}
+              <div className="bg-gray-50 rounded-lg">
+                <Card className='border-gray-200 shadow-md rounded-lg'>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                    Ringkasan Keuangan Bulanan
+                  </h2>
+                  <Table
+                    dataSource={incomeExpenseChartData}
+                    columns={monthlySummaryColumns}
+                    rowKey="name"
+                    isLoading={isLoadingIncomeExpense}
+                  />
+                </Card>
+              </div>
+            </section>
+            {/* --- BATAS PERUBAHAN --- */}
+
+            <section>
+              <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div className="md:col-span-2">
+                  <Card className='border-gray-200 shadow-md rounded-lg'>
+                    <Statistic
+                      title="Total Investasi Investor"
+                      value={formatRupiah(yieldData?.total_investasi)}
+                      icon={FaMoneyBillTransfer}
+                      iconColor="#7CB305"
+                    />
+                  </Card>
+                </div>
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
-                    title="Total Hasil Produksi"
+                    title="Total Bagi Hasil Investor"
                     value={formatRupiah(yieldData?.total_hasil_produksi)}
-                    icon={FaMoneyBills} // === DIKEMBALIKAN ===
+                    icon={FaMoneyBills}
                     iconColor="#1C64F2"
                   />
                 </Card>
-                <Card>
+                <Card className='border-gray-200 shadow-md rounded-lg'>
                   <Statistic
-                    title="Hasil Bersih"
+                    title="Yield (%)"
                     value={formatRupiah(yieldData?.hasil_bersih)}
                     icon={DollarSign}
                     iconColor="#9061F9"
                   />
                 </Card>
               </div>
-              <Card title="Investor Yield %">
-                <Table
-                  dataSource={paginatedInvestorYield}
-                  columns={investorColumns}
-                  rowKey="investor"
-                  isLoading={isLoadingInvestorYield}
-                />
-                {totalInvestorPages > 1 && (
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={totalInvestorPages}
-                    onPageChange={setCurrentPage}
+              {/* --- PERUBAHAN PADA SECTION INI --- */}
+              {/* Bungkus Card dengan div abu-abu */}
+              <div className="bg-gray-50 rounded-lg">
+                <Card className='border-gray-200 shadow-md rounded-lg'>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-5">
+                    Investor Yield%
+                  </h2>
+                  <Table
+                    dataSource={paginatedInvestorYield}
+                    columns={investorColumns}
+                    rowKey="investor"
+                    isLoading={isLoadingInvestorYield}
                   />
-                )}
-              </Card>
+                  {totalInvestorPages > 1 && (
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalInvestorPages}
+                      onPageChange={setCurrentPage}
+                    />
+                  )}
+                </Card>
+              </div>
+              {/* --- BATAS PERUBAHAN --- */}
             </section>
           </>
         )}

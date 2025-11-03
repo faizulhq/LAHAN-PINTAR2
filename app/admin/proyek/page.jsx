@@ -3,21 +3,22 @@
 
 import React, { useState } from 'react';
 import {
-  Table,        // Menggunakan Tabel untuk data Proyek
+  Table,
   Button,
-  Modal,        // Untuk form Tambah/Edit
+  Modal,
   Form,
   Input,
-  DatePicker,   // Untuk Start/End Date
-  InputNumber,  // Untuk Budget
+  DatePicker,
+  InputNumber,
   Typography,
   Flex,
   Space,
-  Popconfirm,   // Konfirmasi Hapus
-  message,      // Notifikasi Sukses/Gagal
-  Spin,         // Loading indicator
-  Alert,        // Error indicator
-  Card,         // Box Filter
+  Popconfirm,
+  message,
+  Spin,
+  Alert,
+  Card,
+  Select, // <-- IMPORT BARU
 } from 'antd';
 import {
   PlusOutlined,
@@ -26,53 +27,56 @@ import {
   SearchOutlined,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import moment from 'moment'; // Untuk format tanggal
+import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import {
   getProjects,
   createProject,
   updateProject,
   deleteProject,
-} from '@/lib/api/project'; //
+} from '@/lib/api/project';
+import { getAssets } from '@/lib/api/asset'; // <-- IMPORT BARU
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { RangePicker } = DatePicker;
+const { Option } = Select; // <-- BARU
 
-// Fungsi helper format Rupiah
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
   return `Rp ${Number(value).toLocaleString('id-ID')}`;
 };
 
-// Fungsi helper format Tanggal
 const formatDate = (dateString) => {
     if (!dateString) return '-';
     return moment(dateString).format('DD/MM/YYYY');
 };
 
 
-// Komponen Utama Halaman Proyek
 function ProjectManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState(null); // null = Tambah, object = Edit
+  const [editingProject, setEditingProject] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [form] = Form.useForm(); // Untuk mengelola form di modal
+  const [form] = Form.useForm();
 
-  // 1. Fetch Data Proyek
-  const { data: projects, isLoading, isError, error } = useQuery({
+  const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
     queryKey: ['projects'],
-    queryFn: getProjects, //
+    queryFn: getProjects,
   });
 
-  // 2. Mutasi (Tambah, Edit, Hapus)
+  // --- FETCH DATA ASET UNTUK DROPDOWN ---
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets'],
+    queryFn: getAssets,
+  });
+
   const mutationOptions = {
     onSuccess: () => {
-      queryClient.invalidateQueries(['projects']); // Refresh data tabel
-      setIsModalOpen(false); // Tutup modal
-      setEditingProject(null); // Reset mode edit
-      form.resetFields(); // Bersihkan form
+      queryClient.invalidateQueries(['projects']);
+      setIsModalOpen(false);
+      setEditingProject(null);
+      form.resetFields();
     },
     onError: (err) => {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal melakukan aksi'}`);
@@ -80,7 +84,7 @@ function ProjectManagementContent() {
   };
 
   const createMutation = useMutation({
-    mutationFn: createProject, //
+    mutationFn: createProject,
     ...mutationOptions,
     onSuccess: (...args) => {
       message.success('Proyek berhasil ditambahkan');
@@ -89,7 +93,7 @@ function ProjectManagementContent() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => updateProject(id, data), //
+    mutationFn: ({ id, data }) => updateProject(id, data),
     ...mutationOptions,
      onSuccess: (...args) => {
       message.success('Proyek berhasil diperbarui');
@@ -98,7 +102,7 @@ function ProjectManagementContent() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteProject, //
+    mutationFn: deleteProject,
     onSuccess: () => {
       message.success('Proyek berhasil dihapus');
       queryClient.invalidateQueries(['projects']);
@@ -108,7 +112,6 @@ function ProjectManagementContent() {
     },
   });
 
-  // 3. Handler Tombol dan Modal
   const showAddModal = () => {
     setEditingProject(null);
     form.resetFields();
@@ -121,7 +124,8 @@ function ProjectManagementContent() {
       name: project.name,
       description: project.description,
       dates: [moment(project.start_date), moment(project.end_date)],
-      budget: parseFloat(project.budget), // Pastikan budget adalah angka
+      budget: parseFloat(project.budget),
+      asset: project.asset, // <-- BARU: Set field asset saat edit
     });
     setIsModalOpen(true);
   };
@@ -139,13 +143,12 @@ function ProjectManagementContent() {
       start_date: values.dates[0].format('YYYY-MM-DD'),
       end_date: values.dates[1].format('YYYY-MM-DD'),
       budget: values.budget,
+      asset: values.asset, // <-- BARU: Kirim field asset ke backend
     };
 
     if (editingProject) {
-      // Mode Edit
       updateMutation.mutate({ id: editingProject.id, data: projectData });
     } else {
-      // Mode Tambah
       createMutation.mutate(projectData);
     }
   };
@@ -154,7 +157,6 @@ function ProjectManagementContent() {
     deleteMutation.mutate(id);
   };
 
-  // 4. Filter Data untuk Pencarian
    const filteredProjects = React.useMemo(() => {
     if (!projects) return [];
     return projects.filter(project =>
@@ -163,13 +165,19 @@ function ProjectManagementContent() {
   }, [projects, searchTerm]);
 
 
-  // 5. Definisi Kolom Tabel
   const columns = [
     {
       title: 'Nama Proyek',
       dataIndex: 'name',
       key: 'name',
       sorter: (a, b) => a.name.localeCompare(b.name),
+    },
+    // --- TAMBAHAN: Kolom Aset Terkait ---
+    {
+      title: 'Aset Terkait',
+      dataIndex: 'asset',
+      key: 'asset',
+      render: (assetId) => assets?.find(a => a.id === assetId)?.name || '-',
     },
     {
       title: 'Tanggal Mulai',
@@ -191,7 +199,7 @@ function ProjectManagementContent() {
       key: 'budget',
       render: (text) => formatRupiah(text),
       sorter: (a, b) => parseFloat(a.budget) - parseFloat(b.budget),
-      align: 'right', // Rata kanan untuk angka
+      align: 'right',
     },
     {
       title: 'Aksi',
@@ -218,10 +226,11 @@ function ProjectManagementContent() {
       align: 'center',
     },
   ];
+  
+  const isLoading = isLoadingProjects || isLoadingAssets; // <-- BARU: Cek loading assets juga
 
   return (
     <>
-      {/* 1. Page Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}>
@@ -243,7 +252,6 @@ function ProjectManagementContent() {
         </Button>
       </Flex>
 
-      {/* 2. Box Pencarian */}
        <Card style={{ marginBottom: 24 }}>
         <Search
             placeholder="Cari nama proyek..."
@@ -255,8 +263,6 @@ function ProjectManagementContent() {
          />
       </Card>
 
-
-      {/* 3. Tabel Data Proyek */}
       {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
       {isError && <Alert message="Error Memuat Data" description={error.message} type="error" showIcon closable />}
       {!isLoading && !isError && (
@@ -265,19 +271,18 @@ function ProjectManagementContent() {
             columns={columns}
             dataSource={filteredProjects}
             rowKey="id"
-            loading={isLoading || deleteMutation.isPending}
-            pagination={{ pageSize: 10 }} // Atur jumlah item per halaman
+            loading={isLoadingProjects || deleteMutation.isPending}
+            pagination={{ pageSize: 10 }}
             />
         </Card>
       )}
 
-      {/* 4. Modal Tambah/Edit Proyek */}
       <Modal
         title={editingProject ? 'Edit Proyek' : 'Tambah Proyek Baru'}
         open={isModalOpen}
         onCancel={handleCancel}
-        footer={null} // Footer diatur di dalam Form
-        destroyOnHidden // Reset form saat modal ditutup
+        footer={null}
+        destroyOnClose // <-- GANTI DARI destroyOnHidden
       >
         <Form
           form={form}
@@ -292,6 +297,27 @@ function ProjectManagementContent() {
           >
             <Input placeholder="Masukkan nama proyek" />
           </Form.Item>
+          
+          {/* --- FORM ITEM BARU UNTUK ASET --- */}
+          <Form.Item
+            name="asset"
+            label="Aset Terkait"
+            rules={[{ required: true, message: 'Aset harus dipilih!' }]}
+          >
+            <Select
+              placeholder="Pilih aset yang terkait proyek"
+              loading={isLoadingAssets}
+              showSearch
+              optionFilterProp="children"
+            >
+              {assets?.map(asset => (
+                <Option key={asset.id} value={asset.id}>
+                  {asset.name} ({asset.location})
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
           <Form.Item
             name="description"
             label="Deskripsi"
@@ -338,7 +364,6 @@ function ProjectManagementContent() {
   );
 }
 
-// Bungkus Halaman dengan ProtectedRoute
 export default function ProjectPage() {
   return (
     <ProtectedRoute>

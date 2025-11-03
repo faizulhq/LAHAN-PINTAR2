@@ -1,23 +1,23 @@
-// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-9ebe2a759744e60857214f21d26b1c7ae9d0c9aa/app/admin/pengeluaran/page.jsx
+// File: faizulhq/lahan-pintar2/LAHAN-PINTAR2-dfe2664682ace9537893ea0569b86e928b07e701/app/admin/pengeluaran/page.jsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
 import {
   Table, Button, Modal, Form, Select, InputNumber, DatePicker,
-  Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag, Upload
+  Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag
+  // Hapus 'Upload'
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UploadOutlined,
-  MoneyCollectOutlined
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, 
+  MoneyCollectOutlined, LinkOutlined // <-- Ganti UploadOutlined dengan LinkOutlined
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // Impor useAuthStore
+import useAuthStore from '@/lib/store/authStore';
 import {
   getExpenses, createExpense, updateExpense, deleteExpense,
 } from '@/lib/api/expense';
-// ... (impor API relasi Anda tetap sama) ...
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
 import { getFundings } from '@/lib/api/funding';
@@ -27,9 +27,12 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { Search } = Input;
 
-// ... (Helper format dan kategori Anda tetap sama) ...
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
+
+// --- DAPATKAN BASE URL BACKEND ---
+// (Ini tidak lagi diperlukan jika Anda menyimpan URL lengkap)
+// const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 const expenseCategories = {
     'material': 'Material',
@@ -41,7 +44,6 @@ const expenseCategories = {
     'other': 'Lain-Lain',
 };
 
-// Komponen Utama Halaman Pengeluaran
 function ExpenseManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -49,25 +51,49 @@ function ExpenseManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('semua');
   const [form] = Form.useForm();
-  const [fileList, setFileList] = useState([]);
+  // const [fileList, setFileList] = useState([]); // <-- HAPUS State ini
 
-  // --- Ambil data user dari store ---
   const user = useAuthStore((state) => state.user);
   const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+  const isOperator = useMemo(() => user?.role === 'Operator', [user]);
 
-  // --- Fetch Data --- (tetap sama)
+  const enabledForAdminOrOperator = isAdmin || isOperator;
+
   const { data: expenses, isLoading: isLoadingExpenses, isError: isErrorExpenses, error: errorExpenses } = useQuery({
     queryKey: ['expenses'], queryFn: getExpenses,
   });
-  // ... (sisa fetch data relasi tetap sama) ...
-  const { data: projects, isLoading: isLoadingProjects } = useQuery({ queryKey: ['projects'], queryFn: getProjects });
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
-  const { data: fundings, isLoading: isLoadingFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
-  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
+  
+  const { data: projects, isLoading: isLoadingProjects } = useQuery({ 
+    queryKey: ['projects'], 
+    queryFn: getProjects,
+    enabled: enabledForAdminOrOperator
+  });
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({ 
+    queryKey: ['assets'], 
+    queryFn: getAssets,
+    enabled: enabledForAdminOrOperator
+  });
+  const { data: fundings, isLoading: isLoadingFundings } = useQuery({ 
+    queryKey: ['fundings'], 
+    queryFn: getFundings,
+    enabled: enabledForAdminOrOperator
+  });
+  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ 
+    queryKey: ['fundingSources'], 
+    queryFn: getFundingSources,
+    enabled: enabledForAdminOrOperator
+  });
 
-  // --- Data Mapping --- (tetap sama)
+  const projectAssetMap = useMemo(() => {
+    if (!projects || !assets) return {};
+    const assetMap = assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {});
+    return projects.reduce((acc, p) => {
+        acc[p.id] = assetMap[p.asset] || '-';
+        return acc;
+    }, {});
+  }, [projects, assets]);
+
   const projectMap = useMemo(() => projects ? projects.reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {}) : {}, [projects]);
-  const assetMap = useMemo(() => assets ? assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {}) : {}, [assets]);
   const sourceMap = useMemo(() => fundingSources ? fundingSources.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {}) : {}, [fundingSources]);
   const fundingMap = useMemo(() => {
      if (!fundings || !sourceMap) return {};
@@ -77,24 +103,26 @@ function ExpenseManagementContent() {
      }, {});
   }, [fundings, sourceMap]);
   
-  // --- Mutasi --- (tetap sama)
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      setIsModalOpen(false); setEditingExpense(null); form.resetFields(); setFileList([]);
+      setIsModalOpen(false); setEditingExpense(null); form.resetFields(); 
+      // setFileList([]); // <-- HAPUS
     },
-    onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal'}`); },
+    onError: (err) => { 
+        const errorDetail = err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message || 'Gagal';
+        message.error(`Error: ${errorDetail}`); 
+    },
   };
   const createMutation = useMutation({ mutationFn: createExpense, ...mutationOptions, onSuccess: (...args) => { message.success('Pengeluaran berhasil ditambahkan'); mutationOptions.onSuccess(...args); } });
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => updateExpense(id, data), ...mutationOptions, onSuccess: (...args) => { message.success('Pengeluaran berhasil diperbarui'); mutationOptions.onSuccess(...args); } });
   const deleteMutation = useMutation({ mutationFn: deleteExpense, onSuccess: () => { message.success('Pengeluaran berhasil dihapus'); queryClient.invalidateQueries({ queryKey: ['expenses'] }); }, onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); } });
 
-  // --- Handlers --- (tetap sama)
-  const showAddModal = () => { setEditingExpense(null); form.resetFields(); setFileList([]); setIsModalOpen(true); };
+  const showAddModal = () => { setEditingExpense(null); form.resetFields(); setIsModalOpen(true); };
   const showEditModal = (expense) => {
-    // ... (sisa handler tetap sama) ...
     setEditingExpense(expense);
-    setFileList([]); 
+    // setFileList([]); // <-- HAPUS
+    
     form.setFieldsValue({
       category: expense.category,
       amount: parseFloat(expense.amount),
@@ -102,24 +130,23 @@ function ExpenseManagementContent() {
       description: expense.description,
       project_id: expense.project_id,
       funding_id: expense.funding_id,
-      asset_id: expense.asset_id,
+      proof_url: expense.proof_url, // <-- TAMBAHKAN INI
     });
     setIsModalOpen(true);
   };
-  const handleCancel = () => { setIsModalOpen(false); setEditingExpense(null); form.resetFields(); setFileList([]); };
+  const handleCancel = () => { setIsModalOpen(false); setEditingExpense(null); form.resetFields(); };
+  
+  // --- PERUBAHAN BESAR DI SINI (KEMBALI KE JSON) ---
   const handleFormSubmit = async (values) => {
-    // ... (sisa handler tetap sama) ...
-    const proofUrlPlaceholder = fileList.length > 0 ? `/path/to/proof/${fileList[0].name}` : (editingExpense?.proof_url || null);
-
+    
     const expenseData = {
       category: values.category,
       amount: values.amount,
       date: values.date.format('YYYY-MM-DD'),
       description: values.description,
-      proof_url: proofUrlPlaceholder,
+      proof_url: values.proof_url || null, // Ambil URL dari form
       project_id: values.project_id,
       funding_id: values.funding_id,
-      asset_id: values.asset_id,
     };
 
     if (editingExpense) {
@@ -128,9 +155,10 @@ function ExpenseManagementContent() {
       createMutation.mutate(expenseData);
     }
   };
+  // --- BATAS PERUBAHAN ---
+
   const handleDelete = (id) => { deleteMutation.mutate(id); };
 
-  // --- Filter --- (tetap sama)
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
     return expenses.filter(e => {
@@ -140,9 +168,7 @@ function ExpenseManagementContent() {
     });
   }, [expenses, searchTerm, selectedCategory]);
 
-  // --- Kolom Tabel (DENGAN MODIFIKASI) ---
   const columns = [
-    // ... (kolom lain tetap sama) ...
     { title: 'Tanggal', dataIndex: 'date', key: 'date', render: formatDate, sorter: (a, b) => moment(a.date).unix() - moment(b.date).unix(), width: 120 },
     {
       title: 'Kategori', dataIndex: 'category', key: 'category',
@@ -153,18 +179,45 @@ function ExpenseManagementContent() {
     },
     { title: 'Deskripsi', dataIndex: 'description', key: 'description', ellipsis: true },
     { title: 'Jumlah', dataIndex: 'amount', key: 'amount', render: formatRupiah, sorter: (a, b) => parseFloat(a.amount) - parseFloat(b.amount), align: 'right', width: 150 },
-    { title: 'Proyek', dataIndex: 'project_id', key: 'project_id', render: (id) => projectMap[id] || `ID ${id}`, width: 150, ellipsis: true },
-    { title: 'Aset', dataIndex: 'asset_id', key: 'asset_id', render: (id) => assetMap[id] || `ID ${id}`, width: 150, ellipsis: true },
-    { title: 'Dana', dataIndex: 'funding_id', key: 'funding_id', render: (id) => fundingMap[id] || `ID ${id}`, width: 200, ellipsis: true },
+    { 
+      title: 'Proyek', 
+      dataIndex: 'project_id', 
+      key: 'project_id', 
+      render: (id) => projectMap[id] || `ID ${id}`, 
+      width: 150, 
+      ellipsis: true 
+    },
+    { 
+      title: 'Aset', 
+      dataIndex: 'project_id', 
+      key: 'asset', 
+      render: (id) => projectAssetMap[id] || '-', 
+      width: 150, 
+      ellipsis: true,
+      hidden: isOperator, 
+    },
+    { 
+      title: 'Dana', 
+      dataIndex: 'funding_id', 
+      key: 'funding_id', 
+      render: (id) => fundingMap[id] || `ID ${id}`, 
+      width: 200, 
+      ellipsis: true,
+      hidden: isOperator, 
+    },
     {
-      title: 'Bukti', dataIndex: 'proof_url', key: 'proof_url', width: 100, align: 'center',
+      title: 'Bukti', 
+      dataIndex: 'proof_url', // <-- Kembali ke proof_url
+      key: 'proof_url', 
+      width: 100, 
+      align: 'center',
+      // Pastikan URL-nya lengkap (https://...) agar bisa diklik
       render: (url) => url ? <a href={url} target="_blank" rel="noopener noreferrer"><Button size="small">Lihat</Button></a> : '-',
     },
     {
       title: 'Aksi', key: 'action', width: 120, align: 'center', fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          {/* --- MODIFIKASI DI SINI --- */}
           {isAdmin && (
             <>
               <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
@@ -173,26 +226,18 @@ function ExpenseManagementContent() {
               </Popconfirm>
             </>
           )}
-          {/* Jika bukan admin, kolom aksi akan kosong */}
         </Space>
       ),
     },
-  ];
+  ].filter(col => !col.hidden);
 
-  const isLoadingInitialData = isLoadingExpenses || isLoadingProjects || isLoadingAssets || isLoadingFundings || isLoadingSources;
-  const isErrorInitialData = isErrorExpenses || !projects || !assets || !fundings || !fundingSources;
+  const isLoadingInitialData = isLoadingExpenses || (enabledForAdminOrOperator && (isLoadingProjects || isLoadingAssets || isLoadingFundings || isLoadingSources));
+  const isErrorInitialData = isErrorExpenses;
 
-  // --- Upload Props --- (tetap sama)
-  const uploadProps = {
-    onRemove: (file) => { setFileList(current => current.filter(f => f.uid !== file.uid)); },
-    beforeUpload: (file) => { setFileList([file]); return false; },
-    fileList,
-    maxCount: 1,
-  };
+  // const uploadProps = { ... }; // <-- HAPUS Variabel ini
 
   return (
     <>
-      {/* ... (Header, Filter, Search, Loading, Modal Anda tetap sama) ... */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}><MoneyCollectOutlined /> Manajemen Pengeluaran</Title>
@@ -241,10 +286,9 @@ function ExpenseManagementContent() {
 
       <Modal
         title={editingExpense ? 'Edit Pengeluaran' : 'Tambah Pengeluaran Baru'}
-        open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnHidden
+        open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
-          {/* ... (Semua Form.Item Anda tetap sama) ... */}
           <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori harus dipilih!' }]}>
             <Select placeholder="Pilih kategori pengeluaran">
               {Object.entries(expenseCategories).map(([value, text]) => <Option key={value} value={value}>{text}</Option>)}
@@ -259,14 +303,10 @@ function ExpenseManagementContent() {
            <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi tidak boleh kosong!' }]}>
             <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
           </Form.Item>
+          
           <Form.Item name="project_id" label="Proyek Terkait" rules={[{ required: true, message: 'Proyek harus dipilih!' }]}>
             <Select placeholder="Pilih proyek" loading={isLoadingProjects} showSearch optionFilterProp="children">
               {projects?.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
-            </Select>
-          </Form.Item>
-           <Form.Item name="asset_id" label="Aset Terkait" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
-            <Select placeholder="Pilih aset" loading={isLoadingAssets} showSearch optionFilterProp="children">
-              {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
             </Select>
           </Form.Item>
            <Form.Item name="funding_id" label="Sumber Dana Digunakan" rules={[{ required: true, message: 'Sumber dana harus dipilih!' }]}>
@@ -274,14 +314,16 @@ function ExpenseManagementContent() {
               {fundings?.map(f => <Option key={f.id} value={f.id}>{fundingMap[f.id]}</Option>)}
             </Select>
           </Form.Item>
-          <Form.Item name="proof_upload" label="Upload Bukti (Opsional)">
-             <Upload {...uploadProps}>
-                <Button icon={<UploadOutlined />}>Pilih File</Button>
-            </Upload>
-            {editingExpense?.proof_url && fileList.length === 0 && (
-                <Text type="secondary" style={{display: 'block', marginTop: 8}}>Bukti tersimpan: <a href={editingExpense.proof_url} target="_blank" rel="noopener noreferrer">Lihat</a></Text>
-            )}
+          
+          {/* --- PERUBAHAN: Ganti <Upload> menjadi <Input> --- */}
+          <Form.Item 
+            name="proof_url" 
+            label="URL Bukti (Opsional)"
+            rules={[{ type: 'url', message: 'Silakan masukkan URL yang valid' }]}
+          >
+             <Input prefix={<LinkOutlined />} placeholder="https://docs.google.com/..." />
           </Form.Item>
+          {/* --- BATAS PERUBAHAN --- */}
 
           <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
             <Space>

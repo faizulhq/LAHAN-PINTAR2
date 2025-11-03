@@ -20,14 +20,15 @@ const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-// Role choices
+// --- PERUBAHAN DI SINI ---
 const ROLE_CHOICES = {
   'Superadmin': { text: 'Superadmin', color: 'red' },
   'Admin': { text: 'Admin', color: 'blue' },
-  'Oprator': { text: 'Operator', color: 'green' },
+  'Operator': { text: 'Operator', color: 'green' }, // Ejaan diubah di sini
   'Investor': { text: 'Investor', color: 'purple' },
   'Viewer': { text: 'Viewer', color: 'default' },
 };
+// --- BATAS PERUBAHAN ---
 
 function UserManagementContent() {
   const queryClient = useQueryClient();
@@ -38,13 +39,11 @@ function UserManagementContent() {
   const [selectedRole, setSelectedRole] = useState('semua');
   const [form] = Form.useForm();
 
-  // --- Fetch Data ---
   const { data: users, isLoading, isError, error } = useQuery({
     queryKey: ['users'],
     queryFn: getUsers,
   });
 
-  // --- Mutasi ---
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -90,7 +89,6 @@ function UserManagementContent() {
     },
   });
 
-  // --- Handlers ---
   const showAddModal = () => {
     setEditingUser(null);
     form.resetFields();
@@ -103,7 +101,6 @@ function UserManagementContent() {
       username: user.username,
       email: user.email,
       role: user.role,
-      // Password tidak di-set (optional saat edit)
     });
     setIsModalOpen(true);
   };
@@ -121,7 +118,6 @@ function UserManagementContent() {
       role: values.role,
     };
 
-    // Tambahkan password jika diisi
     if (values.password) {
       userData.password = values.password;
     }
@@ -129,7 +125,6 @@ function UserManagementContent() {
     if (editingUser) {
       updateMutation.mutate({ id: editingUser.id, data: userData });
     } else {
-      // Saat create, password wajib
       if (!values.password) {
         message.error('Password wajib diisi untuk user baru!');
         return;
@@ -142,7 +137,6 @@ function UserManagementContent() {
     deleteMutation.mutate(id);
   };
 
-  // --- Filter Data ---
   const filteredUsers = useMemo(() => {
     if (!users) return [];
     return users.filter(user => {
@@ -153,7 +147,6 @@ function UserManagementContent() {
     });
   }, [users, searchTerm, selectedRole]);
 
-  // --- Kolom Tabel ---
   const columns = [
     {
       title: 'Username',
@@ -219,7 +212,6 @@ function UserManagementContent() {
 
   return (
     <>
-      {/* Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}>
@@ -242,7 +234,6 @@ function UserManagementContent() {
         </Button>
       </Flex>
 
-      {/* Filter */}
       <Card style={{ marginBottom: 24 }}>
         <Flex gap="middle" wrap="wrap">
           <Search
@@ -267,7 +258,6 @@ function UserManagementContent() {
         </Flex>
       </Card>
 
-      {/* Tabel */}
       {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
       {isError && <Alert message="Error" description={error?.message} type="error" showIcon />}
 
@@ -284,7 +274,6 @@ function UserManagementContent() {
         </Card>
       )}
 
-      {/* Modal */}
       <Modal
         title={editingUser ? 'Edit User' : 'Tambah User Baru'}
         open={isModalOpen}
