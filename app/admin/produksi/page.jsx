@@ -1,234 +1,964 @@
-// File: app/admin/produksi/page.jsx
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Table, Button, Modal, Form, Select, InputNumber, DatePicker,
-  Input, Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card,
+  Button, Modal, Form, Select, InputNumber, DatePicker,
+  Input, Typography, Flex, Space, message, Spin, Alert, Card, Row, Col,
+  Tag, Skeleton, Descriptions, Popconfirm
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined,
+  PlusOutlined, EditOutlined, SearchOutlined, DeleteOutlined, CloseCircleOutlined, PlusCircleOutlined
 } from '@ant-design/icons';
 import { LuWheat } from 'react-icons/lu';
+import { FaBoxesStacked, FaMoneyBillWave, FaBox, FaArrowTrendUp } from 'react-icons/fa6';
+import { BiMoneyWithdraw } from 'react-icons/bi';
+import { BsBox2Fill } from 'react-icons/bs';
+import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import {
-  getProductions, createProduction, patchProduction, deleteProduction,
+  getProductions, createProduction, patchProduction, deleteProduction, getProduction
 } from '@/lib/api/production';
+import { getProductionStats } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
-const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
-const formatNumber = (value) => value != null ? Number(value).toLocaleString('id-ID') : '0';
+// =================================================================
+// === HELPERS & CONSTANTS ===
+// =================================================================
+const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
+const formatRupiah = (value) =>
+  value != null
+    ? `Rp ${Number(value).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}`
+    : 'Rp 0';
+
+const STATUS_MAP = {
+  stok: { label: 'Stok', color: '#1E429F' },
+  terjual: { label: 'Dijual', color: '#1E429F' },
+};
+
+const ASSET_TYPE_MAP = {
+  lahan: { label: 'Lahan', color: '#1E429F' },
+  alat: { label: 'Alat', color: '#1E429F' },
+  bangunan: { label: 'Bangunan', color: '#1E429F' },
+  ternak: { label: 'Ternak', color: '#1E429F' },
+};
+
+// =================================================================
+// === KOMPONEN STAT CARD ===
+// =================================================================
+const StatCard = ({ title, value, icon, loading, format = "number", iconColor }) => {
+  const displayValue = () => {
+    if (loading) return <Skeleton.Input active size="small" style={{ width: 120, height: 38 }} />;
+    if (format === 'rupiah') return formatRupiah(value);
+    return Number(value).toLocaleString('id-ID');
+  };
+
+  return (
+    <Card 
+      bodyStyle={{ padding: '24px' }} 
+      style={{
+        background: '#FFFFFF',
+        border: '1px solid #F0F0F0',
+        borderRadius: '12px',
+        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
+        // height: '118px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
+        <div 
+          style={{
+            flexShrink: 0,
+            color: iconColor || '#7CB305',
+            fontSize: '34px',
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
+          <Text 
+            style={{ 
+              fontSize: '18px', 
+              fontWeight: 600, 
+              color: '#585858',
+              lineHeight: '150%',
+              // // fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            {title}
+          </Text>
+          <Text 
+            style={{ 
+              fontSize: '30px', 
+              fontWeight: 700, 
+              color: '#111928',
+              lineHeight: '125%',
+              // // fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            {displayValue()}
+          </Text>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// =================================================================
+// === KOMPONEN KARTU PRODUKSI ===
+// =================================================================
+const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAdmin }) => {
+  const status = STATUS_MAP[production.status] || { label: production.status, color: '#1E429F' };
+  const type = ASSET_TYPE_MAP[production.asset_type] || { label: production.asset_type, color: '#1E429F' };
+  
+  return (
+    <Card 
+      bodyStyle={{ padding: '20px' }}
+      style={{
+        width: '100%',
+        marginBottom: '0px',
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        {/* Left Section */}
+        <div style={{ flex: 1 }}>
+          <Space size="small" style={{ marginBottom: '10px' }}>
+            <div style={{
+              display: 'inline-flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '4px 10px',
+              background: '#E1EFFE',
+              borderRadius: '6px',
+            }}>
+              <Text style={{ 
+                // fontFamily: 'Inter, sans-serif',
+                fontWeight: 600,
+                fontSize: '14px',
+                lineHeight: '17px',
+                color: '#1E429F',
+              }}>
+                {type.label}
+              </Text>
+            </div>
+            <div style={{
+              display: 'inline-flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '4px 10px',
+              background: '#E1EFFE',
+              borderRadius: '6px',
+            }}>
+              <Text style={{ 
+                // fontFamily: 'Inter, sans-serif',
+                fontWeight: 600,
+                fontSize: '14px',
+                lineHeight: '17px',
+                color: '#1E429F',
+              }}>
+                {status.label}
+              </Text>
+            </div>
+          </Space>
+          
+          <Title level={4} style={{ 
+            margin: '0 0 10px 0', 
+            fontSize: '20px',
+            fontWeight: 600,
+            lineHeight: '24px',
+            // fontFamily: 'Inter, sans-serif',
+            color: '#111928',
+          }}>
+            {production.name}
+          </Title>
+          
+          <Text style={{ 
+            fontSize: '16px',
+            fontWeight: 500,
+            lineHeight: '19px',
+            color: '#111928',
+            display: 'block',
+            marginBottom: '16px',
+            // fontFamily: 'Inter, sans-serif',
+          }}>
+            {formatDate(production.date)}
+          </Text>
+          
+          <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+            <div>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#727272',
+                display: 'block',
+                marginBottom: '10px',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                Kuantitas
+              </Text>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#111928',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                {production.quantity}{production.unit}
+              </Text>
+            </div>
+            <div>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#727272',
+                display: 'block',
+                marginBottom: '10px',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                Harga per Unit
+              </Text>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#111928',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                {formatRupiah(production.unit_price)}
+              </Text>
+            </div>
+            <div>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#727272',
+                display: 'block',
+                marginBottom: '10px',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                Total Nilai
+              </Text>
+              <Text style={{ 
+                fontSize: '14px',
+                fontWeight: 500,
+                color: '#7CB305',
+                // fontFamily: 'Inter, sans-serif',
+              }}>
+                {formatRupiah(production.total_value)}
+              </Text>
+            </div>
+          </div>
+          
+          <Space>
+            <Button 
+              style={{ 
+                minWidth: '128px',
+                height: '40px',
+                border: '1px solid #237804',
+                borderRadius: '8px',
+                color: '#237804',
+                // fontFamily: 'Inter, sans-serif',
+                fontSize: '14px',
+                fontWeight: 500,
+              }} 
+              onClick={() => onDetailClick(production.id)}
+            >
+              Detail
+            </Button>
+            {isAdmin && (
+              <Button 
+                style={{ 
+                  minWidth: '128px',
+                  height: '40px',
+                  background: '#237804',
+                  borderColor: '#237804',
+                  borderRadius: '8px',
+                  color: '#FFFFFF',
+                  // fontFamily: 'Inter, sans-serif',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }} 
+                onClick={() => onEditClick(production)}
+              >
+                Edit
+              </Button>
+            )}
+          </Space>
+        </div>
+
+        {/* Right Section */}
+        <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+          <Text style={{ 
+            fontSize: '24px', 
+            fontWeight: 700, 
+            color: '#7CB305', 
+            display: 'block',
+            lineHeight: '29px',
+            // fontFamily: 'Inter, sans-serif',
+            marginBottom: '0px',
+          }}>
+            {formatRupiah(production.total_value)}
+          </Text>
+          <Text style={{ 
+            fontSize: '14px',
+            fontWeight: 500,
+            color: '#727272',
+            display: 'block',
+            // fontFamily: 'Inter, sans-serif',
+          }}>
+            {production.quantity}{production.unit}
+          </Text>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// =================================================================
+// === KOMPONEN MODAL TAMBAH/EDIT ===
+// =================================================================
+const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadingAssets, isAdmin }) => {
+  const queryClient = useQueryClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditMode = Boolean(initialData);
+
+  const mutationOptions = {
+    onSuccess: () => {
+      message.success(isEditMode ? 'Produksi berhasil diperbarui' : 'Produksi berhasil ditambahkan');
+      queryClient.invalidateQueries({ queryKey: ['productions'] });
+      queryClient.invalidateQueries({ queryKey: ['productionStats'] });
+      onClose();
+    },
+    onError: (err) => {
+      console.error("Error:", err);
+      message.error('Gagal menyimpan. Cek konsol untuk detail.');
+    },
+    onSettled: () => setIsSubmitting(false),
+  };
+
+  const createMutation = useMutation({ mutationFn: createProduction, ...mutationOptions });
+  const updateMutation = useMutation({ 
+    mutationFn: ({ id, data }) => patchProduction(id, data), 
+    ...mutationOptions 
+  });
+
+  useEffect(() => {
+    if (visible) {
+      if (isEditMode && initialData) {
+        form.setFieldsValue({
+          ...initialData,
+          date: moment(initialData.date, 'YYYY-MM-DD'),
+          quantity: parseFloat(initialData.quantity),
+          unit_price: parseFloat(initialData.unit_price),
+        });
+      } else {
+        form.resetFields();
+        form.setFieldValue('status', 'stok');
+      }
+    }
+  }, [visible, initialData, form, isEditMode]);
+
+  const onFinish = (values) => {
+    setIsSubmitting(true);
+    const payload = {
+      ...values,
+      date: values.date.format('YYYY-MM-DD'),
+    };
+    
+    if (isEditMode) {
+      updateMutation.mutate({ id: initialData.id, data: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
+  };
+
+  return (
+    <Modal
+      title={isEditMode ? 'Edit Produksi' : 'Tambah Produksi Baru'}
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      width={700}
+      destroyOnClose
+    >
+      <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
+        <Form.Item
+          name="name"
+          label="Nama Produk/Hasil"
+          rules={[{ required: true, message: 'Nama produk wajib diisi' }]}
+        >
+          <Input placeholder="cth: Telur Ayam Omega 3" />
+        </Form.Item>
+
+        <Form.Item
+          name="asset"
+          label="Aset Terkait"
+          rules={[{ required: true, message: 'Aset wajib dipilih' }]}
+        >
+          <Select
+            showSearch
+            placeholder="Pilih aset penghasil"
+            loading={isLoadingAssets}
+            optionFilterProp="children"
+            filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+            options={assets?.map(a => ({ value: a.id, label: `${a.name} (${a.type})` }))}
+          />
+        </Form.Item>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="quantity"
+              label="Kuantitas"
+              rules={[{ required: true, message: 'Kuantitas wajib diisi' }]}
+            >
+              <InputNumber min={0} className="w-full" placeholder="cth: 500" />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="unit"
+              label="Unit"
+              rules={[{ required: true, message: 'Unit wajib diisi' }]}
+            >
+              <Input placeholder="cth: Kg, Liter, Ekor" />
+            </Form.Item>
+          </Col>
+        </Row>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="unit_price"
+              label="Harga per Unit (Rp)"
+              rules={[{ required: true, message: 'Harga wajib diisi' }]}
+            >
+              <InputNumber
+                className="w-full"
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                min={0}
+                placeholder="Masukkan harga jual per unit"
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="date"
+              label="Tanggal Produksi"
+              rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
+            >
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY"/>
+            </Form.Item>
+          </Col>
+        </Row>
+
+        {isAdmin && (
+          <Form.Item
+            name="status"
+            label="Status"
+            rules={[{ required: true, message: 'Status wajib dipilih' }]}
+          >
+            <Select placeholder="Pilih status produksi">
+              <Option value="stok">Stok</Option>
+              <Option value="terjual">Terjual</Option>
+            </Select>
+          </Form.Item>
+        )}
+
+        <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
+          <Space>
+            <Button onClick={onClose}>Batal</Button>
+            <Button
+              type="primary"
+              htmlType="submit"
+              loading={isSubmitting}
+              style={{ backgroundColor: '#237804', borderColor: '#237804' }}
+            >
+              {isEditMode ? 'Simpan Perubahan' : 'Tambah Data'}
+            </Button>
+          </Space>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+};
+
+// =================================================================
+// === KOMPONEN MODAL DETAIL ===
+// =================================================================
+const ProductionDetailModal = ({ visible, onClose, productionId, isAdmin, onEditClick, onDelete }) => {
+  const { data: production, isLoading, isError, error } = useQuery({
+    queryKey: ['production', productionId],
+    queryFn: () => getProduction(productionId),
+    enabled: !!productionId,
+  });
+
+  return (
+    <Modal
+      title="Detail Produksi"
+      open={visible}
+      onCancel={onClose}
+      footer={[
+        <Button key="close" onClick={onClose}>Tutup</Button>,
+        ...(isAdmin ? [
+          <Popconfirm 
+            key="delete"
+            title="Hapus Produksi?" 
+            description="Yakin hapus data ini?" 
+            onConfirm={() => { onDelete(productionId); onClose(); }} 
+            okText="Ya, Hapus" 
+            cancelText="Batal" 
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger icon={<DeleteOutlined />}>Hapus</Button>
+          </Popconfirm>,
+          <Button 
+            key="edit" 
+            type="primary" 
+            icon={<EditOutlined />} 
+            onClick={() => { onEditClick(production); onClose(); }}
+            style={{ background: '#059669', borderColor: '#059669' }}
+          >
+            Edit
+          </Button>
+        ] : [])
+      ]}
+      width={700}
+      destroyOnClose
+    >
+      {isLoading && <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>}
+      {isError && <Alert message="Gagal Mengambil Data" description={error?.message} type="error" showIcon />}
+      {production && !isLoading && (
+        <Descriptions bordered layout="vertical" column={2}>
+          <Descriptions.Item label="Nama Produk" span={2}>{production.name}</Descriptions.Item>
+          <Descriptions.Item label="Aset Terkait">{production.asset_name}</Descriptions.Item>
+          <Descriptions.Item label="Tipe Aset">
+            <Tag color={ASSET_TYPE_MAP[production.asset_type]?.color || 'default'}>
+              {ASSET_TYPE_MAP[production.asset_type]?.label || production.asset_type}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Tanggal">{formatDate(production.date)}</Descriptions.Item>
+          <Descriptions.Item label="Status">
+            <Tag color={STATUS_MAP[production.status]?.color || 'default'}>
+              {STATUS_MAP[production.status]?.label || production.status}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Kuantitas">{production.quantity} {production.unit}</Descriptions.Item>
+          <Descriptions.Item label="Harga per Unit">{formatRupiah(production.unit_price)}</Descriptions.Item>
+          <Descriptions.Item label="Total Nilai" span={2}>
+            <Text strong style={{ fontSize: '18px', color: '#059669' }}>
+              {formatRupiah(production.total_value)}
+            </Text>
+          </Descriptions.Item>
+        </Descriptions>
+      )}
+    </Modal>
+  );
+};
+
+// =================================================================
+// === KOMPONEN UTAMA ===
+// =================================================================
 function ProductionManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingProduction, setEditingProduction] = useState(null);
-  const [selectedAsset, setSelectedAsset] = useState('semua');
+  const [detailProductionId, setDetailProductionId] = useState(null);
   const [form] = Form.useForm();
+  
+  const [selectedAsset, setSelectedAsset] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all');
 
   const user = useAuthStore((state) => state.user);
   const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
 
-  const { data: productions, isLoading: isLoadingProductions, isError: isErrorProductions, error: errorProductions } = useQuery({
-    queryKey: ['productions'],
-    queryFn: getProductions,
+  const statsParams = useMemo(() => ({
+    asset: selectedAsset === 'all' ? undefined : selectedAsset,
+  }), [selectedAsset]);
+
+  const filterParams = useMemo(() => ({
+    asset: selectedAsset === 'all' ? undefined : selectedAsset,
+    search: searchTerm || undefined,
+    type: selectedType === 'all' ? undefined : selectedType,
+    status: selectedStatus === 'all' ? undefined : selectedStatus,
+  }), [selectedAsset, searchTerm, selectedType, selectedStatus]);
+
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({ 
+    queryKey: ['assets'], 
+    queryFn: getAssets 
   });
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
+  
+  const { data: stats, isLoading: isLoadingStats } = useQuery({
+    queryKey: ['productionStats', statsParams],
+    queryFn: () => getProductionStats(statsParams),
+  });
+  
+  const { data: productions, isLoading: isLoadingProductions, isError, error } = useQuery({
+    queryKey: ['productions', filterParams],
+    queryFn: () => getProductions(filterParams),
+  });
 
-  const assetMap = useMemo(() => assets ? assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {}) : {}, [assets]);
-
-  const mutationOptions = {
-    onSuccess: () => {
+  const deleteMutation = useMutation({ 
+    mutationFn: deleteProduction, 
+    onSuccess: () => { 
+      message.success('Data produksi berhasil dihapus'); 
       queryClient.invalidateQueries({ queryKey: ['productions'] });
-      setIsModalOpen(false); setEditingProduction(null); form.resetFields();
-    },
-    onError: (err) => { message.error(`Error: ${err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message || 'Gagal'}`); },
-  };
-  const createMutation = useMutation({ mutationFn: createProduction, ...mutationOptions, onSuccess: (...args) => { message.success('Data produksi berhasil ditambahkan'); mutationOptions.onSuccess(...args); } });
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => patchProduction(id, data),
-    ...mutationOptions, onSuccess: (...args) => { message.success('Data produksi berhasil diperbarui'); mutationOptions.onSuccess(...args); }
+      queryClient.invalidateQueries({ queryKey: ['productionStats'] });
+    }, 
+    onError: (err) => { 
+      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); 
+    } 
   });
-  const deleteMutation = useMutation({ mutationFn: deleteProduction, onSuccess: () => { message.success('Data produksi berhasil dihapus'); queryClient.invalidateQueries({ queryKey: ['productions'] }); }, onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); } });
 
-  const showAddModal = () => { setEditingProduction(null); form.resetFields(); setIsModalOpen(true); };
+  const showAddModal = () => { 
+    setEditingProduction(null); 
+    form.resetFields(); 
+    setIsModalOpen(true); 
+  };
+  
   const showEditModal = (production) => {
     setEditingProduction(production);
     form.setFieldsValue({
-      name: production.name, // <-- BARU: Set field name
-      asset: production.asset,
+      ...production,
       date: moment(production.date),
       quantity: parseFloat(production.quantity),
-      unit: production.unit,
       unit_price: parseFloat(production.unit_price),
     });
     setIsModalOpen(true);
   };
-  const handleCancel = () => { setIsModalOpen(false); setEditingProduction(null); form.resetFields(); };
   
-  const handleFormSubmit = (values) => {
-    const productionData = {
-      name: values.name, // <-- BARU: Kirim field name
-      asset: values.asset,
-      date: values.date.format('YYYY-MM-DD'),
-      quantity: values.quantity,
-      unit: values.unit,
-      unit_price: values.unit_price,
-    };
-    if (editingProduction) { updateMutation.mutate({ id: editingProduction.id, data: productionData }); }
-    else { createMutation.mutate(productionData); }
+  const showDetailModal = (id) => { 
+    setDetailProductionId(id); 
+    setIsDetailModalOpen(true); 
   };
-  const handleDelete = (id) => { deleteMutation.mutate(id); };
-
-  const filteredProductions = useMemo(() => {
-    if (!productions) return [];
-    let data = productions;
-    if (selectedAsset !== 'semua') {
-      data = data.filter(p => p.asset === parseInt(selectedAsset));
-    }
-    return data;
-  }, [productions, selectedAsset]);
-
-  const columns = [
-    { title: 'Tanggal', dataIndex: 'date', key: 'date', render: formatDate, sorter: (a, b) => moment(a.date).unix() - moment(b.date).unix(), width: 120 },
-    // --- KOLOM BARU: Nama Produksi ---
-    {
-      title: 'Nama Produksi',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: (a, b) => (a.name || '').localeCompare(b.name || ''),
-    },
-    {
-      title: 'Aset', dataIndex: 'asset', key: 'asset',
-      render: (assetId) => assetMap[assetId] || `ID ${assetId}`,
-      sorter: (a, b) => (assetMap[a.asset] || '').localeCompare(assetMap[b.asset] || ''),
-      filters: assets ? Object.entries(assetMap).map(([id, name]) => ({ text: name, value: parseInt(id) })) : [],
-      onFilter: (value, record) => record.asset === value,
-    },
-    { title: 'Kuantitas', dataIndex: 'quantity', key: 'quantity', render: formatNumber, sorter: (a, b) => parseFloat(a.quantity) - parseFloat(b.quantity), align: 'right' },
-    { title: 'Unit', dataIndex: 'unit', key: 'unit', width: 100 },
-    { title: 'Harga/Unit', dataIndex: 'unit_price', key: 'unit_price', render: formatRupiah, sorter: (a, b) => parseFloat(a.unit_price) - parseFloat(b.unit_price), align: 'right' },
-    { title: 'Total Nilai', dataIndex: 'total_value', key: 'total_value', render: formatRupiah, sorter: (a, b) => parseFloat(a.total_value) - parseFloat(b.total_value), align: 'right', width: 150 },
-    {
-      title: 'Aksi', key: 'action', width: 120, align: 'center', fixed: 'right',
-      render: (_, record) => (
-        <Space size="small">
-          {isAdmin && (
-            <>
-              <Button size="small" icon={<EditOutlined />} onClick={() => showEditModal(record)} />
-              <Popconfirm title="Hapus Data Produksi?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending }}>
-                <Button size="small" danger icon={<DeleteOutlined />} />
-              </Popconfirm>
-            </>
-          )}
-        </Space>
-      ),
-    },
-  ];
-
+  
+  const handleCancel = () => { 
+    setIsModalOpen(false); 
+    setEditingProduction(null); 
+    form.resetFields(); 
+  };
+  
+  const handleDetailCancel = () => { 
+    setIsDetailModalOpen(false); 
+    setDetailProductionId(null); 
+  };
+  
   const isLoadingInitialData = isLoadingProductions || isLoadingAssets;
-  const isErrorInitialData = isErrorProductions || !assets;
-
+  
   return (
     <>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
+      {/* Header Section */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        marginBottom: '24px',
+      }}>
         <div>
-          <Title level={2} style={{ margin: 0, color: '#111928' }}>
-              <LuWheat style={{ marginRight: '8px', verticalAlign: 'middle', fontSize: '24px' }}/>
-              Manajemen Produksi
+          <Title level={2} style={{ 
+            margin: 0, 
+            color: '#111928',
+            // fontFamily: 'Inter, sans-serif',
+            fontWeight: 700,
+            fontSize: '30px',
+            lineHeight: '125%',
+          }}>
+            Manajemen Produksi
           </Title>
-          <Text type="secondary" style={{ fontSize: '16px' }}>Catat hasil produksi dari setiap aset.</Text>
+          <Text style={{ 
+            fontSize: '16px',
+            fontWeight: 500,
+            color: '#727272',
+            // fontFamily: 'Inter, sans-serif',
+            lineHeight: '19px',
+          }}>
+            Kelola hasil produksi ternak dan lahan
+          </Text>
         </div>
         <Button
-          type="primary" icon={<PlusOutlined />} size="large"
-          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
-          onClick={showAddModal} loading={createMutation.isPending || updateMutation.isPending}
+          type="primary"
+          icon={<PlusCircleOutlined />}
+          size="large"
+          style={{ 
+            backgroundColor: '#237804', 
+            borderColor: '#237804', 
+            borderRadius: '24px',
+            height: '40px',
+            padding: '8px 16px',
+            boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+            // fontFamily: 'Inter, sans-serif',
+            fontSize: '16px',
+          }}
+          onClick={showAddModal}
         >
           Tambah Produksi
         </Button>
-      </Flex>
+      </div>
 
-      <Card style={{ marginBottom: 24 }}>
-         <Flex gap="middle" wrap="wrap">
-             <Select
-                defaultValue="semua" size="large" style={{ minWidth: 250, flexGrow: 1 }} onChange={(value) => setSelectedAsset(value)}
-                loading={isLoadingAssets} placeholder="Filter Aset" allowClear showSearch optionFilterProp='children'
-            >
-                <Option value="semua">Semua Aset</Option>
-                {assets?.map(a => <Option key={a.id} value={String(a.id)}>{a.name}</Option>)}
-            </Select>
-         </Flex>
+      {/* Filter Asset */}
+      <div style={{ marginBottom: '24px' }}>
+        <Text style={{ 
+          fontSize: '20px', 
+          fontWeight: 500, 
+          display: 'block', 
+          marginBottom: '8px',
+          color: '#111928',
+          // fontFamily: 'Inter, sans-serif',
+          lineHeight: '24px',
+        }}>
+          Filter Asset
+        </Text>
+        <Select
+          value={selectedAsset}
+          onChange={setSelectedAsset}
+          loading={isLoadingAssets}
+          suffixIcon={<ChevronDown size={12} />}
+          style={{ width: 200, height: '40px' }}
+          size="large"
+        >
+          <Option value="all">Semua Asset</Option>
+          {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
+        </Select>
+      </div>
+
+      {/* Stats Cards */}
+      <div style={{ 
+        display: 'flex',
+        gap: '18px',
+        marginBottom: '24px',
+      }}>
+        <div style={{ flex: 1 }}>
+          <StatCard 
+            title="Total Produksi" 
+            value={stats?.total_produksi || 0}
+            icon={<LuWheat />}
+            loading={isLoadingStats}
+            iconColor="#7CB305"
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <StatCard 
+            title="Nilai Total" 
+            value={stats?.nilai_total || 0}
+            icon={<BiMoneyWithdraw />}
+            loading={isLoadingStats} 
+            format="rupiah"
+            iconColor="#CF1322"
+          />
+        </div>
+      </div>
+
+      <div style={{ 
+        display: 'flex',
+        gap: '18px',
+        marginBottom: '24px',
+      }}>
+        <div style={{ flex: 1 }}>
+          <StatCard 
+            title="Terjual" 
+            value={stats?.terjual || 0}
+            icon={<FaArrowTrendUp />}
+            loading={isLoadingStats} 
+            format="rupiah"
+            iconColor="#1C64F2"
+          />
+        </div>
+        <div style={{ flex: 1 }}>
+          <StatCard 
+            title="Stok" 
+            value={stats?.stok || 0}
+            icon={<BsBox2Fill />}
+            loading={isLoadingStats} 
+            format="rupiah"
+            iconColor="#9061F9"
+          />
+        </div>
+      </div>
+
+      {/* Search & Filter Card */}
+      <Card style={{ 
+        marginBottom: 24,
+        border: '1px solid #E5E7EB',
+        borderRadius: '12px',
+        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
+      }}>
+        <Title level={4} style={{ 
+          marginBottom: '20px',
+          fontSize: '24px',
+          fontWeight: 500,
+          color: '#111928',
+          // fontFamily: 'Inter, sans-serif',
+        }}>
+          Pencarian & Filter
+        </Title>
+        <div style={{ display: 'flex', gap: '20px', justifyContent: 'space-between' }}>
+          <div style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            flex: 1,
+            maxWidth: '412px',
+            background: '#FFFFFF',
+            border: '1px solid #D9D9D9',
+            borderRadius: '8px',
+            overflow: 'hidden',
+          }}>
+            <Input
+              placeholder="Cari Produk..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{ 
+                border: 'none',
+                flex: 1,
+                padding: '8px 12px',
+                fontSize: '16px',
+                // fontFamily: 'Roboto, sans-serif',
+                color: searchTerm ? 'rgba(0, 0, 0, 0.85)' : '#727272',
+              }}
+              suffix={searchTerm && <CloseCircleOutlined 
+                style={{ color: 'rgba(0, 0, 0, 0.25)', cursor: 'pointer' }}
+                onClick={() => setSearchTerm('')}
+              />}
+            />
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              style={{
+                background: '#237804',
+                border: '1px solid #237804',
+                borderRadius: '0px 2px 2px 0px',
+                height: '40px',
+                width: '46px',
+                boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+              }}
+            />
+          </div>
+          
+          <Select
+            value={selectedType}
+            size="large"
+            style={{ width: 200, height: '40px' }}
+            onChange={setSelectedType}
+            placeholder="Semua Tipe"
+            suffixIcon={<ChevronDown size={12} />}
+          >
+            <Option value="all">Semua Tipe</Option>
+            {Object.entries(ASSET_TYPE_MAP).map(([val, {label}]) => 
+              <Option key={val} value={val}>{label}</Option>
+            )}
+          </Select>
+          
+          <Select
+            value={selectedStatus}
+            size="large"
+            style={{ width: 200, height: '40px' }}
+            onChange={setSelectedStatus}
+            placeholder="Semua Status"
+            suffixIcon={<ChevronDown size={12} />}
+          >
+            <Option value="all">Semua Status</Option>
+            {Object.entries(STATUS_MAP).map(([val, {label}]) => 
+              <Option key={val} value={val}>{label}</Option>
+            )}
+          </Select>
+        </div>
       </Card>
 
-      {isLoadingInitialData && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
-      {isErrorInitialData && !isLoadingInitialData && <Alert message="Error Memuat Data Awal" description={errorProductions?.message || 'Gagal memuat data aset'} type="error" showIcon />}
+      {/* Daftar Produksi */}
+      <Card style={{ 
+        marginBottom: 24,
+        border: '1px solid #E5E7EB',
+        borderRadius: '8px',
+        boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
+      }}>
+        <Title level={4} style={{ 
+          marginBottom: '20px',
+          fontSize: '22px',
+          fontWeight: 700,
+          color: '#111928',
+          fontFamily: 'Inter, sans-serif',
+        }}>
+          Daftar Produksi
+        </Title>
 
-      {!isLoadingInitialData && !isErrorInitialData && (
-         <Card bodyStyle={{ padding: 0 }}>
-            <Table
-                columns={columns}
-                dataSource={Array.isArray(filteredProductions) ? filteredProductions : []}
-                rowKey="id"
-                loading={isLoadingProductions || deleteMutation.isPending}
-                pagination={{ pageSize: 10, showSizeChanger: true }}
-                scroll={{ x: 1000 }}
-            />
-         </Card>
-      )}
+        {isLoadingInitialData && (
+          <div style={{ textAlign: 'center', padding: '48px' }}>
+            <Spin size="large" />
+          </div>
+        )}
+        
+        {isError && !isLoadingInitialData && (
+          <Alert 
+            message="Error Memuat Data" 
+            description={error?.message} 
+            type="error" 
+            showIcon 
+          />
+        )}
+        
+        {!isLoadingInitialData && !isError && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {productions && productions.length > 0 ? (
+              productions.map(prod => (
+                <ProductionCard 
+                  key={prod.id} 
+                  production={prod}
+                  onEditClick={showEditModal}
+                  onDetailClick={showDetailModal}
+                  onDelete={deleteMutation.mutate}
+                  isAdmin={isAdmin}
+                />
+              ))
+            ) : (
+              <div style={{ 
+                border: '1px dashed #d9d9d9', 
+                borderRadius: '8px',
+                padding: '32px',
+                textAlign: 'center',
+              }}>
+                <Text type="secondary" style={{ 
+                  fontSize: '16px',
+                  color: '#727272',
+                  // fontFamily: 'Inter, sans-serif',
+                }}>
+                  Tidak ada data produksi ditemukan untuk filter ini.
+                </Text>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
 
-      <Modal
-        title={editingProduction ? 'Edit Data Produksi' : 'Tambah Data Produksi Baru'}
-        open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnHidden
-      >
-        <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
-          
-          <Form.Item name="asset" label="Aset Penghasil" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
-            <Select placeholder="Pilih aset" loading={isLoadingAssets} showSearch optionFilterProp="children">
-              {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
-            </Select>
-          </Form.Item>
-          
-          {/* --- FORM ITEM BARU UNTUK NAMA PRODUKSI --- */}
-          <Form.Item
-            name="name"
-            label="Nama Produksi / Catatan"
-            rules={[{ required: true, message: 'Nama/catatan produksi wajib diisi!' }]}
-          >
-            <Input placeholder="cth: Panen Jagung Manis Fase 1" />
-          </Form.Item>
-          
-           <Form.Item name="date" label="Tanggal Produksi" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY"/>
-          </Form.Item>
-          <Flex gap="middle">
-             <Form.Item name="quantity" label="Kuantitas" rules={[{ required: true, message: 'Kuantitas tidak boleh kosong!' }]} style={{flexGrow: 1}}>
-                <InputNumber style={{ width: '100%' }} min={0} placeholder="Jumlah hasil"/>
-            </Form.Item>
-             <Form.Item name="unit" label="Unit Satuan" rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]} style={{width: '120px'}}>
-                <Input placeholder="Kg, Liter, dll"/>
-            </Form.Item>
-          </Flex>
-          <Form.Item name="unit_price" label="Harga per Unit (Rp)" rules={[{ required: true, message: 'Harga tidak boleh kosong!' }]}>
-            <InputNumber style={{ width: '100%' }} formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(value) => value.replace(/\$\s?|(,*)/g, '')} min={0} placeholder="Masukkan harga jual per unit" />
-          </Form.Item>
-
-          <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
-            <Space>
-              <Button onClick={handleCancel}>Batal</Button>
-              <Button type="primary" htmlType="submit" loading={createMutation.isPending || updateMutation.isPending} style={{backgroundColor: '#237804'}}>
-                {editingProduction ? 'Simpan Perubahan' : 'Tambah Data'}
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+      <ProductionModal
+        visible={isModalOpen}
+        onClose={handleCancel}
+        initialData={editingProduction}
+        form={form}
+        assets={assets}
+        isLoadingAssets={isLoadingAssets}
+        isAdmin={isAdmin}
+      />
+      
+      <ProductionDetailModal
+        visible={isDetailModalOpen}
+        onClose={handleDetailCancel}
+        productionId={detailProductionId}
+        isAdmin={isAdmin}
+        onEditClick={showEditModal}
+        onDelete={deleteMutation.mutate}
+      />
     </>
   );
 }

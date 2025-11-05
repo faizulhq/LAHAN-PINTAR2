@@ -91,4 +91,17 @@ body {
     text-overflow: ellipsis;
 }
 
+.ant-carousel .slick-dots {
+  bottom: 5px !important; /* pastikan muncul */
+  z-index: 10;
+}
+
+.ant-carousel .slick-dots li button {
+  background-color: #171717 !important; /* abu-abu muda */
+}
+
+.ant-carousel .slick-dots li.slick-active button {
+  background-color: #2563eb !important; /* biru aktif */
+}
+
 /* === END: Custom Ant Design Menu Styling === */

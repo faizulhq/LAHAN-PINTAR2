@@ -3,7 +3,7 @@
 // --- IMPORTS ---
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import moment from 'moment'; 
+import moment from 'moment';
 
 // Icons
 import {
@@ -14,14 +14,15 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ChevronLeft,
-  ChevronRight,
+  ChevronRight, 
   ChevronDown,
 } from 'lucide-react';
 import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
 import { FaArrowTrendUp, FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
+import { RiBillLine } from 'react-icons/ri';
 
 // UI Libraries
-import { Card, Carousel } from 'antd';
+import { Card, Carousel } from 'antd'; 
 import {
   ResponsiveContainer,
   BarChart,
@@ -44,7 +45,6 @@ import { getProjects } from '@/lib/api/project';
 import { AiFillDollarCircle } from 'react-icons/ai';
 
 // --- HELPERS ---
-
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', {
@@ -91,6 +91,26 @@ const CustomPieTooltip = ({ active, payload }) => {
 
 // --- UI COMPONENTS ---
 
+const CustomPrevArrow = ({ onClick }) => (
+  <button
+    className="absolute left-1 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-white/80 rounded-full shadow-lg hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+    onClick={onClick}
+    aria-label="Previous slide"
+  >
+    <ChevronLeft className="w-5 h-5 text-gray-800" />
+  </button>
+);
+
+const CustomNextArrow = ({ onClick }) => (
+  <button
+    className="absolute right-1 top-1/2 -translate-y-1/2 z-10 p-1.5 bg-white/80 rounded-full shadow-lg hover:bg-white transition-opacity duration-300 opacity-0 group-hover:opacity-100"
+    onClick={onClick}
+    aria-label="Next slide"
+  >
+    <ChevronRight className="w-5 h-5 text-gray-800" />
+  </button>
+);
+
 const RincianDanaProyek = ({ data, isLoading }) => {
   if (isLoading) {
     return (
@@ -113,129 +133,171 @@ const RincianDanaProyek = ({ data, isLoading }) => {
     );
   }
 
-  const projectData = data[0];
-  const {
-    project_name,
-    anggaran,
-    total_dana_masuk,
-    total_pengeluaran,
-    sisa_dana,
-  } = projectData;
-
-  const fundingData = [
-    {
-      name: 'Pendanaan',
-      'Dana Masuk': total_dana_masuk,
-      'Sisa Anggaran': Math.max(0, anggaran - total_dana_masuk),
-    },
-  ];
-
-  const expenseData = [
-    {
-      name: 'Pengeluaran',
-      Pengeluaran: total_pengeluaran,
-      'Sisa Dana': sisa_dana,
-    },
-  ];
-
-  const fundingPercent =
-    anggaran > 0 ? ((total_dana_masuk / anggaran) * 100).toFixed(0) : 0;
-  const expensePercent =
-    total_dana_masuk > 0
-      ? ((total_pengeluaran / total_dana_masuk) * 100).toFixed(0)
-      : 0;
-  const sisaDanaPercent =
-    total_dana_masuk > 0
-      ? ((sisa_dana / total_dana_masuk) * 100).toFixed(0)
-      : 0;
-
   return (
-    // Tambahkan h-full di sini agar tinggi card sama
-    <div className="bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
+    <div className="group relative bg-white border border-gray-200 shadow-md rounded-lg p-6 w-full h-full">
       <h2 className="text-[22px] font-bold text-gray-900 mb-4">
         Rincian Dana Berdasarkan Proyek
       </h2>
 
-      <div className="flex flex-col gap-1">
-        <h3 className="text-[16px] font-medium text-gray-900">
-          {project_name}
-        </h3>
-        <p className="text-[16px] text-gray-600">
-          Anggaran: {formatRupiah(anggaran)}
-        </p>
-        <p className="text-[16px] text-gray-600">
-          Total Dana Masuk: {formatRupiah(total_dana_masuk)}
-        </p>
-      </div>
+      <Carousel
+        arrows={true}
+        infinite={false}
+        dotPosition="bottom"
+        prevArrow={<CustomPrevArrow />}
+        nextArrow={<CustomNextArrow />}
+      >
+        {data.map((projectData) => {
+          // Kalkulasi data untuk slide ini
+          const {
+            project_id,
+            project_name,
+            anggaran,
+            total_dana_masuk,
+            total_pengeluaran,
+            sisa_dana,
+          } = projectData;
 
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1 text-sm font-semibold">
-          <span className="text-green-700 bg-[#E3FEE1] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">{fundingPercent}%</span>
-          <span className="text-gray-500 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-            {100 - fundingPercent}%
-          </span>
-        </div>
-        <ResponsiveContainer width="100%" height={40}>
-          <BarChart layout="vertical" data={fundingData} stackOffset="expand">
-            <XAxis type="number" hide />
-            <YAxis type="category" dataKey="name" hide />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="Dana Masuk" stackId="a" fill="#22c55e" radius={[4, 0, 0, 4]} />
-            <Bar
-              dataKey="Sisa Anggaran"
-              stackId="a"
-              fill="#e5e7eb"
-              radius={[0, 4, 4, 0]}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-        <div className="text-sm mt-1">
-          <p className="text-gray-700">
-            Total Dana Masuk:{' '}
-            <span className="font-semibold text-green-700">
-              {formatRupiah(total_dana_masuk)}
-            </span>
-          </p>
-          <p className="text-gray-700">
-            Anggaran:{' '}
-            <span className="font-semibold text-gray-900">
-              {formatRupiah(anggaran)}
-            </span>
-          </p>
-        </div>
-      </div>
+          const fundingData = [
+            {
+              name: 'Pendanaan',
+              'Dana Masuk': total_dana_masuk,
+              'Sisa Anggaran': Math.max(0, anggaran - total_dana_masuk),
+            },
+          ];
 
-      <div className="mb-2">
-        <div className="flex justify-between items-center  text-sm font-semibold">
-          <span className="text-blue-700 bg-[#E1EFFE] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">{expensePercent}%</span>
-          <span className="text-purple-700 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-            {sisaDanaPercent}%
-          </span>
-        </div>
-        <ResponsiveContainer width="100%" height={40}>
-          <BarChart layout="vertical" data={expenseData} stackOffset="expand">
-            <XAxis type="number" hide />
-            <YAxis type="category" dataKey="name" hide />
-            <Tooltip content={<CustomTooltip />} />
-            <Bar dataKey="Pengeluaran" stackId="b" fill="#3b82f6" radius={[4, 0, 0, 4]} />
-            <Bar dataKey="Sisa Dana" stackId="b" fill="#c4b5fd" radius={[0, 4, 4, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
-        <div className="text-sm mt-1">
-          <p className="text-gray-700">
-            Pengeluaran:{' '}
-            <span className="font-semibold text-blue-700">
-              {formatRupiah(total_pengeluaran)}
-            </span>
-          </p>
-          <p className="text-gray-700">
-            Sisa:{' '}
-            <span className="font-semibold text-purple-700">
-              {formatRupiah(sisa_dana)}
-            </span>
-          </p>
-        </div>
-      </div>
+          const expenseData = [
+            {
+              name: 'Pengeluaran',
+              Pengeluaran: total_pengeluaran,
+              'Sisa Dana': sisa_dana,
+            },
+          ];
+
+          const fundingPercent =
+            anggaran > 0 ? ((total_dana_masuk / anggaran) * 100).toFixed(0) : 0;
+          const expensePercent =
+            total_dana_masuk > 0
+              ? ((total_pengeluaran / total_dana_masuk) * 100).toFixed(0)
+              : 0;
+          const sisaDanaPercent =
+            total_dana_masuk > 0
+              ? ((sisa_dana / total_dana_masuk) * 100).toFixed(0)
+              : 0;
+
+          return (
+            <div key={project_id}>
+              {/* Konten slide (logika render dari komponen asli) */}
+              <div className="flex flex-col gap-1">
+                <h3 className="text-[16px] font-medium text-gray-900">
+                  {project_name}
+                </h3>
+                <p className="text-[16px] text-gray-600">
+                  Anggaran: {formatRupiah(anggaran)}
+                </p>
+                <p className="text-[16px] text-gray-600">
+                  Total Dana Masuk: {formatRupiah(total_dana_masuk)}
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-1 text-sm font-semibold">
+                  <span className="text-green-700 bg-[#E3FEE1] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+                    {fundingPercent}%
+                  </span>
+                  <span className="text-gray-500 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+                    {100 - fundingPercent}%
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={40}>
+                  <BarChart
+                    layout="vertical"
+                    data={fundingData}
+                    stackOffset="expand"
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" hide />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="Dana Masuk"
+                      stackId="a"
+                      fill="#22c55e"
+                      radius={[4, 0, 0, 4]}
+                    />
+                    <Bar
+                      dataKey="Sisa Anggaran"
+                      stackId="a"
+                      fill="#e5e7eb"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="text-sm mt-1">
+                  <p className="text-gray-700">
+                    Total Dana Masuk:{' '}
+                    <span className="font-semibold text-green-700">
+                      {formatRupiah(total_dana_masuk)}
+                    </span>
+                  </p>
+                  <p className="text-gray-700">
+                    Anggaran:{' '}
+                    <span className="font-semibold text-gray-900">
+                      {formatRupiah(anggaran)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-2">
+                <div className="flex justify-between items-center  text-sm font-semibold">
+                  <span className="text-blue-700 bg-[#E1EFFE] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+                    {expensePercent}%
+                  </span>
+                  <span className="text-purple-700 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
+                    {sisaDanaPercent}%
+                  </span>
+                </div>
+                <ResponsiveContainer width="100%" height={40}>
+                  <BarChart
+                    layout="vertical"
+                    data={expenseData}
+                    stackOffset="expand"
+                  >
+                    <XAxis type="number" hide />
+                    <YAxis type="category" dataKey="name" hide />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Bar
+                      dataKey="Pengeluaran"
+                      stackId="b"
+                      fill="#3b82f6"
+                      radius={[4, 0, 0, 4]}
+                    />
+                    <Bar
+                      dataKey="Sisa Dana"
+                      stackId="b"
+                      fill="#c4b5fd"
+                      radius={[0, 4, 4, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="text-sm mt-1">
+                  <p className="text-gray-700">
+                    Pengeluaran:{' '}
+                    <span className="font-semibold text-blue-700">
+                      {formatRupiah(total_pengeluaran)}
+                    </span>
+                  </p>
+                  <p className="text-gray-700">
+                    Sisa:{' '}
+                    <span className="font-semibold text-purple-700">
+                      {formatRupiah(sisa_dana)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </Carousel>
     </div>
   );
 };
@@ -255,7 +317,7 @@ const Statistic = ({
       </div>
     )}
     <div className="flex-1">
-      <div className="text-gray-600 text-lg font-semibold mb-2">{title}</div>
+      <div className="text-gray-600 text-lg font-semibold">{title}</div>
       <div
         className="text-3xl font-bold text-gray-900 flex items-center gap-3"
         style={valueStyle}
@@ -278,10 +340,10 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
           <div
             key={idx}
             className="px-4 py-3.5 text-sm font-medium text-gray-900"
-            style={{ 
+            style={{
               flex: col.width || 1, // Beri flex-grow
               minWidth: col.width || 120, // Beri min-width
-              textAlign: col.align || 'left' 
+              textAlign: col.align || 'left',
             }}
           >
             {col.title}
@@ -296,9 +358,7 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
           </div>
         )}
         {!isLoading && (!dataSource || dataSource.length === 0) && (
-          <div className="text-center p-8 text-gray-500">
-            Tidak ada data
-          </div>
+          <div className="text-center p-8 text-gray-500">Tidak ada data</div>
         )}
         {!isLoading &&
           dataSource?.map((row, idx) => (
@@ -310,7 +370,7 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
                 <div
                   key={colIdx}
                   className="px-4 py-3 text-sm text-gray-700" // Perbesar font ke text-sm
-                  style={{ 
+                  style={{
                     flex: col.width || 1,
                     minWidth: col.width || 120,
                     textAlign: col.align || 'left',
@@ -394,7 +454,7 @@ const SimpleBarChart = ({
             axisLine={false}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             tickFormatter={formatJuta} // Format Sumbu Y
             tick={{ fontSize: 10, fill: '#6B7280' }} // Style Sumbu Y
             axisLine={false}
@@ -429,7 +489,7 @@ const GroupedBarChart = ({ data, height = 300, isLoading }) => {
         Tidak ada data
       </div>
     );
-    
+
   const formatXAxis = (tickItem) => {
     return moment(tickItem, 'YYYY-MM').format('MMM');
   };
@@ -439,14 +499,14 @@ const GroupedBarChart = ({ data, height = 300, isLoading }) => {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 20, right: 0, left: 0, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
-          <XAxis 
-            dataKey="name" 
+          <XAxis
+            dataKey="name"
             tick={{ fontSize: 12, fill: '#6B7280' }}
-            tickFormatter={formatXAxis} 
+            tickFormatter={formatXAxis}
             axisLine={false}
             tickLine={false}
           />
-          <YAxis 
+          <YAxis
             tickFormatter={formatJuta}
             tick={{ fontSize: 10, fill: '#6B7280' }}
             axisLine={false}
@@ -510,7 +570,7 @@ const DonutChart = ({
   }));
 
   const RADIAN = Math.PI / 180;
-  
+
   const renderCustomizedLabel = ({
     cx,
     cy,
@@ -521,7 +581,7 @@ const DonutChart = ({
     index,
   }) => {
     if (percent < 0.1) return null;
-    
+
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
@@ -585,7 +645,7 @@ const DonutChart = ({
           alignItems: 'center',
           gap: '16px',
           width: '100%',
-          marginTop: '-40px', 
+          marginTop: '-40px',
         }}
       >
         {chartData.map((item, idx) => (
@@ -782,16 +842,20 @@ function ReportingContent() {
     [categoryData]
   );
 
-  const incomeExpenseChartData = useMemo(() =>
-    (incomeExpense || []).map((item) => ({
-      name: item.month || item.name,
-      income: item.income,
-      expense: item.expense,
-    })), [incomeExpense]);
+  const incomeExpenseChartData = useMemo(
+    () =>
+      (incomeExpense || []).map((item) => ({
+        name: item.month || item.name,
+        income: item.income,
+        expense: item.expense,
+      })),
+    [incomeExpense]
+  );
 
   const getProjectName = () => {
     if (selectedProject === 'all') return 'Ringkasan Semua Proyek';
-    if (isLoadingProjects || !projectOptionsData) return 'Memuat Nama Proyek...';
+    if (isLoadingProjects || !projectOptionsData)
+      return 'Memuat Nama Proyek...';
     return (
       projectOptionsData.find((p) => p.id.toString() === selectedProject)
         ?.name || 'Proyek Terpilih'
@@ -821,11 +885,19 @@ function ReportingContent() {
       title: 'Bukti Url',
       dataIndex: 'proof_url',
       key: 'proof_url',
-      render: (url) => url ? (
-        <a href={url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-          {url.length > 30 ? `${url.substring(0, 30)}...` : url}
-        </a>
-      ) : '-',
+      render: (url) =>
+        url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline break-all"
+          >
+            {url.length > 30 ? `${url.substring(0, 30)}...` : url}
+          </a>
+        ) : (
+          '-'
+        ),
     },
     {
       title: 'Tanggal',
@@ -877,7 +949,7 @@ function ReportingContent() {
       align: 'right',
     },
   ];
-  
+
   const investorColumns = [
     { title: 'Investor', dataIndex: 'investor', key: 'investor' },
     {
@@ -906,7 +978,8 @@ function ReportingContent() {
       title: 'Unit Kepemilikan',
       dataIndex: 'units',
       key: 'units',
-      render: (val, record) => `${record.units || 0} unit (${record.percentage || 0}%)`,
+      render: (val, record) =>
+        `${record.units || 0} unit (${record.percentage || 0}%)`,
       align: 'right',
     },
     {
@@ -1041,16 +1114,15 @@ function ReportingContent() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                    <Card className='border-gray-200 shadow-md rounded-lg'>
+                    <Card className="border-gray-200 shadow-md rounded-lg">
                       <Statistic
                         title="Total Dana Masuk"
                         value={formatRupiah(ringkasanDana.total_dana_masuk)}
                         icon={GiReceiveMoney}
                         iconColor="#7CB305"
-                        sty
                       />
                     </Card>
-                    <Card className='border-gray-200 shadow-md rounded-lg'>
+                    <Card className="border-gray-200 shadow-md rounded-lg">
                       <Statistic
                         title="Total Pengeluaran"
                         value={formatRupiah(ringkasanDana.total_pengeluaran)}
@@ -1059,7 +1131,7 @@ function ReportingContent() {
                       />
                     </Card>
                   </div>
-                  <Card className='border-gray-200 shadow-md rounded-lg'>
+                  <Card className="border-gray-200 shadow-md rounded-lg">
                     <Statistic
                       title="Cash on Hand"
                       value={formatRupiah(ringkasanDana.sisa_dana)}
@@ -1076,7 +1148,7 @@ function ReportingContent() {
               <div className="lg:col-span-1">
                 {/* Tambahkan h-full agar tingginya sama */}
                 <Card className="h-full border-gray-200 shadow-md rounded-lg">
-                  <h2 className='text-[22px]'>Persentase Penggunaan Dana</h2>
+                  <h2 className="text-[22px]">Persentase Penggunaan Dana</h2>
                   <DonutChart
                     data={donutChartData}
                     colors={['#1C64F2', '#9061F9']}
@@ -1084,8 +1156,8 @@ function ReportingContent() {
                   />
                 </Card>
               </div>
-              
-              {/* Komponen RincianDanaProyek sudah memiliki h-full di dalamnya */}
+
+              {/* Komponen RincianDanaProyek (Sekarang dengan Carousel) */}
               <div className="lg:col-span-2">
                 <RincianDanaProyek
                   data={rincianProyek}
@@ -1099,10 +1171,14 @@ function ReportingContent() {
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Pengeluaran
               </h2>
-              
+
               <Card
                 className="mb-6 border-gray-200 shadow-md rounded-lg w-full max-w-[453px]"
-                bodyStyle={{ padding: '16px', height: '118px', boxSizing: 'border-box' }}
+                bodyStyle={{
+                  padding: '16px',
+                  height: '118px',
+                  boxSizing: 'border-box',
+                }}
                 loading={isLoadingReport}
               >
                 <div className="flex flex-row items-center gap-7 h-full">
@@ -1110,9 +1186,9 @@ function ReportingContent() {
                     <GiPayMoney size={34} style={{ color: '#1C64F2' }} />
                   </div>
                   <div className="flex-1 flex flex-col justify-center">
-                    <div 
+                    <div
                       className="font-bold text-[31px] text-[#CF1322] leading-tight"
-                      style={{ fontFamily: 'Inter, sans-serif' }}
+                      // style={{ // fontFamily: 'Inter, sans-serif' }}
                     >
                       {formatRupiah(ringkasanDana.total_pengeluaran)}
                     </div>
@@ -1126,7 +1202,9 @@ function ReportingContent() {
                 {/* Bungkus Card dengan div abu-abu */}
                 <div className="bg-gray-50 rounded-lg">
                   <Card className="h-full border-gray-200 shadow-md rounded-lg p-">
-                    <h2 className='text-[22px] pt-0 text-black-700 mb-8'>Pengeluaran Per Kategori</h2>
+                    <h2 className="text-[22px] pt-0 text-black-700 mb-8">
+                      Pengeluaran Per Kategori
+                    </h2>
                     <SimpleBarChart
                       data={categoryChartData}
                       dataKey="amount"
@@ -1139,7 +1217,9 @@ function ReportingContent() {
                 {/* Bungkus Card dengan div abu-abu */}
                 <div className="bg-gray-50 rounded-lg">
                   <Card className="h-full border-gray-200 shadow-md rounded-lg">
-                    <h2 className='text-[22px] mb-5'>Top 5 Pengeluaran Terbesar</h2>
+                    <h2 className="text-[22px] mb-5">
+                      Top 5 Pengeluaran Terbesar
+                    </h2>
                     <Table
                       dataSource={topExpenses}
                       columns={expenseColumns}
@@ -1157,7 +1237,7 @@ function ReportingContent() {
                 Laba Rugi
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-rows-2 gap-6 mb-6">
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Pendapatan"
                     value={formatRupiah(totalYield)}
@@ -1165,7 +1245,7 @@ function ReportingContent() {
                     iconColor="#7CB305"
                   />
                 </Card>
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Pengeluaran"
                     value={formatRupiah(ringkasanDana.total_pengeluaran)}
@@ -1174,28 +1254,30 @@ function ReportingContent() {
                     valueStyle={{ color: '#F5222D' }}
                   />
                 </Card>
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Net Profit"
                     value={formatRupiah(yieldData?.hasil_bersih)}
                     icon={FaArrowTrendUp}
-                    iconColor='#1C64F2'
+                    iconColor="#1C64F2"
                     valueStyle={{ color: '#111928' }}
                   />
                 </Card>
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Margin Laba (%)"
                     value={`${yieldData?.margin_laba || 0}%`}
-                    icon={PieChartIcon}
-                    iconColor="#1C64F2"
+                    icon={RiBillLine}
+                    iconColor="#9061F9"
                   />
                 </Card>
               </div>
-              
+
               <div className="bg-gray-50 rounded-lg">
-                <Card className='border-gray-200 shadow-md rounded-lg'>
-                  <h2 className='text-[22px] mb-5'>Pendapatan vs Pengeluaran (Bulanan)</h2>
+                <Card className="border-gray-200 shadow-md rounded-lg">
+                  <h2 className="text-[22px] mb-5">
+                    Pendapatan vs Pengeluaran (Bulanan)
+                  </h2>
                   <GroupedBarChart
                     data={incomeExpenseChartData}
                     height={300}
@@ -1203,14 +1285,13 @@ function ReportingContent() {
                   />
                 </Card>
               </div>
-              
             </section>
 
             {/* --- PERUBAHAN PADA SECTION INI --- */}
             <section>
               {/* Bungkus Card dengan div abu-abu */}
               <div className="bg-gray-50 rounded-lg">
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <h2 className="text-2xl font-bold text-gray-900 mb-5">
                     Ringkasan Keuangan Bulanan
                   </h2>
@@ -1229,7 +1310,7 @@ function ReportingContent() {
               <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="md:col-span-2">
-                  <Card className='border-gray-200 shadow-md rounded-lg'>
+                  <Card className="border-gray-200 shadow-md rounded-lg">
                     <Statistic
                       title="Total Investasi Investor"
                       value={formatRupiah(yieldData?.total_investasi)}
@@ -1238,19 +1319,19 @@ function ReportingContent() {
                     />
                   </Card>
                 </div>
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Bagi Hasil Investor"
                     value={formatRupiah(yieldData?.total_hasil_produksi)}
-                    icon={FaMoneyBills}
+                    icon={GiPayMoney}
                     iconColor="#1C64F2"
                   />
                 </Card>
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Yield (%)"
                     value={formatRupiah(yieldData?.hasil_bersih)}
-                    icon={DollarSign}
+                    icon={FaMoneyBills}
                     iconColor="#9061F9"
                   />
                 </Card>
@@ -1258,7 +1339,7 @@ function ReportingContent() {
               {/* --- PERUBAHAN PADA SECTION INI --- */}
               {/* Bungkus Card dengan div abu-abu */}
               <div className="bg-gray-50 rounded-lg">
-                <Card className='border-gray-200 shadow-md rounded-lg'>
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <h2 className="text-2xl font-bold text-gray-900 mb-5">
                     Investor Yield%
                   </h2>

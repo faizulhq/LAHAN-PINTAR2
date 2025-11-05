@@ -1,4 +1,3 @@
-// faizulhq/lahan-pintar2/LAHAN-PINTAR2-dfe2664682ace9537893ea0569b86e928b07e701/app/admin/layout.jsx
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -144,6 +143,7 @@ export default function AdminLayout({ children }) {
             style={{
               color: textColor,
               fontFamily: 'Roboto, sans-serif',
+              fontWeight: 400,
               fontSize: '14px',
               lineHeight: '22px',
               marginLeft: iconTextGap,
@@ -172,7 +172,7 @@ export default function AdminLayout({ children }) {
           height: 84,
           position: 'sticky',
           top: 0,
-          zIndex: 10,
+          zIndex: 20,
           width: '100%',
         }}
       >
@@ -184,7 +184,7 @@ export default function AdminLayout({ children }) {
               margin: 0,
               color: '#111928',
               whiteSpace: 'nowrap',
-              fontFamily: 'Inter, sans-serif',
+              // fontFamily: 'Inter, sans-serif',
               fontWeight: 600,
               fontSize: '24px',
               lineHeight: '150%',

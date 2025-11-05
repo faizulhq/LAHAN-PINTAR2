@@ -1,20 +1,24 @@
-// File: app/admin/asset/page.jsx
 'use client';
 import React, { useState, useMemo } from 'react';
 import {
-  Row, Col, Card, Statistic, Input, Select, Button, Typography, Space, Tag, Flex,
-  Modal, Form, DatePicker, InputNumber, Upload, message, Spin, Alert, Popconfirm, Descriptions
+  Row, Col, Card, Input, Select, Button, Typography, Space, Tag, Flex,
+  Modal, Form, DatePicker, InputNumber, Upload, message, Spin, Alert, Popconfirm, Descriptions, Skeleton
 } from 'antd';
 import {
-  FileTextOutlined, DollarOutlined, EnvironmentOutlined, PlusOutlined, SearchOutlined,
-  ArrowsAltOutlined, CalendarOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined,
-  // --- IMPORT IKON BARU UNTUK FORM OWNER ---
-  UserOutlined, PhoneOutlined, BankOutlined, HomeOutlined
+  PlusOutlined, SearchOutlined,
+  EditOutlined, DeleteOutlined, EyeOutlined, UploadOutlined,
+  UserOutlined, PhoneOutlined, BankOutlined,
+  DollarCircleFilled,
+  PlusCircleOutlined
 } from '@ant-design/icons';
+import { PiFileTextFill } from 'react-icons/pi';
+import { RiMoneyDollarCircleFill } from 'react-icons/ri';
+import { MdLocationPin } from 'react-icons/md';
+import { TbArrowsMaximize } from 'react-icons/tb';
+import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-// --- IMPORT FUNGSI API BARU ---
 import { getAssets, createAsset, updateAsset, deleteAsset, getOwners, createOwner } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
@@ -45,14 +49,110 @@ const getAssetTypeProps = (type) => ASSET_TYPE_PROPS[type] || { text: type, colo
 
 // ==================== COMPONENTS ====================
 
-// Asset Card Component (Tidak Berubah)
+// Stat Card Component
+const StatCard = ({ title, value, icon, loading, format = "number", iconColor }) => {
+  const displayValue = () => {
+    if (loading) return <Skeleton.Input active size="small" style={{ width: 120, height: 38 }} />;
+    if (format === 'rupiah') return formatRupiah(value);
+    return Number(value).toLocaleString('id-ID');
+  };
+
+  return (
+    <Card 
+      bodyStyle={{ padding: '16px' }} 
+      style={{
+        background: '#FFFFFF',
+        border: '1px solid #F0F0F0',
+        borderRadius: '12px',
+        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
+        // height: '118px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
+        <div 
+          style={{
+            flexShrink: 0,
+            color: iconColor || '#7CB305',
+            fontSize: '34px',
+            width: '34px',
+            height: '34px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1, padding: '10px 0' }}>
+          <Text 
+            style={{ 
+              fontSize: '18px', 
+              fontWeight: 600, 
+              color: '#585858',
+              lineHeight: '150%',
+              // // fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            {title}
+          </Text>
+          <Text 
+            style={{ 
+              fontSize: '31px', 
+              fontWeight: 700, 
+              color: '#111928',
+              lineHeight: '125%',
+              // // fontFamily: 'Inter, sans-serif',
+            }}
+          >
+            {displayValue()}
+          </Text>
+        </div>
+      </div>
+    </Card>
+  );
+};
+
+// Statistics Cards Component
+const StatisticsCards = ({ stats, isLoading }) => (
+  <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
+    <Col xs={24} lg={8}>
+      <StatCard 
+        title="Total Aset"
+        value={stats.total}
+        icon={<PiFileTextFill />}
+        loading={isLoading}
+        iconColor="#0958D9"
+      />
+    </Col>
+    <Col xs={24} lg={8}>
+      <StatCard 
+        title="Total Nilai"
+        value={stats.value}
+        icon={<DollarCircleFilled />}
+        loading={isLoading}
+        format="rupiah"
+        iconColor="#7CB305"
+      />
+    </Col>
+    <Col xs={24} lg={8}>
+      <StatCard 
+        title="Lokasi"
+        value={stats.locations}
+        icon={<MdLocationPin />}
+        loading={isLoading}
+        iconColor="#CF1322"
+      />
+    </Col>
+  </Row>
+);
+
+// Asset Card Component
 const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
   const typeProps = getAssetTypeProps(asset.type);
   const isDeleting = onDelete.isPending && onDelete.variables === asset.id;
 
   return (
     <Card hoverable>
-      {/* Header */}
       <Flex justify="space-between" align="start" gap="middle">
         <Space direction="vertical" align="start">
           <Title level={5} style={{ margin: 0 }}>{asset.name}</Title>
@@ -63,14 +163,12 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
         </Text>
       </Flex>
 
-      {/* Info */}
       <Space direction="vertical" style={{ marginTop: 24, marginBottom: 24, width: '100%' }} size="middle">
-        <Space><EnvironmentOutlined style={{ color: '#CF1322' }} /><Text type="secondary">{asset.location}</Text></Space>
-        <Space><ArrowsAltOutlined style={{ color: '#D46B08' }} /><Text type="secondary">{asset.size} m²</Text></Space>
-        <Space><CalendarOutlined style={{ color: '#531DAB' }} /><Text type="secondary">{formatDate(asset.acquisition_date)}</Text></Space>
+        <Space><MdLocationPin style={{ color: '#CF1322', fontSize: '20px' }} /><Text type="secondary">{asset.location}</Text></Space>
+        <Space><TbArrowsMaximize style={{ color: '#D46B08', fontSize: '20px' }} /><Text type="secondary">{asset.size} m²</Text></Space>
+        <Space><BiSolidCalendar style={{ color: '#531DAB', fontSize: '20px' }} /><Text type="secondary">{formatDate(asset.acquisition_date)}</Text></Space>
       </Space>
 
-      {/* Actions */}
       <Flex gap="small" justify="space-between">
         <Button icon={<EyeOutlined />} onClick={() => onDetail(asset)} style={{ flexGrow: 1 }}>Detail</Button>
         <Button icon={<EditOutlined />} onClick={() => onEdit(asset)} style={{ flexGrow: 1 }}>Edit</Button>
@@ -89,46 +187,7 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
   );
 };
 
-// Statistics Cards Component (Tidak Berubah)
-const StatisticsCards = ({ stats, isLoading }) => (
-  <Row gutter={[24, 24]} style={{ marginBottom: 24 }}>
-    <Col xs={24} lg={8}>
-      <Card hoverable>
-        <Statistic
-          title={<Text style={{ fontSize: '18px', color: '#585858' }}>Total Aset</Text>}
-          value={stats.total}
-          loading={isLoading}
-          valueStyle={{ fontSize: '31px', color: '#111928' }}
-          prefix={<FileTextOutlined style={{ color: '#0958D9', fontSize: '34px', marginRight: '16px' }} />}
-        />
-      </Card>
-    </Col>
-    <Col xs={24} lg={8}>
-      <Card hoverable>
-        <Statistic
-          title={<Text style={{ fontSize: '18px', color: '#585858' }}>Total Nilai</Text>}
-          value={stats.value.toLocaleString('id-ID')}
-          prefix="Rp "
-          loading={isLoading}
-          valueStyle={{ fontSize: '31px', color: '#111928' }}
-        />
-      </Card>
-    </Col>
-    <Col xs={24} lg={8}>
-      <Card hoverable>
-        <Statistic
-          title={<Text style={{ fontSize: '18px', color: '#585858' }}>Lokasi</Text>}
-          value={stats.locations}
-          loading={isLoading}
-          valueStyle={{ fontSize: '31px', color: '#111928' }}
-          prefix={<EnvironmentOutlined style={{ color: '#CF1322', fontSize: '34px', marginRight: '16px' }} />}
-        />
-      </Card>
-    </Col>
-  </Row>
-);
-
-// Search and Filter Component (Tidak Berubah)
+// Search and Filter Component
 const SearchFilter = ({ searchTerm, onSearchChange, selectedType, onTypeChange }) => (
   <Card style={{ marginBottom: 24 }}>
     <Title level={4} style={{ marginTop: 0 }}>Pencarian & Filter</Title>
@@ -155,16 +214,16 @@ const SearchFilter = ({ searchTerm, onSearchChange, selectedType, onTypeChange }
   </Card>
 );
 
-// --- MODAL FORM OWNER BARU ---
+// Owner Form Modal
 const OwnerFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
   <Modal
     title="Tambah Pemilik Lahan Baru"
     open={open}
     onCancel={onCancel}
-    footer={null} // Footer kustom di dalam form
+    footer={null}
     width={500}
-    zIndex={1001} // Pastikan modal ini di atas modal Aset
-    destroyOnClose // Reset form saat ditutup
+    zIndex={1001}
+    destroyOnClose
   >
     <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
       <Form.Item label="Nama Pemilik" name="nama" rules={[{ required: true, message: 'Nama wajib diisi' }]}>
@@ -194,12 +253,10 @@ const OwnerFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
   </Modal>
 );
 
-// Asset Form Modal Component (Telah Direfactor)
+// Asset Form Modal
 const AssetFormModal = ({ 
   open, editingAsset, form, fileList, owners, isLoadingOwners, 
-  onCancel, onSubmit, isSubmitting, onFileChange, 
-  // --- PROPS BARU ---
-  onAddOwner 
+  onCancel, onSubmit, isSubmitting, onFileChange, onAddOwner 
 }) => (
   <Modal
     title={editingAsset ? 'Edit Aset' : 'Tambah Aset Baru'}
@@ -207,7 +264,7 @@ const AssetFormModal = ({
     onCancel={onCancel}
     footer={null}
     width={600}
-    zIndex={1000} // zIndex default
+    zIndex={1000}
   >
     <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
       <Form.Item label="Nama Aset" name="name" rules={[{ required: true, message: 'Nama aset wajib diisi' }]}>
@@ -252,7 +309,6 @@ const AssetFormModal = ({
         </Select>
       </Form.Item>
 
-      {/* --- FORM ITEM LANDOWNER (DIREFACTOR) --- */}
       <Form.Item 
         label="Pemilik Lahan" 
         name="landowner"
@@ -272,7 +328,7 @@ const AssetFormModal = ({
           ))}
         </Select>
       </Form.Item>
-      {/* --- TOMBOL TAMBAH OWNER BARU --- */}
+
       <Button 
         type="link" 
         icon={<PlusOutlined />} 
@@ -324,7 +380,7 @@ const AssetFormModal = ({
   </Modal>
 );
 
-// Asset Detail Modal Component (Tidak Berubah)
+// Asset Detail Modal
 const AssetDetailModal = ({ open, asset, onCancel }) => (
   <Modal
     title="Detail Aset"
@@ -359,7 +415,7 @@ const AssetDetailModal = ({ open, asset, onCancel }) => (
   </Modal>
 );
 
-// ==================== MAIN COMPONENT (Telah Direfactor) ====================
+// ==================== MAIN COMPONENT ====================
 function AssetManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -370,12 +426,10 @@ function AssetManagementContent() {
   const [selectedType, setSelectedType] = useState('semua');
   const [form] = Form.useForm();
   const [fileList, setFileList] = useState([]);
-  
-  // --- STATE BARU UNTUK MODAL OWNER ---
   const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
   const [ownerForm] = Form.useForm();
 
-  // ========== DATA FETCHING ==========
+  // Data Fetching
   const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets,
@@ -386,9 +440,8 @@ function AssetManagementContent() {
     queryFn: getOwners
   });
 
-  // ========== MUTATIONS ==========
+  // Mutations
   const mutationConfig = {
-    // Konfigurasi default untuk create/update ASET
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       setIsModalOpen(false);
@@ -429,18 +482,14 @@ function AssetManagementContent() {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus aset'}`);
     }
   });
-  
-  // --- MUTASI BARU UNTUK CREATE OWNER ---
+
   const createOwnerMutation = useMutation({
     mutationFn: createOwner,
     onSuccess: (newOwner) => {
       message.success(`Pemilik Lahan "${newOwner.nama}" berhasil ditambahkan`);
-      // 1. Refresh daftar owner di query cache
       queryClient.invalidateQueries({ queryKey: ['owners'] });
-      // 2. Tutup modal owner
       setIsOwnerModalOpen(false);
       ownerForm.resetFields();
-      // 3. (OPSIONAL TAPI BAGUS) Otomatis pilih owner baru di form Aset
       form.setFieldsValue({ landowner: newOwner.id });
     },
     onError: (err) => {
@@ -449,7 +498,7 @@ function AssetManagementContent() {
         const errors = err.response.data;
         const firstKey = Object.keys(errors)[0];
         if (firstKey && Array.isArray(errors[firstKey])) {
-          errorMsg = `${errors[firstKey][0]}`; // Tampilkan pesan error spesifik
+          errorMsg = `${errors[firstKey][0]}`;
         } else if (errors.detail) {
           errorMsg = errors.detail;
         }
@@ -460,9 +509,7 @@ function AssetManagementContent() {
     }
   });
 
-  // ========== HANDLERS ==========
-  
-  // Handlers untuk Modal Aset
+  // Handlers
   const handleAddAsset = () => {
     setEditingAsset(null);
     form.resetFields();
@@ -480,7 +527,7 @@ function AssetManagementContent() {
       value: asset.value,
       acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
       ownership_status: asset.ownership_status,
-      landowner: asset.landowner, // ID landowner
+      landowner: asset.landowner,
       landowner_share_percentage: asset.landowner_share_percentage || 10,
     });
     setFileList(asset.document_url ? [{ uid: '-1', name: asset.document_url, status: 'done' }] : []);
@@ -498,11 +545,9 @@ function AssetManagementContent() {
     const formData = {
       ...values,
       acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
-      // Cek jika fileList berisi file baru (punya originFileObj) atau file lama (tidak punya)
       document_url: fileList.length > 0 ? (fileList[0].originFileObj ? fileList[0].name : editingAsset?.document_url) : null,
     };
     
-    // Hapus landowner jika nilainya null/undefined (jika user clear pilihan)
     if (!formData.landowner) {
       formData.landowner = null;
     }
@@ -515,27 +560,25 @@ function AssetManagementContent() {
   };
 
   const handleViewDetail = (asset) => {
-    // Map ID landowner ke nama untuk ditampilkan di detail
     const landownerName = owners?.find(o => o.id === asset.landowner)?.nama;
     setDetailAsset({ ...asset, landowner_name: landownerName });
     setIsDetailModalOpen(true);
   };
-  
-  // --- HANDLERS BARU UNTUK MODAL OWNER ---
+
   const handleShowOwnerModal = () => {
     setIsOwnerModalOpen(true);
   };
-  
+
   const handleCancelOwnerModal = () => {
     setIsOwnerModalOpen(false);
     ownerForm.resetFields();
   };
-  
+
   const handleOwnerFormSubmit = (values) => {
     createOwnerMutation.mutate(values);
   };
 
-  // ========== COMPUTED VALUES ==========
+  // Computed Values
   const stats = useMemo(() => {
     if (!assets) return { total: 0, value: 0, locations: 0 };
     const totalValue = assets.reduce((acc, asset) => acc + parseFloat(asset.value || 0), 0);
@@ -551,26 +594,38 @@ function AssetManagementContent() {
       return matchesSearch && matchesType;
     });
   }, [assets, searchTerm, selectedType]);
-  
-  // (ownerMap tidak lagi diperlukan karena DetailModal menerima nama)
 
   const isLoadingInitialData = isLoadingAssets || isLoadingOwners;
   const isSubmitting = createMutation.isPending || updateMutation.isPending;
 
-  // ========== RENDER ==========
+  // Render
   return (
     <>
-      {/* Page Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
-        <div>
-          <Title level={2} style={{ margin: 0, color: '#111928' }}>
-            <FileTextOutlined style={{ marginRight: '8px' }} /> Manajemen Aset
+        <div className='gap-[6px]'>
+          <Title level={2} style={{ 
+            margin: 0, 
+            color: '#111928',
+            // // fontFamily: 'Inter, sans-serif',
+            fontWeight: 700,
+            fontSize: '30px',
+            lineHeight: '125%',
+          }}>
+            Manajemen Aset
           </Title>
-          <Text type="secondary" style={{ fontSize: '16px' }}>Kelola semua aset fisik yang dimiliki</Text>
+          <Text style={{ 
+            fontSize: '16px',
+            fontWeight: 500,
+            color: '#727272',
+            // // fontFamily: 'Inter, sans-serif',
+            lineHeight: '19px', 
+          }}>
+            Kelola semua aset fisik yang dimiliki
+          </Text>
         </div>
         <Button
           type="primary"
-          icon={<PlusOutlined />}
+          icon={<PlusCircleOutlined />}
           size="large"
           style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
           onClick={handleAddAsset}
@@ -580,10 +635,8 @@ function AssetManagementContent() {
         </Button>
       </Flex>
 
-      {/* Statistics */}
       <StatisticsCards stats={stats} isLoading={isLoadingAssets} />
 
-      {/* Search & Filter */}
       <SearchFilter
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
@@ -591,7 +644,6 @@ function AssetManagementContent() {
         onTypeChange={setSelectedType}
       />
 
-      {/* Asset List */}
       {isLoadingInitialData && <Spin size="large"><div style={{ padding: 50, textAlign: 'center', width: '100%' }} /></Spin>}
       
       {isErrorAssets && !isLoadingInitialData && (
@@ -617,7 +669,6 @@ function AssetManagementContent() {
         </Row>
       )}
 
-      {/* --- RENDER SEMUA MODAL --- */}
       <AssetFormModal
         open={isModalOpen}
         editingAsset={editingAsset}
@@ -629,7 +680,6 @@ function AssetManagementContent() {
         onSubmit={handleFormSubmit}
         isSubmitting={isSubmitting}
         onFileChange={setFileList}
-        // --- PROP BARU DITERUSKAN ---
         onAddOwner={handleShowOwnerModal}
       />
 
@@ -638,8 +688,7 @@ function AssetManagementContent() {
         asset={detailAsset}
         onCancel={() => setIsDetailModalOpen(false)}
       />
-      
-      {/* --- MODAL OWNER BARU DIRENDER DI SINI --- */}
+
       <OwnerFormModal
         open={isOwnerModalOpen}
         form={ownerForm}

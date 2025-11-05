@@ -1,33 +1,102 @@
-// Di app/admin/pendanaan/page.jsx
 'use client';
 
-import React, { useState, useEffect } from 'react';
+// --- IMPORTS ---
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Table, Button, Modal, Form, Input, DatePicker, InputNumber, Select,
-  Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag,
+  useQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
+import moment from 'moment';
+
+// ANTD Components
+import {
+  Button,
+  Select,
+  Card,
+  Progress,
+  Typography,
+  Row,
+  Col,
+  Spin,
+  Modal,
+  Form,
+  Input,
+  DatePicker,
+  InputNumber,
+  message,
+  Tag,
+  Skeleton,
+  Space,
+  Descriptions,
+  Alert,
 } from 'antd';
+
+// Icons
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, BankOutlined,
+  PlusCircleOutlined,
+  PlusOutlined,
+  BankOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import moment from 'moment';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import {
-  getFundings, createFunding, updateFunding, deleteFunding,
-} from '@/lib/api/funding';
-import { getFundingSources, createFundingSource } from '@/lib/api/funding_source';
-import { getProjects } from '@/lib/api/project'; // <-- IMPORT BARU
+import { FaMoneyBillTransfer, FaMoneyBills } from 'react-icons/fa6';
+import { GiPayMoney } from 'react-icons/gi';
+import { ChevronDown } from 'lucide-react';
 
+// API IMPORTS
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { getFinancialReport } from '@/lib/api/reporting';
+import { getAssets } from '@/lib/api/asset';
+import { getProjects } from '@/lib/api/project';
+import {
+  getFundingSources,
+  createFundingSource,
+  getFundingSource,
+} from '@/lib/api/funding_source';
+import {
+  getFundings,
+  createFunding,
+  updateFunding,
+  getFunding, // <-- 1. ASUMSI ADA FUNGSI INI (sesuai backend)
+} from '@/lib/api/funding'; // <-- Jika getFunding belum ada di file ini, tambahkan
+
+// --- HELPERS ---
 const { Title, Text } = Typography;
-const { Search } = Input;
 const { Option } = Select;
 
-const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
-const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
+const formatRupiah = (value) =>
+  value != null
+    ? `Rp ${Number(value).toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      })}`
+    : '-';
 
-const statusColors = { available: 'blue', allocated: 'orange', used: 'red' };
-const statusLabels = { available: 'Tersedia', allocated: 'Teralokasi', used: 'Terpakai' };
+const formatTanggal = (dateStr) => {
+  if (!dateStr) return '-';
+  return moment(dateStr, 'YYYY-MM-DD').format('D/M/YYYY');
+};
+
+const getStatusProps = (status) => {
+  let text = status;
+  switch (status) {
+    case 'available': text = 'tersedia'; break;
+    case 'allocated': text = 'dialokasikan'; break;
+    case 'used': text = 'digunakan'; break;
+  }
+  const style = {
+    background: '#E1EFFE', 
+    color: '#1E429F', 
+    border: 'none', 
+    fontWeight: 600, 
+    fontSize: '14px', 
+    padding: '4px 10px', 
+    borderRadius: '6px',
+    lineHeight: '17px',
+    // // fontFamily: 'Inter, sans-serif'
+  };
+  return { text, style }; 
+};
 
 const SOURCE_TYPE_MAP = {
   'foundation': 'Yayasan',
@@ -35,6 +104,33 @@ const SOURCE_TYPE_MAP = {
   'investor': 'Investor',
 };
 
+const getSourceTypeProps = (type) => {
+  let text = type;
+  let style = {
+    background: '#E1EFFE', 
+    color: '#1E429F', 
+    border: 'none', 
+    fontWeight: 600, 
+    fontSize: '14px', 
+    padding: '4px 10px', 
+    borderRadius: '6px',
+    lineHeight: '17px',
+    // fontFamily: 'Inter, sans-serif'
+  };
+  
+  text = SOURCE_TYPE_MAP[type] || type || 'Lainnya';
+  
+  if (!SOURCE_TYPE_MAP[type]) {
+    style.background = '#F3F4F6'; 
+    style.color = '#374151';
+  }
+  
+  return { text, style }; 
+};
+
+// =================================================================
+// === MODAL TAMBAH SUMBER DANA ===
+// =================================================================
 const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
   <Modal
     title="Tambah Sumber Dana Baru" open={open} onCancel={onCancel} footer={null}
@@ -53,15 +149,15 @@ const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }
       </Form.Item>
       <Form.Item label="Info Kontak" name="contact_info" rules={[{ required: true, message: 'Info kontak wajib diisi' }]}>
         <Input.TextArea
-           prefix={<InfoCircleOutlined />}
-           placeholder="Masukkan detail kontak (cth: Nama PIC, No HP, Email, Alamat)"
-           rows={4}
+            prefix={<InfoCircleOutlined />}
+            placeholder="Masukkan detail kontak (cth: Nama PIC, No HP, Email, Alamat)"
+            rows={4}
         />
       </Form.Item>
       <Form.Item style={{ textAlign: 'right', marginTop: 16, marginBottom: 0 }}>
         <Space>
           <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting}>
+          <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ background: '#237804', borderColor: '#237804' }}>
             Simpan Sumber Dana
           </Button>
         </Space>
@@ -70,45 +166,723 @@ const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }
   </Modal>
 );
 
-function FundingManagementContent() {
+// =================================================================
+// === MODAL EDIT PENDANAAN ===
+// =================================================================
+const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceModal }) => {
   const queryClient = useQueryClient();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingFunding, setEditingFunding] = useState(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSource, setSelectedSource] = useState('semua');
-  const [selectedStatus, setSelectedStatus] = useState('semua');
-  const [form] = Form.useForm();
-  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-  const [sourceForm] = Form.useForm();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { data: fundings, isLoading: isLoadingFundings, isError: isErrorFundings, error: errorFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
-  const { data: fundingSources, isLoading: isLoadingSources, isError: isErrorSources, error: errorSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
-  
-  // --- FETCH DATA PROYEK UNTUK DROPDOWN ---
+  const isEditMode = Boolean(initialData);
+
   const { data: projects, isLoading: isLoadingProjects } = useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
+    staleTime: 1000 * 60 * 5,
   });
-  // --- MAP UNTUK PROYEK ---
-  const projectMap = React.useMemo(() => {
-    if (!projects) return {};
-    return projects.reduce((acc, proj) => { acc[proj.id] = proj.name; return acc; }, {});
-  }, [projects]);
+  
+  const { data: sources, isLoading: isLoadingSources } = useQuery({
+    queryKey: ['fundingSources'],
+    queryFn: getFundingSources,
+    staleTime: 1000 * 60 * 5,
+  });
 
+  const createMutation = useMutation({
+    mutationFn: createFunding,
+    onSuccess: () => {
+      message.success('Pendanaan berhasil ditambahkan');
+      queryClient.invalidateQueries({ queryKey: ['fundings'] });
+      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
+      onClose();
+    },
+    onError: (err) => {
+      console.error("Error creating funding:", err);
+      message.error('Gagal menambahkan pendanaan. Cek konsol untuk detail.');
+    },
+    onSettled: () => setIsSubmitting(false),
+  });
 
-  const sourceMap = React.useMemo(() => {
-    if (!fundingSources) return {};
-    return fundingSources.reduce((acc, source) => { acc[source.id] = source.name; return acc; }, {});
-  }, [fundingSources]);
+  const updateMutation = useMutation({
+    mutationFn: updateFunding,
+    onSuccess: () => {
+      message.success('Pendanaan berhasil diperbarui');
+      queryClient.invalidateQueries({ queryKey: ['fundings'] });
+      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
+      onClose();
+    },
+    onError: (err) => {
+      console.error("Error updating funding:", err);
+      message.error('Gagal memperbarui pendanaan. Cek konsol untuk detail.');
+    },
+    onSettled: () => setIsSubmitting(false),
+  });
+  
+  useEffect(() => {
+    if (visible) {
+      if (isEditMode && initialData) {
+        form.setFieldsValue({
+          ...initialData,
+          date_received: moment(initialData.date_received, 'YYYY-MM-DD'),
+          source: initialData.source,
+          project: initialData.project,
+        });
+      } else {
+        form.resetFields();
+        form.setFieldValue('status', 'available');
+      }
+    }
+  }, [visible, initialData, form, isEditMode]);
 
-  const mutationOptions = {
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['fundings'] }); setIsModalOpen(false); setEditingFunding(null); form.resetFields(); },
-    onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal'}`); },
+  const onFinish = (values) => {
+    setIsSubmitting(true);
+    const payload = {
+      ...values,
+      date_received: values.date_received.format('YYYY-MM-DD'),
+    };
+    
+    if (isEditMode) {
+      updateMutation.mutate({ id: initialData.id, fundingData: payload });
+    } else {
+      createMutation.mutate(payload);
+    }
   };
-  const createMutation = useMutation({ mutationFn: createFunding, ...mutationOptions, onSuccess: (...args) => { message.success('Pendanaan berhasil ditambahkan'); mutationOptions.onSuccess(...args); } });
-  const updateMutation = useMutation({ mutationFn: ({ id, data }) => updateFunding(id, data), ...mutationOptions, onSuccess: (...args) => { message.success('Pendanaan berhasil diperbarui'); mutationOptions.onSuccess(...args); } });
-  const deleteMutation = useMutation({ mutationFn: deleteFunding, onSuccess: () => { message.success('Pendanaan berhasil dihapus'); queryClient.invalidateQueries({ queryKey: ['fundings'] }); }, onError: (err) => { message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); } });
 
+  return (
+    <Modal
+      title={isEditMode ? 'Edit Pendanaan' : 'Tambah Pendanaan Baru'}
+      open={visible}
+      onCancel={onClose}
+      footer={null}
+      width={700}
+      destroyOnClose
+    >
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onFinish}
+        className="mt-6"
+      >
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item
+              name="project"
+              label="Proyek Terkait"
+              rules={[{ required: true, message: 'Proyek harus diisi' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Pilih proyek"
+                loading={isLoadingProjects}
+                optionFilterProp="children"
+                options={projects?.map(p => ({ value: p.id, label: p.name }))}
+                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item
+              name="source"
+              label="Sumber Dana"
+              rules={[{ required: true, message: 'Sumber dana harus diisi' }]}
+            >
+              <Select
+                showSearch
+                placeholder="Pilih sumber dana"
+                loading={isLoadingSources}
+                optionFilterProp="children"
+                options={sources?.map(s => ({ value: s.id, label: `${s.name} (${SOURCE_TYPE_MAP[s.type] || s.type})` }))}
+                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
+              />
+            </Form.Item>
+            
+            <Button 
+              type="link" 
+              icon={<PlusOutlined />} 
+              onClick={handleShowSourceModal}
+              style={{ paddingLeft: 0, marginTop: '-16px', marginBottom: '16px' }}
+            >
+              Tambah Sumber Dana Baru
+            </Button>
+          </Col>
+        </Row>
+        
+        <Row gutter={16}>
+          <Col span={12}>
+             <Form.Item
+              name="amount"
+              label="Jumlah Pendanaan (Rp)"
+              rules={[{ required: true, message: 'Jumlah harus diisi' }]}
+            >
+              <InputNumber
+                min={0}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => (value || '').replace(/\$\s?|(,*)/g, '')}
+                className="w-full"
+                placeholder='Contoh: 50000000'
+              />
+            </Form.Item>
+          </Col>
+           <Col span={12}>
+            <Form.Item
+              name="date_received"
+              label="Tanggal Diterima"
+              rules={[{ required: true, message: 'Tanggal harus diisi' }]}
+            >
+              <DatePicker className="w-full" format="DD/MM/YYYY" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Form.Item
+          name="purpose"
+          label="Tujuan/Deskripsi"
+          rules={[{ required: true, message: 'Tujuan harus diisi' }]}
+        >
+          <Input.TextArea rows={3} placeholder="Mis: Dana operasional untuk Model Awal Pembangunan" />
+        </Form.Item>
+
+        <Form.Item
+          name="status"
+          label="Status"
+          rules={[{ required: true, message: 'Status harus diisi' }]}
+        >
+          <Select
+            placeholder="Pilih status"
+            options={[
+              { value: 'available', label: 'Tersedia' },
+              { value: 'allocated', label: 'Dialokasikan' },
+              { value: 'used', label: 'Digunakan' },
+            ]}
+          />
+        </Form.Item>
+
+        <Form.Item className="mt-6 mb-0 text-right">
+          <Button onClick={onClose} style={{ marginRight: 8 }} disabled={isSubmitting}>
+            Batal
+          </Button>
+          <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ background: '#237804', borderColor: '#237804' }}>
+            {isEditMode ? 'Simpan Perubahan' : 'Simpan'}
+          </Button>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+};
+
+// =================================================================
+// === MODAL DETAIL SUMBER DANA (Tetap ada) ===
+// =================================================================
+const FundingSourceDetailModal = ({ visible, onClose, sourceId }) => {
+  const { data: source, isLoading, isError, error } = useQuery({
+    queryKey: ['fundingSource', sourceId],
+    queryFn: () => getFundingSource(sourceId),
+    enabled: !!sourceId, 
+    staleTime: 1000 * 60 * 5,
+  });
+
+  return (
+    <Modal
+      title="Detail Sumber Pendanaan"
+      open={visible}
+      onCancel={onClose}
+      footer={[<Button key="close" onClick={onClose}>Tutup</Button>]}
+      width={600}
+      destroyOnClose
+    >
+      {isLoading && (
+        <div style={{ textAlign: 'center', padding: '48px' }}>
+          <Spin size="large" />
+        </div>
+      )}
+      {isError && (
+        <Alert
+          message="Gagal Mengambil Data"
+          description={error?.message || 'Terjadi kesalahan saat mengambil detail sumber dana.'}
+          type="error"
+          showIcon
+        />
+      )}
+      {source && !isLoading && !isError && (
+        <Descriptions bordered layout="vertical" column={1}>
+          <Descriptions.Item label="Nama Sumber Dana">
+            <Text strong style={{ fontSize: '16px' }}>{source.name}</Text>
+          </Descriptions.Item>
+          <Descriptions.Item label="Tipe Sumber">
+            <Tag style={getSourceTypeProps(source.type).style}>
+              {getSourceTypeProps(source.type).text}
+            </Tag>
+          </Descriptions.Item>
+          <Descriptions.Item label="Informasi Kontak">
+            <div style={{ whiteSpace: 'pre-wrap' }}>
+              {source.contact_info}
+            </div>
+          </Descriptions.Item>
+        </Descriptions>
+      )}
+    </Modal>
+  );
+};
+
+// =================================================================
+// === KOMPONEN BARU: MODAL DETAIL PENDANAAN ===
+// =================================================================
+const FundingDetailModal = ({ visible, onClose, fundingId }) => {
+  // Panggil API getFunding (yang diasumsikan ada)
+  const { data: funding, isLoading, isError, error } = useQuery({
+    queryKey: ['funding', fundingId], // Kunci query unik
+    queryFn: () => getFunding(fundingId), // Panggil API
+    enabled: !!fundingId, // Hanya jalankan jika fundingId ada
+    staleTime: 1000 * 60 * 5,
+  });
+
+  return (
+    <Modal
+      title="Detail Pendanaan"
+      open={visible}
+      onCancel={onClose}
+      footer={[<Button key="close" onClick={onClose}>Tutup</Button>]}
+      width={700}
+      destroyOnClose
+    >
+      {isLoading && (
+        <div style={{ textAlign: 'center', padding: '48px' }}>
+          <Spin size="large" />
+        </div>
+      )}
+      {isError && (
+        <Alert
+          message="Gagal Mengambil Data"
+          description={error?.message || 'Terjadi kesalahan saat mengambil detail pendanaan.'}
+          type="error"
+          showIcon
+        />
+      )}
+      {funding && !isLoading && !isError && (
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Descriptions bordered layout="vertical" column={2}>
+            <Descriptions.Item label="Proyek Terkait" span={2}>
+              <Text strong style={{ fontSize: '16px' }}>{funding.project_name}</Text>
+            </Descriptions.Item>
+            
+            <Descriptions.Item label="Sumber Dana">
+              {funding.source_name}
+              <Tag style={{...getSourceTypeProps(funding.source_type).style, marginLeft: 8}}>
+                {getSourceTypeProps(funding.source_type).text}
+              </Tag>
+            </Descriptions.Item>
+
+            <Descriptions.Item label="Status">
+              <Tag style={getStatusProps(funding.status).style}>
+                {getStatusProps(funding.status).text}
+              </Tag>
+            </Descriptions.Item>
+
+            <Descriptions.Item label="Tanggal Diterima">
+              {formatTanggal(funding.date_received)}
+            </Descriptions.Item>
+            
+            <Descriptions.Item label="Tujuan / Deskripsi">
+              <div style={{ whiteSpace: 'pre-wrap' }}>
+                {funding.purpose}
+              </div>
+            </Descriptions.Item>
+          </Descriptions>
+
+          <Card title="Alokasi Dana">
+            <Row gutter={16}>
+              <Col span={12}>
+                <Descriptions column={1} layout="vertical">
+                  <Descriptions.Item label="Total Dana Masuk">
+                    <Text style={{ fontSize: 18, color: '#3f8600' }}>{formatRupiah(funding.amount)}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Dana Terpakai">
+                    <Text style={{ fontSize: 18, color: '#cf1322' }}>{formatRupiah(funding.total_terpakai)}</Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="Sisa Dana">
+                    <Text strong style={{ fontSize: 18, color: '#111928' }}>{formatRupiah(funding.sisa_dana)}</Text>
+                  </Descriptions.Item>
+                </Descriptions>
+              </Col>
+              <Col span={12} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Progress
+                  type="circle"
+                  percent={parseFloat(funding.persen_terpakai.toFixed(1))}
+                  strokeColor="#1A56DB"
+                  format={(percent) => `${percent}% Terpakai`}
+                />
+              </Col>
+            </Row>
+          </Card>
+        </Space>
+      )}
+    </Modal>
+  );
+};
+
+
+// =================================================================
+// === KOMPONEN STAT CARD ===
+// =================================================================
+const StatCard = ({ title, value, icon, bgColor, loading }) => (
+  <Card 
+    bodyStyle={{ padding: '24px' }} 
+    style={{
+      background: '#FFFFFF',
+      border: '1px solid #F0F0F0',
+      boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
+      borderRadius: '12px',
+      gap: '28px'
+    }}
+  >
+    {loading ? (
+      <Skeleton active avatar paragraph={{ rows: 1 }} />
+    ) : (
+      <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
+        <div 
+          style={{
+            width: '34px',
+            height: '34px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            color: bgColor
+          }}
+        >
+          {icon}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <Text 
+            style={{ 
+              fontSize: '18px', 
+              fontWeight: 600, 
+              color: '#585858',
+              lineHeight: '150%',
+              marginBottom: 0
+            }}
+          >
+            {title}
+          </Text>
+          <Text 
+            style={{ 
+              fontSize: '31px', 
+              fontWeight: 700, 
+              color: '#111928',
+              lineHeight: '125%'
+            }}
+          >
+            {formatRupiah(value)}
+          </Text>
+        </div>
+      </div>
+    )}
+  </Card>
+);
+
+// =================================================================
+// === KOMPONEN RINGKASAN CARD ===
+// =================================================================
+const RingkasanCard = ({ data, loading, onSourceClick }) => (
+  <Card 
+    bodyStyle={{ padding: '24px' }} 
+    style={{
+      background: '#FFFFFF',
+      border: '1px solid #E5E7EB',
+      boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
+      borderRadius: '8px',
+      height: '100%'
+    }}
+  >
+    <Title 
+      level={5} 
+      style={{ 
+        fontFamily: 'Inter, sans-serif',
+        fontSize: '22px', 
+        fontWeight: 700, 
+        color: '#111928',
+        lineHeight: '28px',
+        margin: 0,
+        marginBottom: '20px'
+      }}
+    >
+      Ringkasan Pendanaan per Sumber
+    </Title>
+    <Spin spinning={loading}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        {!loading && data.length === 0 && (
+          <Text type="secondary">Belum ada data pendanaan.</Text>
+        )}
+        {data.map((item) => {
+          const sourceType = getSourceTypeProps(item.source_type);
+          
+          return (
+            <div key={item.source_name} style={{ marginBottom: '12px' }}>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <Tag 
+                    style={{ ...sourceType.style, cursor: 'pointer' }}
+                    onClick={() => onSourceClick(item.source_id)} // <-- Klik Tag di sini
+                  >
+                    {sourceType.text}
+                  </Tag>
+                  <Text 
+                    style={{ 
+                      // fontFamily: 'Inter, sans-serif',
+                      fontSize: '16px', 
+                      fontWeight: 500, 
+                      color: '#111928',
+                      lineHeight: '19px'
+                    }}
+                  >
+                    {formatRupiah(item.totalAmount)}
+                  </Text>
+                </div>
+                <Text 
+                  style={{ 
+                    // fontFamily: 'Inter, sans-serif',
+                    fontSize: '16px', 
+                    fontWeight: 500, 
+                    color: '#727272',
+                    lineHeight: '19px'
+                  }}
+                >
+                  {item.percent.toFixed(1)}% Terpakai
+                </Text>
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <Progress
+                  percent={item.percent}
+                  strokeColor="#1A56DB"
+                  trailColor="#E5E7EB"
+                  showInfo={false}
+                  strokeWidth={6}
+                />
+              </div>
+              <Text 
+                style={{ 
+                  // fontFamily: 'Inter, sans-serif',
+                  fontSize: '16px', 
+                  fontWeight: 500, 
+                  color: '#727272',
+                  lineHeight: '19px'
+                }}
+              >
+                Terpakai {formatRupiah(item.totalTerpakai)}
+              </Text>
+            </div>
+          );
+        })}
+        {loading && data.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <Skeleton active paragraph={{ rows: 2 }} />
+            <Skeleton active paragraph={{ rows: 2 }} />
+          </div>
+        )}
+      </div>
+    </Spin>
+  </Card>
+);
+
+// =================================================================
+// === KOMPONEN FUNDING CARD (PERBAIKAN TOMBOL DETAIL) ===
+// =================================================================
+const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => { // <-- Tambah prop onDetailClick
+  const status = getStatusProps(funding.status);
+  const sourceType = getSourceTypeProps(funding.source_type);
+  
+  return (
+    <div 
+      style={{
+        padding: '20px',
+        background: '#FFFFFF',
+        border: '1px solid #E5E7EB',
+        filter: 'drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.15))',
+        borderRadius: '8px',
+        marginBottom: '10px'
+      }}
+    >
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start',
+        marginBottom: '10px'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            
+            <Tag 
+              style={{ ...sourceType.style, cursor: 'pointer' }}
+              onClick={() => onSourceClick(funding.source)} // <-- Klik Tag = Detail SUMBER
+            >
+              {sourceType.text}
+            </Tag>
+            
+            <Tag style={status.style}>
+              {status.text}
+            </Tag>
+          </div>
+          <Title 
+            level={5} 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '20px', 
+              fontWeight: 600, 
+              color: '#111928',
+              lineHeight: '24px',
+              margin: 0
+            }}
+          >
+            {funding.project_name || "Model Awal Pembangunan"}
+          </Title>
+          <Text 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '16px', 
+              fontWeight: 500, 
+              color: '#111928',
+              lineHeight: '19px'
+            }}
+          >
+            Tanggal: {formatTanggal(funding.date_received)}
+          </Text>
+        </div>
+        <div style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          alignItems: 'flex-end',
+          marginLeft: '16px'
+        }}>
+          <Text 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '16px', 
+              fontWeight: 500, 
+              color: '#7CB305',
+              lineHeight: '19px',
+              marginBottom: 0
+            }}
+          >
+            {formatRupiah(funding.amount)}
+          </Text>
+          <Text 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '16px', 
+              fontWeight: 500, 
+              color: '#727272',
+              lineHeight: '19px'
+            }}
+          >
+            Tersisa {formatRupiah(funding.sisa_dana)}
+          </Text>
+        </div>
+      </div>
+      <div style={{ marginBottom: '14px' }}>
+        <Progress
+          percent={parseFloat(funding.persen_terpakai.toFixed(1))}
+          strokeColor="#1A56DB"
+          trailColor="#E5E7EB"
+          showInfo={true}
+          strokeWidth={6}
+          format={(percent) => (
+            <span style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '12px', 
+              color: '#6B7280', 
+              fontWeight: 500,
+              lineHeight: '18px'
+            }}>
+              {percent}%
+            </span>
+          )}
+        />
+      </div>
+      <div style={{ 
+        display: 'flex', 
+        gap: '20px', 
+        paddingTop: '14px'
+      }}>
+        <Button 
+          style={{ 
+            width: '128px',
+            height: '40px',
+            border: '1px solid #237804',
+            borderRadius: '8px',
+            color: '#237804',
+            // fontFamily: 'Inter, sans-serif',
+            fontWeight: 500,
+            fontSize: '14px',
+            lineHeight: '21px'
+          }}
+          onClick={() => onDetailClick(funding.id)} // <-- PERBAIKAN: Klik Tombol = Detail PENDANAAN
+        >
+          Detail
+        </Button>
+        <Button 
+          style={{ 
+            width: '128px',
+            height: '40px',
+            background: '#237804',
+            borderColor: '#237804',
+            borderRadius: '8px',
+            color: '#FFFFFF',
+            // fontFamily: 'Inter, sans-serif',
+            fontWeight: 500,
+            fontSize: '14px',
+            lineHeight: '21px'
+          }}
+          onClick={() => onEditClick(funding)}
+        >
+          Edit
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+
+// =================================================================
+// === KOMPONEN KONTEN UTAMA HALAMAN (DIMODIFIKASI) ===
+// =================================================================
+function PendanaanContent() {
+  const queryClient = useQueryClient();
+  
+  const [selectedAsset, setSelectedAsset] = useState('all');
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingFunding, setEditingFunding] = useState(null);
+  
+  const [form] = Form.useForm();
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
+  const [sourceForm] = Form.useForm();
+  
+  const [detailSourceId, setDetailSourceId] = useState(null);
+  
+  // --- STATE BARU: Untuk Modal Detail PENDANAAN ---
+  const [detailFundingId, setDetailFundingId] = useState(null);
+
+  // Data Fetching
+  const { data: reportData, isLoading: isLoadingReport } = useQuery({
+    queryKey: ['financialReport', selectedAsset],
+    queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' ? undefined : selectedAsset }),
+    staleTime: 1000 * 60,
+  });
+
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets'],
+    queryFn: getAssets,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const { data: fundings, isLoading: isLoadingFundings } = useQuery({
+    queryKey: ['fundings', selectedAsset],
+    queryFn: () => getFundings({ asset_id: selectedAsset === 'all' ? undefined : selectedAsset }),
+  });
+  
   const createSourceMutation = useMutation({
     mutationFn: createFundingSource,
     onSuccess: (newSource) => {
@@ -116,169 +890,325 @@ function FundingManagementContent() {
       queryClient.invalidateQueries({ queryKey: ['fundingSources'] });
       setIsSourceModalOpen(false);
       sourceForm.resetFields();
-      form.setFieldsValue({ source: newSource.id });
+      form.setFieldsValue({ source: newSource.id }); 
     },
     onError: (err) => {
       let errorMsg = 'Gagal menambahkan sumber dana.';
       if (err.response?.data) {
         const errors = err.response.data;
-        const messages = Object.entries(errors).map(([field, fieldErrors]) => `${field}: ${fieldErrors.join(', ')}`).join('; ');
+        const messages = Object.entries(errors).map(([field, fieldErrors]) => `${field}: ${fieldErrors.join('; ')}`).join('; ');
         errorMsg = messages || 'Gagal menambahkan sumber dana.';
       } else { errorMsg = err.message || 'Gagal menambahkan sumber dana.'; }
       message.error(`Error: ${errorMsg}`, 6);
     }
   });
 
-  const showAddModal = () => { setEditingFunding(null); form.resetFields(); setIsModalOpen(true); };
-  const showEditModal = (funding) => {
-    setEditingFunding(funding);
-    form.setFieldsValue({
-      source: funding.source,
-      project: funding.project, // <-- BARU: Set field project saat edit
-      amount: parseFloat(funding.amount),
-      date_received: moment(funding.date_received),
-      purpose: funding.purpose,
-      status: funding.status
+  // Data Processing
+  // === PERUBAHAN DI SINI (1) ===
+  const ringkasanData = useMemo(() => {
+    if (!fundings) return [];
+    
+    const summary = new Map();
+    
+    fundings.forEach(funding => {
+      const sourceName = funding.source_name || 'Tanpa Sumber';
+      const sourceType = funding.source_type || 'unknown';
+      const sourceId = funding.source; // <-- Ambil source_id
+      
+      if (!summary.has(sourceName)) {
+        summary.set(sourceName, {
+          source_name: sourceName,
+          source_type: sourceType,
+          source_id: sourceId, // <-- Simpan source_id
+          totalAmount: 0,
+          totalTerpakai: 0,
+        });
+      }
+      
+      const current = summary.get(sourceName);
+      current.totalAmount += parseFloat(funding.amount);
+      current.totalTerpakai += parseFloat(funding.total_terpakai);
     });
-    setIsModalOpen(true);
-  };
-  const handleCancel = () => { setIsModalOpen(false); setEditingFunding(null); form.resetFields(); };
-  
-  const handleFormSubmit = (values) => {
-    const fundingData = {
-      source: values.source,
-      project: values.project, // <-- BARU: Kirim field project ke backend
-      amount: values.amount,
-      date_received: values.date_received.format('YYYY-MM-DD'),
-      purpose: values.purpose,
-      status: values.status
-    };
-    if (editingFunding) { updateMutation.mutate({ id: editingFunding.id, data: fundingData }); }
-    else { createMutation.mutate(fundingData); }
-  };
-  const handleDelete = (id) => { deleteMutation.mutate(id); };
+    
+    return Array.from(summary.values()).map(item => ({
+      ...item,
+      percent: item.totalAmount > 0 ? (item.totalTerpakai / item.totalAmount) * 100 : 0,
+    }));
 
+  }, [fundings]);
+
+  const assetOptions = useMemo(() => {
+    const options = [{ value: 'all', label: 'Semua Asset' }];
+    if (assets) {
+      assets.forEach(asset => {
+        options.push({ value: asset.id, label: asset.name });
+      });
+    }
+    return options;
+  }, [assets]);
+
+  const stats = reportData?.ringkasan_dana || {};
+  const isLoadingStats = isLoadingReport;
+
+  // Handlers
+  const handleOpenModal = (funding) => {
+    setEditingFunding(funding);
+    setModalVisible(true);
+  };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setEditingFunding(null);
+    form.resetFields();
+  };
+  
   const handleShowSourceModal = () => { setIsSourceModalOpen(true); };
   const handleCancelSourceModal = () => { setIsSourceModalOpen(false); sourceForm.resetFields(); };
   const handleSourceFormSubmit = (values) => { createSourceMutation.mutate(values); };
+  
+  // Handler untuk Detail SUMBER (dari Tag)
+  const handleOpenSourceDetail = (id) => { setDetailSourceId(id); };
+  const handleCloseSourceDetail = () => { setDetailSourceId(null); };
 
-  const filteredFundings = React.useMemo(() => {
-    if (!fundings) return [];
-    return fundings.filter(f => {
-      const sourceName = sourceMap[f.source] || '';
-      const matchesSearch = sourceName.toLowerCase().includes(searchTerm.toLowerCase()) || (f.purpose && f.purpose.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesSource = selectedSource === 'semua' || f.source === parseInt(selectedSource);
-      const matchesStatus = selectedStatus === 'semua' || f.status === selectedStatus;
-      return matchesSearch && matchesSource && matchesStatus;
-    });
-  }, [fundings, searchTerm, selectedSource, selectedStatus, sourceMap]);
+  // --- HANDLER BARU: Untuk Detail PENDANAAN (dari tombol "Detail") ---
+  const handleOpenFundingDetail = (id) => { setDetailFundingId(id); };
+  const handleCloseFundingDetail = () => { setDetailFundingId(null); };
 
-  const columns = [
-    { title: 'Sumber Dana', dataIndex: 'source', key: 'source', render: (sourceId) => sourceMap[sourceId] || 'Tidak Diketahui', sorter: (a, b) => (sourceMap[a.source] || '').localeCompare(sourceMap[b.source] || ''), filters: fundingSources ? [...fundingSources.map(s => ({ text: s.name, value: s.id }))] : [], onFilter: (value, record) => record.source === value },
-    // --- KOLOM BARU: Proyek Terkait ---
-    {
-      title: 'Proyek Terkait',
-      dataIndex: 'project',
-      key: 'project',
-      render: (projectId) => projectMap[projectId] || '-',
-      sorter: (a, b) => (projectMap[a.project] || '').localeCompare(projectMap[b.project] || ''),
-    },
-    { title: 'Jumlah', dataIndex: 'amount', key: 'amount', render: (text) => formatRupiah(text), sorter: (a, b) => parseFloat(a.amount) - parseFloat(b.amount), align: 'right' },
-    { title: 'Tgl Diterima', dataIndex: 'date_received', key: 'date_received', render: (text) => formatDate(text), sorter: (a, b) => moment(a.date_received).unix() - moment(b.date_received).unix() },
-    { title: 'Tujuan', dataIndex: 'purpose', key: 'purpose', ellipsis: true },
-    { title: 'Status', dataIndex: 'status', key: 'status', render: (status) => (<Tag color={statusColors[status] || 'default'}>{statusLabels[status] || status}</Tag>), filters: [{ text: 'Tersedia', value: 'available' }, { text: 'Teralokasi', value: 'allocated' }, { text: 'Terpakai', value: 'used' }], onFilter: (value, record) => record.status === value },
-    { title: 'Aksi', key: 'action', render: (_, record) => (<Space size="middle"><Button icon={<EditOutlined />} onClick={() => showEditModal(record)} /><Popconfirm title="Hapus Pendanaan" description="Yakin hapus data ini?" onConfirm={() => handleDelete(record.id)} okText="Ya" cancelText="Tidak" okButtonProps={{ danger: true, loading: deleteMutation.isPending && deleteMutation.variables === record.id }}><Button danger icon={<DeleteOutlined />} /></Popconfirm></Space>), align: 'center' },
-  ];
-
-  const isLoading = isLoadingFundings || isLoadingSources || isLoadingProjects; // <-- BARU: Cek loading projects
-
+  // Render
   return (
-    <>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
-        <div><Title level={2} style={{ margin: 0, color: '#111928' }}><BankOutlined style={{ marginRight: '8px' }} /> Manajemen Pendanaan</Title><Text type="secondary" style={{ fontSize: '16px' }}>Kelola sumber dan alokasi dana.</Text></div>
-        <Button type="primary" icon={<PlusOutlined />} size="large" style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }} onClick={showAddModal} loading={createMutation.isPending || updateMutation.isPending}>Tambah Pendanaan</Button>
-      </Flex>
-
-      <Card style={{ marginBottom: 24 }}>
-         <Flex gap="middle" wrap="wrap">
-            <Search placeholder="Cari sumber/tujuan..." allowClear enterButton={<Button type="primary" icon={<SearchOutlined />} style={{backgroundColor: '#237804'}} />} size="large" onChange={(e) => setSearchTerm(e.target.value)} style={{ flexGrow: 1, minWidth: 250 }} />
-            <Select defaultValue="semua" size="large" style={{ minWidth: 200 }} onChange={(value) => setSelectedSource(value)} loading={isLoadingSources} placeholder="Filter Sumber">
-                <Option value="semua">Semua Sumber</Option>
-                {fundingSources?.map(s => <Option key={s.id} value={s.id.toString()}>{s.name}</Option>)}
-            </Select>
-             <Select defaultValue="semua" size="large" style={{ minWidth: 150 }} onChange={(value) => setSelectedStatus(value)} placeholder="Filter Status">
-                <Option value="semua">Semua Status</Option>
-                <Option value="available">Tersedia</Option>
-                <Option value="allocated">Teralokasi</Option>
-                <Option value="used">Terpakai</Option>
-            </Select>
-         </Flex>
-      </Card>
-
-      {isLoading && <Spin size="large"><div style={{ padding: 50, textAlign: 'center' }} /></Spin>}
-      {(isErrorFundings || isErrorSources) && !isLoading && <Alert message="Error Memuat Data" description={errorFundings?.message || errorSources?.message} type="error" showIcon />}
-      {!isLoading && !isErrorFundings && !isErrorSources && (
-        <Card bodyStyle={{ padding: 0 }}>
-            <Table columns={columns} dataSource={filteredFundings} rowKey="id" loading={deleteMutation.isPending} pagination={{ pageSize: 10, showSizeChanger: true }} scroll={{ x: 'max-content' }} />
-        </Card>
-      )}
-
-      <Modal title={editingFunding ? 'Edit Pendanaan' : 'Tambah Pendanaan Baru'} open={isModalOpen} onCancel={handleCancel} footer={null} destroyOnClose>
-        <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
-          <Form.Item name="source" label="Sumber Dana" rules={[{ required: true, message: 'Sumber harus dipilih!' }]}>
-            <Select placeholder="Pilih sumber dana" loading={isLoadingSources} showSearch optionFilterProp="children" filterOption={(input, option) => (option?.children ?? '').toLowerCase().includes(input.toLowerCase())}>
-              {fundingSources?.map(s => <Option key={s.id} value={s.id}>{s.name} ({SOURCE_TYPE_MAP[s.type] || s.type})</Option>)}
-            </Select>
-          </Form.Item>
-          <Button type="link" icon={<PlusOutlined />} onClick={handleShowSourceModal} style={{ paddingLeft: 0, marginTop: '-16px', marginBottom: '16px' }} loading={createSourceMutation.isPending}>Tambah Sumber Dana Baru</Button>
-
-          {/* --- FORM ITEM BARU UNTUK PROYEK --- */}
-          <Form.Item
-            name="project"
-            label="Proyek Terkait"
-            rules={[{ required: true, message: 'Proyek harus dipilih!' }]}
+    <div style={{ padding: '24px', backgroundColor: '#F9FAFB', minHeight: '100vh' }}> 
+      {/* Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start',
+        marginBottom: '24px',
+        gap: '16px'
+      }}>
+        <div>
+          <Title 
+            level={2} 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '30px', 
+              fontWeight: 700, 
+              color: '#111928',
+              lineHeight: '38px',
+              margin: 0,
+              marginBottom: '6px'
+            }}
           >
-            <Select
-              placeholder="Pilih proyek"
-              loading={isLoadingProjects}
-              showSearch
-              optionFilterProp="children"
-            >
-              {projects?.map(proj => (
-                <Option key={proj.id} value={proj.id}>
-                  {proj.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+            Manajemen Pendanaan
+          </Title>
+          <Text 
+            style={{ 
+              // fontFamily: 'Inter, sans-serif',
+              fontSize: '16px', 
+              fontWeight: 500, 
+              color: '#727272',
+              lineHeight: '19px'
+            }}
+          >
+            Kelola semua sumber pendanaan dan alokasi dana
+          </Text>
+        </div>
+        <Button
+          type="primary"
+          icon={<PlusCircleOutlined />}
+          style={{ 
+            background: '#237804',
+            borderColor: '#237804',
+            borderRadius: '24px',
+            height: '40px',
+            padding: '8px 16px',
+            // fontFamily: 'Roboto, sans-serif',
+            fontWeight: 400,
+            fontSize: '16px',
+            boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+            lineHeight: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}
+          onClick={() => handleOpenModal(null)}
+        >
+          Tambah Pendanaan
+        </Button>
+      </div>
 
-          <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah tidak boleh kosong!' }]}>
-            <InputNumber style={{ width: '100%' }} formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(value) => value.replace(/\$\s?|(,*)/g, '')} min={0} placeholder="Masukkan jumlah dana" />
-          </Form.Item>
-          <Form.Item name="date_received" label="Tanggal Diterima" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY"/>
-          </Form.Item>
-          <Form.Item name="purpose" label="Tujuan/Deskripsi" rules={[{ required: true, message: 'Tujuan tidak boleh kosong!' }]}>
-            <Input.TextArea rows={3} placeholder="Jelaskan tujuan pendanaan" />
-          </Form.Item>
-          <Form.Item name="status" label="Status" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
-            <Select placeholder="Pilih status dana" defaultValue="available">
-              <Option value="available">Tersedia</Option>
-              <Option value="allocated">Teralokasi</Option>
-              <Option value="used">Terpakai</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
-            <Space><Button onClick={handleCancel}>Batal</Button><Button type="primary" htmlType="submit" loading={createMutation.isPending || updateMutation.isPending} style={{backgroundColor: '#237804'}}>{editingFunding ? 'Simpan Perubahan' : 'Tambah Pendanaan'}</Button></Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+      {/* Filter */}
+      <div style={{ marginBottom: '24px' }}>
+        <Text 
+          style={{ 
+            // fontFamily: 'Inter, sans-serif',
+            fontSize: '20px', 
+            fontWeight: 500, 
+            color: '#111928',
+            lineHeight: '24px',
+            marginBottom: '8px',
+            display: 'block'
+          }}
+        >
+          Filter Asset
+        </Text>
+        <Select
+          value={selectedAsset}
+          onChange={setSelectedAsset}
+          loading={isLoadingAssets}
+          options={assetOptions}
+          suffixIcon={<ChevronDown size={12} />}
+          style={{ 
+            width: 200,
+            height: '40px',
+            // fontFamily: 'Roboto, sans-serif'
+          }}
+          size="large"
+        />
+      </div>
 
-      <FundingSourceFormModal open={isSourceModalOpen} form={sourceForm} onCancel={handleCancelSourceModal} onSubmit={handleSourceFormSubmit} isSubmitting={createSourceMutation.isPending} />
-    </>
+      {/* Stat Cards */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ marginBottom: '18px' }}>
+          <StatCard
+            title="Total Pendanaan"
+            value={stats.total_dana_masuk}
+            icon={<FaMoneyBillTransfer size={34} />}
+            bgColor="#7CB305"
+            loading={isLoadingStats}
+          />
+        </div>
+        <Row gutter={18}>
+          <Col xs={24} sm={12}>
+            <StatCard
+              title="Dana Terpakai"
+              value={stats.total_pengeluaran}
+              icon={<GiPayMoney size={34} />}
+              bgColor="#1C64F2"
+              loading={isLoadingStats}
+            />
+          </Col>
+          <Col xs={24} sm={12}>
+            <StatCard
+              title="Dana Tersisa"
+              value={stats.sisa_dana}
+              icon={<FaMoneyBills size={34} />}
+              bgColor="#9061F9"
+              loading={isLoadingStats}
+            />
+          </Col>
+        </Row>
+      </div>
+
+      {/* === PERUBAHAN DI SINI (3) === */}
+      {/* Main Content */}
+    <Row gutter={[0, 24]}>
+    {/* Ringkasan - Atas */}
+    <Col xs={24}> 
+        <RingkasanCard 
+          data={ringkasanData} 
+          loading={isLoadingFundings} 
+          onSourceClick={handleOpenSourceDetail} // <-- Pass handler u/ detail SUMBER
+        />
+    </Col>
+    
+    {/* List Pendanaan - Bawah */}
+    <Col xs={24}> 
+        <Card 
+        bodyStyle={{ padding: '24px' }} 
+        style={{
+            background: '#FFFFFF',
+            border: '1px solid #E5E7EB',
+            boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
+            borderRadius: '8px'
+        }}
+        >
+        <Title 
+            level={5} 
+            style={{ 
+            fontFamily: 'Inter, sans-serif',
+            fontSize: '22px', 
+            fontWeight: 700, 
+            color: '#111928',
+            lineHeight: '28px',
+            margin: 0,
+            marginBottom: '20px'
+            }}
+        >
+            Pendanaan per Sumber
+        </Title>
+        
+        <Spin spinning={isLoadingFundings}>
+            {fundings && fundings.length > 0 ? (
+            <div>
+                {fundings.map(funding => (
+                <FundingCard 
+                    key={funding.id} 
+                    funding={funding} 
+                    onEditClick={handleOpenModal}
+                    onSourceClick={handleOpenSourceDetail} // <-- handler u/ detail SUMBER (dari Tag)
+                    onDetailClick={handleOpenFundingDetail} // <-- handler u/ detail PENDANAAN (dari Tombol)
+                />
+                ))}
+            </div>
+            ) : (
+            !isLoadingFundings && (
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                <Text type="secondary">
+                    Tidak ada data pendanaan untuk filter ini.
+                </Text>
+                </div>
+            )
+            )}
+            {isLoadingFundings && fundings === undefined && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <Skeleton active paragraph={{ rows: 4 }} />
+                <Skeleton active paragraph={{ rows: 4 }} />
+            </div>
+            )}
+        </Spin>
+        </Card>
+    </Col>
+    </Row>
+            
+      {/* Modal Edit/Tambah PENDANAAN */}
+      <FundingModal 
+        visible={modalVisible} 
+        onClose={handleCloseModal} 
+        initialData={editingFunding} 
+        form={form}
+        handleShowSourceModal={handleShowSourceModal}
+      />
+
+      {/* Modal Tambah SUMBER DANA */}
+      <FundingSourceFormModal 
+        open={isSourceModalOpen} 
+        form={sourceForm} 
+        onCancel={handleCancelSourceModal} 
+        onSubmit={handleSourceFormSubmit} 
+        isSubmitting={createSourceMutation.isPending} 
+      />
+      
+      {/* Modal Detail SUMBER DANA (dari Tag) */}
+      <FundingSourceDetailModal
+        visible={!!detailSourceId}
+        onClose={handleCloseSourceDetail}
+        sourceId={detailSourceId}
+      />
+
+      {/* --- RENDER MODAL BARU: Detail PENDANAAN (dari tombol "Detail") --- */}
+      <FundingDetailModal
+        visible={!!detailFundingId}
+        onClose={handleCloseFundingDetail}
+        fundingId={detailFundingId}
+      />
+    </div>
   );
 }
 
-export default function FundingPage() {
-  return ( <ProtectedRoute> <FundingManagementContent /> </ProtectedRoute> );
+export default function PendanaanPage() {
+  return (
+    <ProtectedRoute>
+      <PendanaanContent />
+    </ProtectedRoute>
+  );
 }
