@@ -34,14 +34,11 @@ const formatRupiah = (value) =>
 
 const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
+// KATEGORI YANG BENAR SESUAI BACKEND
 const EXPENSE_CATEGORIES = {
-  'material': 'Material',
-  'tenaga kerja': 'Tenaga Kerja',
-  'transport': 'Transport',
-  'feed': 'Pakan',
-  'perawatan': 'Perawatan',
-  'tools': 'Alat dan Perlengkapan',
-  'other': 'Lain-Lain',
+  'Proyek': 'Proyek',
+  'Operasional': 'Operasional',
+  'Pembelian': 'Pembelian',
 };
 
 const SOURCE_TYPE_MAP = {
@@ -50,37 +47,18 @@ const SOURCE_TYPE_MAP = {
   'investor': 'Investor',
 };
 
-// Helper untuk menghitung total per kategori BERDASARKAN FUNDING SOURCE
-const calculateCategoryTotals = (expenses, fundings, fundingSources) => {
-  if (!expenses || !fundings || !fundingSources) return { operasional: 0, proyek: 0, pembelian: 0 };
+// Helper untuk menghitung total per kategori
+const calculateCategoryTotals = (expenses) => {
+  if (!expenses) return { Operasional: 0, Proyek: 0, Pembelian: 0 };
   
-  const totals = { operasional: 0, proyek: 0, pembelian: 0 };
-  
-  // Buat map funding_id -> source_type
-  const fundingSourceTypeMap = {};
-  fundings.forEach(f => {
-    const source = fundingSources.find(s => s.id === f.source);
-    if (source) {
-      fundingSourceTypeMap[f.id] = source.type;
-    }
-  });
+  const totals = { Operasional: 0, Proyek: 0, Pembelian: 0 };
   
   expenses.forEach(exp => {
     const amount = parseFloat(exp.amount) || 0;
-    const sourceType = fundingSourceTypeMap[exp.funding_id];
+    const category = exp.category || 'Operasional';
     
-    // Kategorikan berdasarkan tipe sumber dana
-    if (sourceType === 'foundation' || sourceType === 'csr') {
-      // Dana dari yayasan/CSR = Operasional sehari-hari
-      totals.operasional += amount;
-    } else if (sourceType === 'investor') {
-      // Dana dari investor = Pembelian aset/investasi
-      totals.pembelian += amount;
-    }
-    
-    // Jika ada project_id, tambahkan ke kategori Proyek
-    if (exp.project_id) {
-      totals.proyek += amount;
+    if (totals[category] !== undefined) {
+      totals[category] += amount;
     }
   });
   
@@ -127,12 +105,15 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, onDelete, isAdmin, p
   
   // Tentukan warna tag berdasarkan kategori
   const getCategoryColor = () => {
-    if (['feed', 'perawatan', 'other'].includes(expense.category)) {
-      return { background: '#E1EFFE', color: '#1E429F' }; // Biru untuk Operasional
-    } else if (['material', 'tenaga kerja', 'tools'].includes(expense.category)) {
-      return { background: '#D5F5E3', color: '#27AE60' }; // Hijau untuk Proyek
-    } else {
-      return { background: '#FFE1E1', color: '#E74C3C' }; // Merah untuk Pembelian
+    switch (expense.category) {
+      case 'Operasional':
+        return { background: '#E1EFFE', color: '#1E429F' }; // Biru
+      case 'Proyek':
+        return { background: '#D5F5E3', color: '#27AE60' }; // Hijau
+      case 'Pembelian':
+        return { background: '#FFE1E1', color: '#E74C3C' }; // Merah
+      default:
+        return { background: '#F3F4F6', color: '#6B7280' }; // Abu-abu
     }
   };
   
@@ -283,7 +264,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
 
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah harus diisi!' }]}>
+             <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah harus diisi!' }]}>
               <InputNumber
                 style={{ width: '100%' }}
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
@@ -294,7 +275,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
               />
             </Form.Item>
           </Col>
-          <Col span={12}>
+           <Col span={12}>
             <Form.Item name="date" label="Tanggal" rules={[{ required: true, message: 'Tanggal harus diisi!' }]}>
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
             </Form.Item>
@@ -545,28 +526,28 @@ function ExpenseManagementContent() {
         <Col xs={24} sm={12}>
           <StatCard 
             title="Operasional" 
-            value={categoryTotals.operasional}
+            value={categoryTotals.Operasional}
             icon={<FaMoneyBillWave />}
             loading={isLoadingExpenses}
-            iconColor="#9061F9"
+            iconColor="#1E429F"
           />
         </Col>
         <Col xs={24} sm={12}>
           <StatCard 
             title="Proyek" 
-            value={categoryTotals.proyek}
+            value={categoryTotals.Proyek}
             icon={<BiMoneyWithdraw />}
             loading={isLoadingExpenses}
-            iconColor="#7CB305"
+            iconColor="#27AE60"
           />
         </Col>
         <Col xs={24} sm={12}>
           <StatCard 
             title="Pembelian" 
-            value={categoryTotals.pembelian}
+            value={categoryTotals.Pembelian}
             icon={<GiPayMoney />}
             loading={isLoadingExpenses}
-            iconColor="#CF1322"
+            iconColor="#E74C3C"
           />
         </Col>
       </Row>

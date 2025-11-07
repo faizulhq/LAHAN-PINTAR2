@@ -5,7 +5,7 @@ const OPERATOR_ADMIN_PATHS = [
   '/admin',
   '/admin/pengeluaran',
   '/admin/produksi',
-  '/admin/laporan',
+  '/admin/laporan', // <-- Pastikan 'Laporan' ada di sini jika Operator boleh lihat
 ];
 
 export async function middleware(request) {

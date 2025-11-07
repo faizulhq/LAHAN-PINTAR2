@@ -1,9 +1,7 @@
 // Di app/admin/proyek/page.jsx
 'use client';
-
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Table,
   Button,
   Modal,
   Form,
@@ -13,18 +11,19 @@ import {
   Typography,
   Flex,
   Space,
-  Popconfirm,
   message,
   Spin,
   Alert,
   Card,
-  Select, // <-- IMPORT BARU
+  Row,
+  Col,
+  Select,
+  Statistic,
 } from 'antd';
 import {
   PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
   SearchOutlined,
+  DollarCircleFilled,
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
@@ -35,12 +34,14 @@ import {
   updateProject,
   deleteProject,
 } from '@/lib/api/project';
-import { getAssets } from '@/lib/api/asset'; // <-- IMPORT BARU
+import { BsCalculatorFill } from 'react-icons/bs';
+import { BiSolidCalendar } from 'react-icons/bi';
+import { MdLocationPin } from 'react-icons/md';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { RangePicker } = DatePicker;
-const { Option } = Select; // <-- BARU
+const { Option } = Select;
 
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
@@ -48,27 +49,25 @@ const formatRupiah = (value) => {
 };
 
 const formatDate = (dateString) => {
-    if (!dateString) return '-';
-    return moment(dateString).format('DD/MM/YYYY');
+  if (!dateString) return '-';
+  return moment(dateString).format('DD/MM/YYYY');
 };
 
-
+// Komponen Utama Halaman Proyek
 function ProjectManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
+  const [detailProject, setDetailProject] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterAsset, setFilterAsset] = useState('all');
+  const [filterType, setFilterType] = useState('all');
   const [form] = Form.useForm();
 
-  const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
+  const { data: projects, isLoading: isLoadingProjects, isLoadingAssets, isError, error } = useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
-  });
-
-  // --- FETCH DATA ASET UNTUK DROPDOWN ---
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets'],
-    queryFn: getAssets,
   });
 
   const mutationOptions = {
@@ -95,7 +94,7 @@ function ProjectManagementContent() {
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateProject(id, data),
     ...mutationOptions,
-     onSuccess: (...args) => {
+    onSuccess: (...args) => {
       message.success('Proyek berhasil diperbarui');
       mutationOptions.onSuccess(...args);
     },
@@ -107,11 +106,12 @@ function ProjectManagementContent() {
       message.success('Proyek berhasil dihapus');
       queryClient.invalidateQueries(['projects']);
     },
-     onError: (err) => {
+    onError: (err) => {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus proyek'}`);
     },
   });
 
+  // 3. Handler Modal
   const showAddModal = () => {
     setEditingProject(null);
     form.resetFields();
@@ -125,15 +125,24 @@ function ProjectManagementContent() {
       description: project.description,
       dates: [moment(project.start_date), moment(project.end_date)],
       budget: parseFloat(project.budget),
-      asset: project.asset, // <-- BARU: Set field asset saat edit
     });
     setIsModalOpen(true);
+  };
+
+  const showDetailModal = (project) => {
+    setDetailProject(project);
+    setIsDetailModalOpen(true);
   };
 
   const handleCancel = () => {
     setIsModalOpen(false);
     setEditingProject(null);
     form.resetFields();
+  };
+
+  const handleDetailCancel = () => {
+    setIsDetailModalOpen(false);
+    setDetailProject(null);
   };
 
   const handleFormSubmit = (values) => {
@@ -153,98 +162,49 @@ function ProjectManagementContent() {
     }
   };
 
-  const handleDelete = (id) => {
-    deleteMutation.mutate(id);
-  };
-
-   const filteredProjects = React.useMemo(() => {
+  // 4. Filter Data dengan logic yang berfungsi
+  const filteredProjects = useMemo(() => {
     if (!projects) return [];
-    return projects.filter(project =>
-      project.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [projects, searchTerm]);
+    return projects.filter(project => {
+      // Filter berdasarkan search term
+      const matchSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         project.description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchAsset = filterAsset === 'all' || 
+                        (filterAsset === 'kandang-ayam' && project.name.toLowerCase().includes('kandang'));
+      
+      return matchSearch && matchAsset;
+    });
+  }, [projects, searchTerm, filterAsset]);
 
-
-  const columns = [
-    {
-      title: 'Nama Proyek',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: (a, b) => a.name.localeCompare(b.name),
-    },
-    // --- TAMBAHAN: Kolom Aset Terkait ---
-    {
-      title: 'Aset Terkait',
-      dataIndex: 'asset',
-      key: 'asset',
-      render: (assetId) => assets?.find(a => a.id === assetId)?.name || '-',
-    },
-    {
-      title: 'Tanggal Mulai',
-      dataIndex: 'start_date',
-      key: 'start_date',
-      render: (text) => formatDate(text),
-      sorter: (a, b) => moment(a.start_date).unix() - moment(b.start_date).unix(),
-    },
-    {
-      title: 'Tanggal Selesai',
-      dataIndex: 'end_date',
-      key: 'end_date',
-      render: (text) => formatDate(text),
-       sorter: (a, b) => moment(a.end_date).unix() - moment(b.end_date).unix(),
-    },
-    {
-      title: 'Anggaran',
-      dataIndex: 'budget',
-      key: 'budget',
-      render: (text) => formatRupiah(text),
-      sorter: (a, b) => parseFloat(a.budget) - parseFloat(b.budget),
-      align: 'right',
-    },
-    {
-      title: 'Aksi',
-      key: 'action',
-      render: (_, record) => (
-        <Space size="middle">
-          <Button icon={<EditOutlined />} onClick={() => showEditModal(record)}>
-            Edit
-          </Button>
-          <Popconfirm
-            title="Hapus Proyek"
-            description="Apakah Anda yakin ingin menghapus proyek ini?"
-            onConfirm={() => handleDelete(record.id)}
-            okText="Ya, Hapus"
-            cancelText="Batal"
-            okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
-          >
-            <Button danger icon={<DeleteOutlined />}>
-              Hapus
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-      align: 'center',
-    },
-  ];
-  
-  const isLoading = isLoadingProjects || isLoadingAssets; // <-- BARU: Cek loading assets juga
+  // 5. Statistik Summary
+  const totalProjects = filteredProjects.length;
+  const totalBudget = filteredProjects.reduce((sum, p) => sum + parseFloat(p.budget || 0), 0);
+  const totalLocations = new Set(filteredProjects.map(p => p.name)).size;
 
   return (
-    <>
-      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* 1. Page Header */}
+      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <div>
-          <Title level={2} style={{ margin: 0, color: '#111928' }}>
+          <Title level={2} style={{ margin: 0, color: '#111928', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '30px' }}>
             Manajemen Proyek
           </Title>
-          <Text type="secondary" style={{ fontSize: '16px' }}>
-            Kelola semua proyek yang sedang berjalan atau sudah selesai.
+          <Text type="secondary" style={{ fontSize: '14px', color: '#6B7280' }}>
+            Kelola proyek-proyek yang terkait dengan aset tertentu
           </Text>
         </div>
         <Button
           type="primary"
           icon={<PlusOutlined />}
           size="large"
-          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+          style={{
+            backgroundColor: '#237804',
+            borderColor: '#237804',
+            borderRadius: '8px',
+            height: '40px',
+            fontSize: '16px',
+            fontWeight: 400,
+          }}
           onClick={showAddModal}
           loading={createMutation.isPending || updateMutation.isPending}
         >
@@ -252,37 +212,204 @@ function ProjectManagementContent() {
         </Button>
       </Flex>
 
-       <Card style={{ marginBottom: 24 }}>
-        <Search
-            placeholder="Cari nama proyek..."
-            allowClear
-            enterButton={<Button type="primary" icon={<SearchOutlined />} style={{backgroundColor: '#237804'}} />}
-            size="large"
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ maxWidth: 400 }}
-         />
-      </Card>
+      {/* 2. Filter Asset - Simple tanpa Card */}
+      <div style={{ marginBottom: 16 }}>
+        <Text strong style={{ fontSize: '14px', color: '#111928', display: 'block', marginBottom: 8 }}>
+          Filter Asset
+        </Text>
+        <Select
+          value={filterAsset}
+          style={{ width: 200 }}
+          onChange={(value) => setFilterAsset(value)}
+        >
+          <Option value="all">Semua Asset</Option>
+          <Option value="kandang-ayam">Kandang Ayam</Option>
+        </Select>
+      </div>
 
-      {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
-      {isError && <Alert message="Error Memuat Data" description={error.message} type="error" showIcon closable />}
-      {!isLoading && !isError && (
-        <Card>
-            <Table
-            columns={columns}
-            dataSource={filteredProjects}
-            rowKey="id"
-            loading={isLoadingProjects || deleteMutation.isPending}
-            pagination={{ pageSize: 10 }}
+      {/* 3. Summary Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={8}>
+          <Card style={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+            <Statistic
+              title={<Text style={{ color: '#585858', fontSize: '18px', fontWeight: 600 }}>Total Proyek</Text>}
+              value={totalProjects}
+              prefix={<BsCalculatorFill style={{ color: '#3B82F6' }} />}
+              valueStyle={{ color: '#111928', fontSize: '31px', fontWeight: 700 }}
             />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card style={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+            <Statistic
+              title={<Text style={{ color: '#585858', fontSize: '18px', fontWeight: 600 }}>Total Anggaran</Text>}
+              value={formatRupiah(totalBudget)}
+              prefix={<DollarCircleFilled style={{ color: '#7CB305' }} />}
+              valueStyle={{ color: '#111928', fontSize: '31px', fontWeight: 700 }}
+            />
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card style={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+            <Statistic
+              title={<Text style={{ color: '#585858', fontSize: '18px', fontWeight: 600 }}>Lokasi</Text>}
+              value={totalLocations}
+              prefix={<MdLocationPin style={{ color: '#EF4444' }} />}
+              valueStyle={{ color: '#111928', fontSize: '31px', fontWeight: 700 }}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* 4. Pencarian & Filter  */}
+      <Card style={{ marginBottom: 24, borderRadius: '8px' }}>
+        <Text 
+          style={{
+            fontFamily: 'Inter',
+            fontWeight: 500,
+            fontSize: '24px',
+            color: '#111928',
+            display: 'block',
+            marginBottom: 16
+          }}
+        >
+          Pencarian dan Filter
+        </Text>
+        <Flex gap={200} wrap="wrap" align="center">
+          <Search
+            placeholder="Cari Proyek..."
+            allowClear
+            size="large"
+            prefix={<SearchOutlined style={{ color: '#237804' }} />}
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ flex: 1, minWidth: 300, maxWidth: 900 }}
+          />
+          <Select
+            value={filterType}
+            size="large"
+            style={{ width: 200 }}
+            onChange={(value) => setFilterType(value)}
+          >
+            <Option value="all">Semua Tipe</Option>
+          </Select>
+        </Flex>
+        </Card>
+
+      {/* 5. Loading & Error States */}
+      {isLoadingProjects && (
+        <Flex justify="center" align="center" style={{ minHeight: 300 }}>
+          <Spin size="large" />
+        </Flex>
+      )}
+      {isError && (
+        <Alert
+          message="Error Memuat Data"
+          description={error.message}
+          type="error"
+          showIcon
+          closable
+        />
+      )}
+
+      {/* 6. Grid Cards Proyek - Responsive dengan Gap */}
+      {!isLoadingProjects && !isError && (
+        <Row gutter={[24, 24]}>
+          {filteredProjects.map((project) => (
+            <Col xs={24} sm={24} md={12} lg={12} xl={12} key={project.id}>
+              <Card
+                style={{
+                  width: '100%',
+                  maxWidth: '600px',
+                  height: '211px',
+                  borderRadius: '12px',
+                  border: '1px solid #E5E7EB',
+                  boxShadow: '0px 2px 4px -2px rgba(0, 0, 0, 0.05), 0px 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                }}
+                styles={{ 
+                  padding: '4px 4px 16px 4px',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                }}
+              >
+                <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                  <Title level={5} style={{ 
+                    margin: 0, 
+                    marginBottom: 8, 
+                    color: '#111928', 
+                    fontSize: '16px', 
+                    fontWeight: 600 
+                  }}>
+                    {project.name}
+                  </Title>
+                  <Text
+                    strong
+                    style={{
+                      fontSize: '16px',
+                      color: '#7CB305',
+                      display: 'block',
+                      marginBottom: 12,
+                    }}
+                  >
+                    {formatRupiah(project.budget)}
+                  </Text>
+                  <Flex align="center" gap={4} style={{ marginBottom: 'auto' }}>
+                    <BiSolidCalendar style={{ color: '#531DAB', fontSize: '18px' }} />
+                    <Text style={{ color: '#6B7280', fontSize: '14px' }}>
+                      {formatDate(project.start_date)}
+                    </Text>
+                  </Flex>
+                  <Flex gap={8} style={{ marginTop: 16 }}>
+                    <Button
+                      style={{
+                        flex: 1,
+                        borderRadius: '6px',
+                        border: '1px solid #237804',
+                        color: '#237804',
+                        fontWeight: 500,
+                      }}
+                      onClick={() => showDetailModal(project)}
+                    >
+                      Detail
+                    </Button>
+                    <Button
+                      type="primary"
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#237804',
+                        borderColor: '#237804',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                      }}
+                      onClick={() => showEditModal(project)}
+                    >
+                      Edit
+                    </Button>
+                  </Flex>
+                </div>
+              </Card>
+            </Col>
+          ))}
+        </Row>
+      )}
+
+      {/* Pesan jika tidak ada data setelah filter */}
+      {!isLoadingProjects && !isError && filteredProjects.length === 0 && (
+        <Card style={{ textAlign: 'center', padding: '48px' }}>
+          <Text type="secondary" style={{ fontSize: '16px' }}>
+            Tidak ada proyek yang sesuai dengan filter
+          </Text>
         </Card>
       )}
 
+      {/* 7. Modal Tambah/Edit Proyek */}
       <Modal
         title={editingProject ? 'Edit Proyek' : 'Tambah Proyek Baru'}
         open={isModalOpen}
         onCancel={handleCancel}
         footer={null}
-        destroyOnClose // <-- GANTI DARI destroyOnHidden
+        width={600}
       >
         <Form
           form={form}
@@ -295,7 +422,7 @@ function ProjectManagementContent() {
             label="Nama Proyek"
             rules={[{ required: true, message: 'Nama proyek tidak boleh kosong!' }]}
           >
-            <Input placeholder="Masukkan nama proyek" />
+            <Input placeholder="Masukkan nama proyek" size="large" />
           </Form.Item>
           
           {/* --- FORM ITEM BARU UNTUK ASET --- */}
@@ -330,14 +457,15 @@ function ProjectManagementContent() {
             label="Periode Proyek"
             rules={[{ required: true, message: 'Tanggal mulai dan selesai harus dipilih!' }]}
           >
-            <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY"/>
+            <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
           </Form.Item>
-           <Form.Item
+          <Form.Item
             name="budget"
             label="Anggaran (Rp)"
             rules={[{ required: true, message: 'Anggaran tidak boleh kosong!' }]}
           >
             <InputNumber
+              size="large"
               style={{ width: '100%' }}
               formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
@@ -345,14 +473,14 @@ function ProjectManagementContent() {
               placeholder="Masukkan total anggaran proyek"
             />
           </Form.Item>
-          <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
+          <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
             <Space>
               <Button onClick={handleCancel}>Batal</Button>
               <Button
                 type="primary"
                 htmlType="submit"
                 loading={createMutation.isPending || updateMutation.isPending}
-                style={{backgroundColor: '#237804'}}
+                style={{ backgroundColor: '#237804', borderColor: '#237804' }}
               >
                 {editingProject ? 'Simpan Perubahan' : 'Tambah Proyek'}
               </Button>
@@ -360,7 +488,59 @@ function ProjectManagementContent() {
           </Form.Item>
         </Form>
       </Modal>
-    </>
+
+      {/* 8. Modal Detail Proyek */}
+      <Modal
+        title="Detail Proyek"
+        open={isDetailModalOpen}
+        onCancel={handleDetailCancel}
+        footer={[
+          <Button key="close" onClick={handleDetailCancel}>
+            Tutup
+          </Button>,
+        ]}
+        width={600}
+      >
+        {detailProject && (
+          <div style={{ padding: '16px 0' }}>
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <div>
+                <Text strong style={{ color: '#6B7280' }}>Nama Proyek</Text>
+                <Title level={4} style={{ margin: '4px 0', color: '#111928' }}>
+                  {detailProject.name}
+                </Title>
+              </div>
+              <div>
+                <Text strong style={{ color: '#6B7280' }}>Deskripsi</Text>
+                <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
+                  {detailProject.description}
+                </Text>
+              </div>
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Text strong style={{ color: '#6B7280' }}>Tanggal Mulai</Text>
+                  <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
+                    {formatDate(detailProject.start_date)}
+                  </Text>
+                </Col>
+                <Col span={12}>
+                  <Text strong style={{ color: '#6B7280' }}>Tanggal Selesai</Text>
+                  <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
+                    {formatDate(detailProject.end_date)}
+                  </Text>
+                </Col>
+              </Row>
+              <div>
+                <Text strong style={{ color: '#6B7280' }}>Anggaran</Text>
+                <Title level={3} style={{ margin: '4px 0', color: '#237804' }}>
+                  {formatRupiah(detailProject.budget)}
+                </Title>
+              </div>
+            </Space>
+          </div>
+        )}
+      </Modal>
+    </div>
   );
 }
 
@@ -371,3 +551,4 @@ export default function ProjectPage() {
     </ProtectedRoute>
   );
 }
+ 
