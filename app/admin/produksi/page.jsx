@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker,
   Input, Typography, Flex, Space, message, Spin, Alert, Card, Row, Col,
@@ -19,7 +20,7 @@ import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import {
-  getProductions, createProduction, patchProduction, deleteProduction, getProduction
+  getProductions, createProduction, patchProduction, deleteProduction
 } from '@/lib/api/production';
 import { getProductionStats } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
@@ -70,7 +71,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
         border: '1px solid #F0F0F0',
         borderRadius: '12px',
         boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
-        // height: '118px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
@@ -90,7 +90,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
               fontWeight: 600, 
               color: '#585858',
               lineHeight: '150%',
-              // // fontFamily: 'Inter, sans-serif',
             }}
           >
             {title}
@@ -101,7 +100,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
               fontWeight: 700, 
               color: '#111928',
               lineHeight: '125%',
-              // // fontFamily: 'Inter, sans-serif',
             }}
           >
             {displayValue()}
@@ -131,7 +129,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        {/* Left Section */}
         <div style={{ flex: 1 }}>
           <Space size="small" style={{ marginBottom: '10px' }}>
             <div style={{
@@ -143,7 +140,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
               borderRadius: '6px',
             }}>
               <Text style={{ 
-                // fontFamily: 'Inter, sans-serif',
                 fontWeight: 600,
                 fontSize: '14px',
                 lineHeight: '17px',
@@ -161,7 +157,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
               borderRadius: '6px',
             }}>
               <Text style={{ 
-                // fontFamily: 'Inter, sans-serif',
                 fontWeight: 600,
                 fontSize: '14px',
                 lineHeight: '17px',
@@ -177,7 +172,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             fontSize: '20px',
             fontWeight: 600,
             lineHeight: '24px',
-            // fontFamily: 'Inter, sans-serif',
             color: '#111928',
           }}>
             {production.name}
@@ -190,7 +184,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             color: '#111928',
             display: 'block',
             marginBottom: '16px',
-            // fontFamily: 'Inter, sans-serif',
           }}>
             {formatDate(production.date)}
           </Text>
@@ -203,7 +196,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 color: '#727272',
                 display: 'block',
                 marginBottom: '10px',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 Kuantitas
               </Text>
@@ -211,7 +203,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 fontSize: '14px',
                 fontWeight: 500,
                 color: '#111928',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 {production.quantity}{production.unit}
               </Text>
@@ -223,7 +214,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 color: '#727272',
                 display: 'block',
                 marginBottom: '10px',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 Harga per Unit
               </Text>
@@ -231,7 +221,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 fontSize: '14px',
                 fontWeight: 500,
                 color: '#111928',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 {formatRupiah(production.unit_price)}
               </Text>
@@ -243,7 +232,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 color: '#727272',
                 display: 'block',
                 marginBottom: '10px',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 Total Nilai
               </Text>
@@ -251,7 +239,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 fontSize: '14px',
                 fontWeight: 500,
                 color: '#7CB305',
-                // fontFamily: 'Inter, sans-serif',
               }}>
                 {formatRupiah(production.total_value)}
               </Text>
@@ -266,7 +253,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                 border: '1px solid #237804',
                 borderRadius: '8px',
                 color: '#237804',
-                // fontFamily: 'Inter, sans-serif',
                 fontSize: '14px',
                 fontWeight: 500,
               }} 
@@ -283,7 +269,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
                   borderColor: '#237804',
                   borderRadius: '8px',
                   color: '#FFFFFF',
-                  // fontFamily: 'Inter, sans-serif',
                   fontSize: '14px',
                   fontWeight: 500,
                 }} 
@@ -295,7 +280,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
           </Space>
         </div>
 
-        {/* Right Section */}
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <Text style={{ 
             fontSize: '24px', 
@@ -303,7 +287,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             color: '#7CB305', 
             display: 'block',
             lineHeight: '29px',
-            // fontFamily: 'Inter, sans-serif',
             marginBottom: '0px',
           }}>
             {formatRupiah(production.total_value)}
@@ -313,7 +296,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             fontWeight: 500,
             color: '#727272',
             display: 'block',
-            // fontFamily: 'Inter, sans-serif',
           }}>
             {production.quantity}{production.unit}
           </Text>
@@ -494,87 +476,13 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
 };
 
 // =================================================================
-// === KOMPONEN MODAL DETAIL ===
-// =================================================================
-const ProductionDetailModal = ({ visible, onClose, productionId, isAdmin, onEditClick, onDelete }) => {
-  const { data: production, isLoading, isError, error } = useQuery({
-    queryKey: ['production', productionId],
-    queryFn: () => getProduction(productionId),
-    enabled: !!productionId,
-  });
-
-  return (
-    <Modal
-      title="Detail Produksi"
-      open={visible}
-      onCancel={onClose}
-      footer={[
-        <Button key="close" onClick={onClose}>Tutup</Button>,
-        ...(isAdmin ? [
-          <Popconfirm 
-            key="delete"
-            title="Hapus Produksi?" 
-            description="Yakin hapus data ini?" 
-            onConfirm={() => { onDelete(productionId); onClose(); }} 
-            okText="Ya, Hapus" 
-            cancelText="Batal" 
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />}>Hapus</Button>
-          </Popconfirm>,
-          <Button 
-            key="edit" 
-            type="primary" 
-            icon={<EditOutlined />} 
-            onClick={() => { onEditClick(production); onClose(); }}
-            style={{ background: '#059669', borderColor: '#059669' }}
-          >
-            Edit
-          </Button>
-        ] : [])
-      ]}
-      width={700}
-      destroyOnClose
-    >
-      {isLoading && <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>}
-      {isError && <Alert message="Gagal Mengambil Data" description={error?.message} type="error" showIcon />}
-      {production && !isLoading && (
-        <Descriptions bordered layout="vertical" column={2}>
-          <Descriptions.Item label="Nama Produk" span={2}>{production.name}</Descriptions.Item>
-          <Descriptions.Item label="Aset Terkait">{production.asset_name}</Descriptions.Item>
-          <Descriptions.Item label="Tipe Aset">
-            <Tag color={ASSET_TYPE_MAP[production.asset_type]?.color || 'default'}>
-              {ASSET_TYPE_MAP[production.asset_type]?.label || production.asset_type}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Tanggal">{formatDate(production.date)}</Descriptions.Item>
-          <Descriptions.Item label="Status">
-            <Tag color={STATUS_MAP[production.status]?.color || 'default'}>
-              {STATUS_MAP[production.status]?.label || production.status}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Kuantitas">{production.quantity} {production.unit}</Descriptions.Item>
-          <Descriptions.Item label="Harga per Unit">{formatRupiah(production.unit_price)}</Descriptions.Item>
-          <Descriptions.Item label="Total Nilai" span={2}>
-            <Text strong style={{ fontSize: '18px', color: '#059669' }}>
-              {formatRupiah(production.total_value)}
-            </Text>
-          </Descriptions.Item>
-        </Descriptions>
-      )}
-    </Modal>
-  );
-};
-
-// =================================================================
 // === KOMPONEN UTAMA ===
 // =================================================================
 function ProductionManagementContent() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingProduction, setEditingProduction] = useState(null);
-  const [detailProductionId, setDetailProductionId] = useState(null);
   const [form] = Form.useForm();
   
   const [selectedAsset, setSelectedAsset] = useState('all');
@@ -640,9 +548,8 @@ function ProductionManagementContent() {
     setIsModalOpen(true);
   };
   
-  const showDetailModal = (id) => { 
-    setDetailProductionId(id); 
-    setIsDetailModalOpen(true); 
+  const handleViewDetail = (id) => {
+    router.push(`/admin/produksi/${id}`);
   };
   
   const handleCancel = () => { 
@@ -651,16 +558,10 @@ function ProductionManagementContent() {
     form.resetFields(); 
   };
   
-  const handleDetailCancel = () => { 
-    setIsDetailModalOpen(false); 
-    setDetailProductionId(null); 
-  };
-  
   const isLoadingInitialData = isLoadingProductions || isLoadingAssets;
   
   return (
     <>
-      {/* Header Section */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -671,7 +572,6 @@ function ProductionManagementContent() {
           <Title level={2} style={{ 
             margin: 0, 
             color: '#111928',
-            // fontFamily: 'Inter, sans-serif',
             fontWeight: 700,
             fontSize: '30px',
             lineHeight: '125%',
@@ -682,7 +582,6 @@ function ProductionManagementContent() {
             fontSize: '16px',
             fontWeight: 500,
             color: '#727272',
-            // fontFamily: 'Inter, sans-serif',
             lineHeight: '19px',
           }}>
             Kelola hasil produksi ternak dan lahan
@@ -699,7 +598,6 @@ function ProductionManagementContent() {
             height: '40px',
             padding: '8px 16px',
             boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-            // fontFamily: 'Inter, sans-serif',
             fontSize: '16px',
           }}
           onClick={showAddModal}
@@ -708,7 +606,6 @@ function ProductionManagementContent() {
         </Button>
       </div>
 
-      {/* Filter Asset */}
       <div style={{ marginBottom: '24px' }}>
         <Text style={{ 
           fontSize: '20px', 
@@ -716,7 +613,6 @@ function ProductionManagementContent() {
           display: 'block', 
           marginBottom: '8px',
           color: '#111928',
-          // fontFamily: 'Inter, sans-serif',
           lineHeight: '24px',
         }}>
           Filter Asset
@@ -734,7 +630,6 @@ function ProductionManagementContent() {
         </Select>
       </div>
 
-      {/* Stats Cards */}
       <div style={{ 
         display: 'flex',
         gap: '18px',
@@ -788,7 +683,6 @@ function ProductionManagementContent() {
         </div>
       </div>
 
-      {/* Search & Filter Card */}
       <Card style={{ 
         marginBottom: 24,
         border: '1px solid #E5E7EB',
@@ -800,7 +694,6 @@ function ProductionManagementContent() {
           fontSize: '24px',
           fontWeight: 500,
           color: '#111928',
-          // fontFamily: 'Inter, sans-serif',
         }}>
           Pencarian & Filter
         </Title>
@@ -824,7 +717,6 @@ function ProductionManagementContent() {
                 flex: 1,
                 padding: '8px 12px',
                 fontSize: '16px',
-                // fontFamily: 'Roboto, sans-serif',
                 color: searchTerm ? 'rgba(0, 0, 0, 0.85)' : '#727272',
               }}
               suffix={searchTerm && <CloseCircleOutlined 
@@ -876,7 +768,6 @@ function ProductionManagementContent() {
         </div>
       </Card>
 
-      {/* Daftar Produksi */}
       <Card style={{ 
         marginBottom: 24,
         border: '1px solid #E5E7EB',
@@ -888,7 +779,6 @@ function ProductionManagementContent() {
           fontSize: '22px',
           fontWeight: 700,
           color: '#111928',
-          fontFamily: 'Inter, sans-serif',
         }}>
           Daftar Produksi
         </Title>
@@ -916,7 +806,7 @@ function ProductionManagementContent() {
                   key={prod.id} 
                   production={prod}
                   onEditClick={showEditModal}
-                  onDetailClick={showDetailModal}
+                  onDetailClick={handleViewDetail}
                   onDelete={deleteMutation.mutate}
                   isAdmin={isAdmin}
                 />
@@ -931,7 +821,6 @@ function ProductionManagementContent() {
                 <Text type="secondary" style={{ 
                   fontSize: '16px',
                   color: '#727272',
-                  // fontFamily: 'Inter, sans-serif',
                 }}>
                   Tidak ada data produksi ditemukan untuk filter ini.
                 </Text>
@@ -949,15 +838,6 @@ function ProductionManagementContent() {
         assets={assets}
         isLoadingAssets={isLoadingAssets}
         isAdmin={isAdmin}
-      />
-      
-      <ProductionDetailModal
-        visible={isDetailModalOpen}
-        onClose={handleDetailCancel}
-        productionId={detailProductionId}
-        isAdmin={isAdmin}
-        onEditClick={showEditModal}
-        onDelete={deleteMutation.mutate}
       />
     </>
   );

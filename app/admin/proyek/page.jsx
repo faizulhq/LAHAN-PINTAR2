@@ -34,6 +34,7 @@ import {
   updateProject,
   deleteProject,
 } from '@/lib/api/project';
+import { getAssets } from '@/lib/api/asset'; // IMPORT BARU
 import { BsCalculatorFill } from 'react-icons/bs';
 import { BiSolidCalendar } from 'react-icons/bi';
 import { MdLocationPin } from 'react-icons/md';
@@ -53,7 +54,6 @@ const formatDate = (dateString) => {
   return moment(dateString).format('DD/MM/YYYY');
 };
 
-// Komponen Utama Halaman Proyek
 function ProjectManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,9 +65,16 @@ function ProjectManagementContent() {
   const [filterType, setFilterType] = useState('all');
   const [form] = Form.useForm();
 
-  const { data: projects, isLoading: isLoadingProjects, isLoadingAssets, isError, error } = useQuery({
+  // Fetch Projects
+  const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
+  });
+
+  // --- FETCH ASSETS (BARU) ---
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets'],
+    queryFn: getAssets,
   });
 
   const mutationOptions = {
@@ -111,7 +118,6 @@ function ProjectManagementContent() {
     },
   });
 
-  // 3. Handler Modal
   const showAddModal = () => {
     setEditingProject(null);
     form.resetFields();
@@ -125,6 +131,7 @@ function ProjectManagementContent() {
       description: project.description,
       dates: [moment(project.start_date), moment(project.end_date)],
       budget: parseFloat(project.budget),
+      asset: project.asset, // TAMBAH FIELD ASSET
     });
     setIsModalOpen(true);
   };
@@ -152,7 +159,7 @@ function ProjectManagementContent() {
       start_date: values.dates[0].format('YYYY-MM-DD'),
       end_date: values.dates[1].format('YYYY-MM-DD'),
       budget: values.budget,
-      asset: values.asset, // <-- BARU: Kirim field asset ke backend
+      asset: values.asset, // KIRIM FIELD ASSET KE BACKEND
     };
 
     if (editingProject) {
@@ -162,28 +169,26 @@ function ProjectManagementContent() {
     }
   };
 
-  // 4. Filter Data dengan logic yang berfungsi
   const filteredProjects = useMemo(() => {
     if (!projects) return [];
     return projects.filter(project => {
-      // Filter berdasarkan search term
       const matchSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchAsset = filterAsset === 'all' || 
-                        (filterAsset === 'kandang-ayam' && project.name.toLowerCase().includes('kandang'));
+      const matchAsset = filterAsset === 'all' || project.asset === parseInt(filterAsset);
       
       return matchSearch && matchAsset;
     });
   }, [projects, searchTerm, filterAsset]);
 
-  // 5. Statistik Summary
   const totalProjects = filteredProjects.length;
   const totalBudget = filteredProjects.reduce((sum, p) => sum + parseFloat(p.budget || 0), 0);
   const totalLocations = new Set(filteredProjects.map(p => p.name)).size;
 
+  const isLoading = isLoadingProjects || isLoadingAssets;
+
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* 1. Page Header */}
+      {/* Page Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '30px' }}>
@@ -212,7 +217,7 @@ function ProjectManagementContent() {
         </Button>
       </Flex>
 
-      {/* 2. Filter Asset - Simple tanpa Card */}
+      {/* Filter Asset */}
       <div style={{ marginBottom: 16 }}>
         <Text strong style={{ fontSize: '14px', color: '#111928', display: 'block', marginBottom: 8 }}>
           Filter Asset
@@ -221,13 +226,16 @@ function ProjectManagementContent() {
           value={filterAsset}
           style={{ width: 200 }}
           onChange={(value) => setFilterAsset(value)}
+          loading={isLoadingAssets}
         >
           <Option value="all">Semua Asset</Option>
-          <Option value="kandang-ayam">Kandang Ayam</Option>
+          {assets?.map(asset => (
+            <Option key={asset.id} value={asset.id}>{asset.name}</Option>
+          ))}
         </Select>
       </div>
 
-      {/* 3. Summary Cards */}
+      {/* Summary Cards */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={8}>
           <Card style={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}>
@@ -261,7 +269,7 @@ function ProjectManagementContent() {
         </Col>
       </Row>
 
-      {/* 4. Pencarian & Filter  */}
+      {/* Pencarian & Filter */}
       <Card style={{ marginBottom: 24, borderRadius: '8px' }}>
         <Text 
           style={{
@@ -294,10 +302,10 @@ function ProjectManagementContent() {
             <Option value="all">Semua Tipe</Option>
           </Select>
         </Flex>
-        </Card>
+      </Card>
 
-      {/* 5. Loading & Error States */}
-      {isLoadingProjects && (
+      {/* Loading & Error States */}
+      {isLoading && (
         <Flex justify="center" align="center" style={{ minHeight: 300 }}>
           <Spin size="large" />
         </Flex>
@@ -312,8 +320,8 @@ function ProjectManagementContent() {
         />
       )}
 
-      {/* 6. Grid Cards Proyek - Responsive dengan Gap */}
-      {!isLoadingProjects && !isError && (
+      {/* Grid Cards Proyek */}
+      {!isLoading && !isError && (
         <Row gutter={[24, 24]}>
           {filteredProjects.map((project) => (
             <Col xs={24} sm={24} md={12} lg={12} xl={12} key={project.id}>
@@ -394,8 +402,8 @@ function ProjectManagementContent() {
         </Row>
       )}
 
-      {/* Pesan jika tidak ada data setelah filter */}
-      {!isLoadingProjects && !isError && filteredProjects.length === 0 && (
+      {/* Empty State */}
+      {!isLoading && !isError && filteredProjects.length === 0 && (
         <Card style={{ textAlign: 'center', padding: '48px' }}>
           <Text type="secondary" style={{ fontSize: '16px' }}>
             Tidak ada proyek yang sesuai dengan filter
@@ -403,7 +411,7 @@ function ProjectManagementContent() {
         </Card>
       )}
 
-      {/* 7. Modal Tambah/Edit Proyek */}
+      {/* Modal Tambah/Edit Proyek */}
       <Modal
         title={editingProject ? 'Edit Proyek' : 'Tambah Proyek Baru'}
         open={isModalOpen}
@@ -424,8 +432,8 @@ function ProjectManagementContent() {
           >
             <Input placeholder="Masukkan nama proyek" size="large" />
           </Form.Item>
-          
-          {/* --- FORM ITEM BARU UNTUK ASET --- */}
+
+          {/* FORM ITEM ASSET (BARU) */}
           <Form.Item
             name="asset"
             label="Aset Terkait"
@@ -436,6 +444,7 @@ function ProjectManagementContent() {
               loading={isLoadingAssets}
               showSearch
               optionFilterProp="children"
+              size="large"
             >
               {assets?.map(asset => (
                 <Option key={asset.id} value={asset.id}>
@@ -489,7 +498,7 @@ function ProjectManagementContent() {
         </Form>
       </Modal>
 
-      {/* 8. Modal Detail Proyek */}
+      {/* Modal Detail Proyek */}
       <Modal
         title="Detail Proyek"
         open={isDetailModalOpen}
@@ -551,4 +560,3 @@ export default function ProjectPage() {
     </ProtectedRoute>
   );
 }
- 

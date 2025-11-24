@@ -36,14 +36,6 @@ const formatRupiah = (value) => {
 
 const COLORS = ['#1C64F2', '#16BDCA', '#9061F9', '#f5222d', '#722ed1', '#13c2c2'];
 
-// --- Mapping Tipe Sumber Dana (untuk dropdown Pendanaan) ---
-// (Gunakan mapping yang sesuai dengan backend FundingSource Anda)
-const SOURCE_TYPE_MAP = {
-  'foundation': 'Yayasan',
-  'csr': 'CSR',
-  'investor': 'Investor',
-};
-
 function OwnershipManagementContent() {
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -54,11 +46,14 @@ function OwnershipManagementContent() {
   const [form] = Form.useForm();
 
   // --- Fetch Data ---
-  const { data: ownerships, isLoading: isLoadingOwnerships, isError: isErrorOwnerships, error: errorOwnerships } = useQuery({ queryKey: ['ownerships'], queryFn: getOwnerships });
+  const { data: ownerships, isLoading: isLoadingOwnerships, isError: isErrorOwnerships, error: errorOwnerships } = useQuery({
+    queryKey: ['ownerships'],
+    queryFn: getOwnerships,
+  });
   const { data: investors, isLoading: isLoadingInvestors } = useQuery({ queryKey: ['investors'], queryFn: getInvestors });
   const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
   const { data: fundings, isLoading: isLoadingFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
-  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources }); // Diperlukan untuk sourceMap
+  const { data: fundingSources, isLoading: isLoadingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
 
   // --- Data Mapping ---
   const sourceMap = useMemo(() => {
@@ -633,9 +628,7 @@ function OwnershipManagementContent() {
             >
               {fundings?.map(f => (
                 <Option key={f.id} value={f.id}>
-                  {/* Teks Option yang sudah diperbaiki sebelumnya */}
-                  {f.purpose || 'Tanpa Tujuan'} - {formatRupiah(f.amount)}
-                  ({sourceMap[f.source] || 'Unknown'}, {formatDate(f.date_received)})
+                  {sourceMap[f.source] || `Sumber ID ${f.source}`} - {formatRupiah(f.amount)} ({formatDate(f.date_received)})
                 </Option>
               ))}
             </Select>
