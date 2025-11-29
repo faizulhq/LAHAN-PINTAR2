@@ -46,13 +46,13 @@ function AdminDashboardContent() {
 
   // Redirect jika bukan Admin/Superadmin (ini bisa dihapus jika ProtectedRoute sudah handle)
   // React.useEffect(() => {
-  //   if (user && user.role !== 'Admin' && user.role !== 'Superadmin') {
+  //   if (user && user.role?.name !== 'Admin' && user.role?.name !== 'Superadmin') {
   //     router.replace('/dashboard');
   //   }
-  // }, [user, router]);
+  // });
 
   // Loading state bisa dicek di ProtectedRoute, tapi bisa juga di sini sebagai fallback
-  // if (!user || (user.role !== 'Admin' && user.role !== 'Superadmin')) {
+  // if (!user || (user.role?.name !== 'Admin' && user.role?.name !== 'Superadmin')) {
   //   return <div style={{ padding: '20px' }}>Loading or Access Denied...</div>;
   // }
 

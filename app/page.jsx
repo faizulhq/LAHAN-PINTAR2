@@ -27,11 +27,13 @@ export default function Home() {
       await new Promise(resolve => setTimeout(resolve, 300));
       
       const userRole = getRoleFromCookie();
+      const roleName = (userRole?.name || userRole || '').toLowerCase();
       console.log('🏠 Home page - User role:', userRole);
       
-      if (userRole) {
+      if (roleName) {
+        const adminRoles = ['admin', 'superadmin', 'operator'];
         // --- PERUBAHAN DI SINI ---
-        if (userRole === 'Admin' || userRole === 'Superadmin' || userRole === 'Operator') {
+        if (adminRoles.includes(roleName)) {
           router.replace('/admin');
         } else {
           router.replace('/dashboard');

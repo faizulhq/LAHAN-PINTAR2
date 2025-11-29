@@ -29,7 +29,7 @@ export async function middleware(request) {
 
   try {
     const currentUser = JSON.parse(userCookie);
-    const userRole = currentUser?.role;
+    const userRole = currentUser?.role?.name || currentUser?.role; // Ambil name dari objek role jika ada
 
     if (pathname.startsWith('/admin')) {
       
