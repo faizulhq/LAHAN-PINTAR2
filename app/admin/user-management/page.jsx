@@ -6,7 +6,7 @@ import {
   Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UserOutlined, LockOutlined, MailOutlined, PhoneOutlined, HomeOutlined
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UserOutlined, LockOutlined, MailOutlined
 } from '@ant-design/icons';
 import { HiUsers } from 'react-icons/hi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,10 +15,20 @@ import useAuthStore from '@/lib/store/authStore';
 import {
   getUsers, createUser, updateUser, deleteUser
 } from '@/lib/api/user';
-import { getRoles } from '@/lib/api/role';
+
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
+
+// --- PERUBAHAN DI SINI ---
+const ROLE_CHOICES = {
+  'Superadmin': { text: 'Superadmin', color: 'red' },
+  'Admin': { text: 'Admin', color: 'blue' },
+  'Operator': { text: 'Operator', color: 'green' }, // Ejaan diubah di sini
+  'Investor': { text: 'Investor', color: 'purple' },
+  'Viewer': { text: 'Viewer', color: 'default' },
+};
+// --- BATAS PERUBAHAN ---
 
 function UserManagementContent() {
   const queryClient = useQueryClient();
@@ -34,12 +44,6 @@ function UserManagementContent() {
     queryFn: getUsers,
   });
 
-  // Fetch role list
-  const { data: roles = [], isLoading: isRolesLoading } = useQuery({
-    queryKey: ['roles'],
-    queryFn: getRoles,
-  });
-
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -50,7 +54,8 @@ function UserManagementContent() {
     onError: (err) => {
       const errorMsg = err.response?.data?.detail || 
                        JSON.stringify(err.response?.data) || 
-                       err.message || 'Gagal';
+                       err.message || 
+                       'Gagal';
       message.error(`Error: ${errorMsg}`);
     },
   };
@@ -95,9 +100,7 @@ function UserManagementContent() {
     form.setFieldsValue({
       username: user.username,
       email: user.email,
-      role: user.role?.id || user.role,
-      phone: user.profile?.phone,
-      address: user.profile?.address,
+      role: user.role,
     });
     setIsModalOpen(true);
   };
@@ -109,17 +112,15 @@ function UserManagementContent() {
   };
 
   const handleFormSubmit = (values) => {
-    // Pastikan data role dikirim sebagai ID
     const userData = {
       username: values.username,
       email: values.email,
       role: values.role,
-      profile: {
-        phone: values.phone,
-        address: values.address,
-      },
     };
-    if (values.password) userData.password = values.password;
+
+    if (values.password) {
+      userData.password = values.password;
+    }
 
     if (editingUser) {
       updateMutation.mutate({ id: editingUser.id, data: userData });
@@ -141,14 +142,10 @@ function UserManagementContent() {
     return users.filter(user => {
       const matchesSearch = user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                            user.email?.toLowerCase().includes(searchTerm.toLowerCase());
-      // Perhatikan: user.role mungkin objek {id, name}
-      const roleName = user.role?.name || user.role;
-      const matchesRole = selectedRole === 'semua' || roleName === selectedRole;
+      const matchesRole = selectedRole === 'semua' || user.role === selectedRole;
       return matchesSearch && matchesRole;
     });
   }, [users, searchTerm, selectedRole]);
-
-  const roleOptions = roles.map((role) => ({ value: role.id, label: role.name }));
 
   const columns = [
     {
@@ -174,26 +171,11 @@ function UserManagementContent() {
       dataIndex: 'role',
       key: 'role',
       render: (role) => {
-        const value = role?.name || role;
-        return <Tag color="blue">{value}</Tag>;
+        const roleProps = ROLE_CHOICES[role] || { text: role, color: 'default' };
+        return <Tag color={roleProps.color}>{roleProps.text}</Tag>;
       },
-      filters: [{ text: 'Semua Role', value: 'semua' }, ...roles.map(role => ({ text: role.name, value: role.name }))],
-      onFilter: (value, record) => {
-        if (value === 'semua') return true;
-        return (record.role?.name || record.role) === value;
-      },
-    },
-    {
-      title: 'Phone',
-      dataIndex: ['profile', 'phone'],
-      key: 'phone',
-      render: (text) => text || <span style={{ color: '#aaa' }}>—</span>,
-    },
-    {
-      title: 'Address',
-      dataIndex: ['profile', 'address'],
-      key: 'address',
-      render: (text) => text || <span style={{ color: '#aaa' }}>—</span>,
+      filters: Object.entries(ROLE_CHOICES).map(([value, { text }]) => ({ text, value })),
+      onFilter: (value, record) => record.role === value,
     },
     {
       title: 'Aksi',
@@ -237,7 +219,7 @@ function UserManagementContent() {
             Manajemen User
           </Title>
           <Text type="secondary" style={{ fontSize: '16px' }}>
-            Kelola semua user, role, dan profile mereka (Superadmin only).
+            Kelola semua user dan role mereka (Superadmin only).
           </Text>
         </div>
         <Button
@@ -267,11 +249,10 @@ function UserManagementContent() {
             size="large"
             style={{ minWidth: 200 }}
             onChange={(value) => setSelectedRole(value)}
-            loading={isRolesLoading}
           >
             <Option value="semua">Semua Role</Option>
-            {roles && roles.map((role) => (
-              <Option key={role.id} value={role.name}>{role.name}</Option>
+            {Object.entries(ROLE_CHOICES).map(([value, { text }]) => (
+              <Option key={value} value={value}>{text}</Option>
             ))}
           </Select>
         </Flex>
@@ -288,7 +269,7 @@ function UserManagementContent() {
             rowKey="id"
             loading={isLoading || deleteMutation.isPending}
             pagination={{ pageSize: 10, showSizeChanger: true }}
-            scroll={{ x: 1200 }}
+            scroll={{ x: 900 }}
           />
         </Card>
       )}
@@ -309,6 +290,7 @@ function UserManagementContent() {
           >
             <Input prefix={<UserOutlined />} placeholder="Masukkan username" />
           </Form.Item>
+
           <Form.Item
             name="email"
             label="Email"
@@ -319,39 +301,30 @@ function UserManagementContent() {
           >
             <Input prefix={<MailOutlined />} placeholder="Masukkan email" />
           </Form.Item>
+
           <Form.Item
             name="role"
             label="Role"
             rules={[{ required: true, message: 'Role wajib dipilih!' }]}
           >
-            <Select placeholder="Pilih role user" loading={isRolesLoading}>
-              {roles && roles.map((role) => (
-                <Option key={role.id} value={role.id}>{role.name}</Option>
+            <Select placeholder="Pilih role user">
+              {Object.entries(ROLE_CHOICES).map(([value, { text }]) => (
+                <Option key={value} value={value}>{text}</Option>
               ))}
             </Select>
           </Form.Item>
-          <Form.Item
-            name="phone"
-            label="Phone"
-          >
-            <Input prefix={<PhoneOutlined />} placeholder="Masukkan nomor telepon" />
-          </Form.Item>
-          <Form.Item
-            name="address"
-            label="Address"
-          >
-            <Input prefix={<HomeOutlined />} placeholder="Masukkan alamat" />
-          </Form.Item>
+
           <Form.Item
             name="password"
-            label={editingUser ? 'Password Baru (Opsional)' : 'Password'}
+            label={editingUser ? "Password Baru (Opsional)" : "Password"}
             rules={editingUser ? [] : [
               { required: true, message: 'Password wajib diisi!' },
-              { min: 8, message: 'Password minimal 8 karakter!' },
+              { min: 8, message: 'Password minimal 8 karakter!' }
             ]}
           >
             <Input.Password prefix={<LockOutlined />} placeholder="Masukkan password" />
           </Form.Item>
+
           <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
             <Space>
               <Button onClick={handleCancel}>Batal</Button>

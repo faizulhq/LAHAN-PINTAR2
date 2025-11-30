@@ -100,7 +100,7 @@ function DashboardContent() {
         {
           key: 'role',
           icon: <UserSwitchOutlined />,
-          label: user?.role?.name || user?.role || 'Role not found',
+          label: user?.role || 'Role not found',
           disabled: true,
           style: { cursor: 'default', color: 'rgba(0, 0, 0, 0.88)' },
         },

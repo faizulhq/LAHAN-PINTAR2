@@ -70,7 +70,7 @@ export default function AdminLayout({ children }) {
         {
           key: 'role',
           icon: <UserSwitchOutlined />,
-          label: user?.role?.name || user?.role || 'Role not found', // tampilkan nama role
+          label: user?.role || 'Role not found', // Ini akan menampilkan 'Operator'
           disabled: true,
           style: { cursor: 'default', color: 'rgba(0, 0, 0, 0.88)' },
         },
@@ -111,15 +111,15 @@ export default function AdminLayout({ children }) {
 
   const processedMenuItems = menuConfig
     .filter(item => {
-      if (item.superadminOnly && user?.role?.name !== 'Superadmin') {
+      if (item.superadminOnly && user?.role !== 'Superadmin') {
         return false;
       }
       // --- PERUBAHAN DI SINI ---
       // Cek role user (yang sekarang 'Operator')
-      if (item.roles && !item.roles.includes(user?.role?.name)) {
+      if (item.roles && !item.roles.includes(user?.role)) {
+      // --- BATAS PERUBAHAN ---
         return false;
       }
-      // --- BATAS PERUBAHAN ---
       return true;
     })
     .map((item) => {
