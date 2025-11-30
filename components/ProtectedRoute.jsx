@@ -1,51 +1,48 @@
 'use client';
-
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react'; // Tambah useState
 import { useRouter } from 'next/navigation';
 import useAuthStore from '@/lib/store/authStore';
-import Cookies from 'js-cookie';
+import { Spin } from 'antd';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(true);
-  
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const setUser = useAuthStore((state) => state.setUser);
+  const { user, isAuthenticated } = useAuthStore();
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
-  const checkAuth = useCallback(() => {
-    if (isAuthenticated) {
-      setIsLoading(false);
+  useEffect(() => {
+    // 1. Cek Login
+    if (!isAuthenticated || !user) {
+      router.push('/login');
       return;
     }
 
-    const userCookie = Cookies.get('user');
-    if (userCookie) {
-      try {
-        const userData = JSON.parse(userCookie);
-        setUser(userData);
-        setIsLoading(false);
-      } catch (e) {
-        Cookies.remove('user');
-        router.replace('/login');
+    // 2. Ambil Role Name (Support Object & String)
+    const userRole = user.role?.name || user.role;
+
+    // 3. Cek Hak Akses Role
+    if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
+      // Jika role tidak diizinkan, redirect ke halaman yang sesuai
+      if (userRole === 'Viewer') {
+        router.push('/dashboard');
+      } else {
+        router.push('/admin'); // Default redirect
       }
     } else {
-      router.replace('/login');
+      // Lolos semua cek
+      setIsAuthorized(true);
     }
-  }, [isAuthenticated, router, setUser]);
+  }, [isAuthenticated, user, router, allowedRoles]);
 
-  useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
-
-  if (isLoading) {
-    return <div>Loading...</div>;
+  // Tampilkan loading selagi mengecek (Mencegah kedipan konten terlarang)
+  if (!isAuthorized) {
+    return (
+      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <Spin size="large" tip="Memverifikasi akses..." />
+      </div>
+    );
   }
 
-  if (isAuthenticated) {
-    return children;
-  }
-
-  return <div>Loading...</div>;
+  return children;
 };
 
 export default ProtectedRoute;
