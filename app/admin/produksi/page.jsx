@@ -18,7 +18,7 @@ import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
 import {
   getProductions, createProduction, patchProduction, deleteProduction
 } from '@/lib/api/production';
@@ -113,7 +113,7 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
 // =================================================================
 // === KOMPONEN KARTU PRODUKSI ===
 // =================================================================
-const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAdmin }) => {
+const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAdmin, canEdit }) => { // [RBAC] canEdit
   const status = STATUS_MAP[production.status] || { label: production.status, color: '#1E429F' };
   const type = ASSET_TYPE_MAP[production.asset_type] || { label: production.asset_type, color: '#1E429F' };
   
@@ -260,7 +260,9 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             >
               Detail
             </Button>
-            {isAdmin && (
+            
+            {/* [RBAC] Tombol Edit hanya jika canEdit (Operator/Admin) */}
+            {canEdit && (
               <Button 
                 style={{ 
                   minWidth: '128px',
@@ -292,9 +294,9 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, isAd
             {formatRupiah(production.total_value)}
           </Text>
           <Text style={{ 
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#727272',
+            fontSize: '14px', 
+            fontWeight: 500, 
+            color: '#727272', 
             display: 'block',
           }}>
             {production.quantity}{production.unit}
@@ -490,8 +492,12 @@ function ProductionManagementContent() {
   const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
 
+  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
-  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+  const userRole = user?.role?.name || user?.role;
+  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
+  // Operator & Admin boleh Edit
+  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
   const statsParams = useMemo(() => ({
     asset: selectedAsset === 'all' ? undefined : selectedAsset,
@@ -587,23 +593,27 @@ function ProductionManagementContent() {
             Kelola hasil produksi ternak dan lahan
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          size="large"
-          style={{ 
-            backgroundColor: '#237804', 
-            borderColor: '#237804', 
-            borderRadius: '24px',
-            height: '40px',
-            padding: '8px 16px',
-            boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-            fontSize: '16px',
-          }}
-          onClick={showAddModal}
-        >
-          Tambah Produksi
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah hanya jika canEdit */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            size="large"
+            style={{ 
+              backgroundColor: '#237804', 
+              borderColor: '#237804', 
+              borderRadius: '24px',
+              height: '40px',
+              padding: '8px 16px',
+              boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+              fontSize: '16px',
+            }}
+            onClick={showAddModal}
+          >
+            Tambah Produksi
+          </Button>
+        )}
       </div>
 
       <div style={{ marginBottom: '24px' }}>
@@ -809,13 +819,14 @@ function ProductionManagementContent() {
                   onDetailClick={handleViewDetail}
                   onDelete={deleteMutation.mutate}
                   isAdmin={isAdmin}
+                  canEdit={canEdit} // [RBAC] Pass prop
                 />
               ))
             ) : (
               <div style={{ 
                 border: '1px dashed #d9d9d9', 
-                borderRadius: '8px',
-                padding: '32px',
+                borderRadius: '8px', 
+                padding: '32px', 
                 textAlign: 'center',
               }}>
                 <Text type="secondary" style={{ 
@@ -845,7 +856,8 @@ function ProductionManagementContent() {
 
 export default function ProductionPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Semua role boleh masuk (Investor/Viewer Read Only)
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ProductionManagementContent />
     </ProtectedRoute>
   );

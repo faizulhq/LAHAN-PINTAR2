@@ -20,6 +20,7 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
 import { getAssets, createAsset, updateAsset, deleteAsset, getOwners, createOwner } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
@@ -144,8 +145,8 @@ const StatisticsCards = ({ stats, isLoading }) => (
   </Row>
 );
 
-// Asset Card Component
-const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
+// Asset Card Component (Modified with RBAC)
+const AssetCard = ({ asset, onDetail, onEdit, onDelete, canEdit }) => { // [RBAC] Terima prop canEdit
   const typeProps = getAssetTypeProps(asset.type);
   const isDeleting = onDelete.isPending && onDelete.variables === asset.id;
 
@@ -260,21 +261,25 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
         >
           Detail
         </Button>
-        <Button 
-          onClick={() => onEdit(asset)}
-          style={{ 
-            flex: 1,
-            height: '40px',
-            background: '#237804',
-            borderRadius: '8px',
-            fontWeight: 500,
-            fontSize: '14px',
-            color: '#FFFFFF',
-            border: 'none',
-          }}
-        >
-          Edit
-        </Button>
+        
+        {/* [RBAC] Tombol Edit disembunyikan jika user tidak punya akses edit */}
+        {canEdit && (
+          <Button 
+            onClick={() => onEdit(asset)}
+            style={{ 
+              flex: 1,
+              height: '40px',
+              background: '#237804',
+              borderRadius: '8px',
+              fontWeight: 500,
+              fontSize: '14px',
+              color: '#FFFFFF',
+              border: 'none',
+            }}
+          >
+            Edit
+          </Button>
+        )}
       </Flex>
     </Card>
   );
@@ -482,6 +487,13 @@ function AssetManagementContent() {
   const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
   const [ownerForm] = Form.useForm();
 
+  // [RBAC] Ambil data user dari store
+  const user = useAuthStore((state) => state.user);
+  // Pastikan ambil .name jika role berupa object, atau role itu sendiri jika string
+  const userRole = user?.role?.name || user?.role; 
+  // Definisikan siapa yang boleh edit/tambah/hapus
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
   // Data Fetching
   const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
     queryKey: ['assets'],
@@ -490,7 +502,8 @@ function AssetManagementContent() {
 
   const { data: owners, isLoading: isLoadingOwners } = useQuery({
     queryKey: ['owners'],
-    queryFn: getOwners
+    queryFn: getOwners,
+    enabled: canEdit // Hanya fetch owner jika user berhak edit (optimasi)
   });
 
   // Mutations
@@ -668,16 +681,20 @@ function AssetManagementContent() {
             Kelola semua aset fisik yang dimiliki
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          size="large"
-          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
-          onClick={handleAddAsset}
-          loading={isSubmitting}
-        >
-          Tambah Aset
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah Aset HANYA muncul jika canEdit (Admin/Superadmin) */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            size="large"
+            style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+            onClick={handleAddAsset}
+            loading={isSubmitting}
+          >
+            Tambah Aset
+          </Button>
+        )}
       </Flex>
 
       <StatisticsCards stats={stats} isLoading={isLoadingAssets} />
@@ -705,6 +722,7 @@ function AssetManagementContent() {
                   onDetail={handleViewDetail}
                   onEdit={handleEditAsset}
                   onDelete={deleteMutation}
+                  canEdit={canEdit} // [RBAC] Pass permission ke AssetCard
                 />
               </Col>
             ))
@@ -739,7 +757,8 @@ function AssetManagementContent() {
 
 export default function AssetPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Operator tidak boleh masuk sini, Investor & Viewer BOLEH (Read Only)
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <AssetManagementContent />
     </ProtectedRoute>
   );

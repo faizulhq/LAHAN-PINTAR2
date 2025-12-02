@@ -16,7 +16,7 @@ import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
 import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
@@ -90,19 +90,15 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
   );
 };
 
-const ExpenseCard = ({ expense, onEditClick, onDetailClick, isAdmin }) => {
+const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [RBAC] canEdit prop
   const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
   
   const getCategoryColor = () => {
     switch (expense.category) {
-      case 'Operasional':
-        return { background: '#E1EFFE', color: '#1E429F' };
-      case 'Proyek':
-        return { background: '#D5F5E3', color: '#27AE60' };
-      case 'Pembelian':
-        return { background: '#FFE1E1', color: '#E74C3C' };
-      default:
-        return { background: '#F3F4F6', color: '#6B7280' };
+      case 'Operasional': return { background: '#E1EFFE', color: '#1E429F' };
+      case 'Proyek': return { background: '#D5F5E3', color: '#27AE60' };
+      case 'Pembelian': return { background: '#FFE1E1', color: '#E74C3C' };
+      default: return { background: '#F3F4F6', color: '#6B7280' };
     }
   };
   
@@ -152,7 +148,9 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, isAdmin }) => {
             >
               Detail
             </Button>
-            {isAdmin && (
+            
+            {/* [RBAC] Tombol Edit disembunyikan jika !canEdit */}
+            {canEdit && (
               <Button 
                 style={{ 
                   minWidth: '128px', height: '40px', background: '#237804', borderColor: '#237804',
@@ -323,8 +321,11 @@ function ExpenseManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
+  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
-  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+  const userRole = user?.role?.name || user?.role;
+  // Admin, Superadmin, & Operator boleh Create/Edit/Delete
+  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
@@ -411,18 +412,22 @@ function ExpenseManagementContent() {
             Catat dan kelola semua biaya operasional
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          size="large"
-          style={{ 
-            backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px',
-            height: '40px', padding: '8px 16px', fontSize: '16px'
-          }}
-          onClick={showAddModal}
-        >
-          Tambah Pengeluaran
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah hanya jika canEdit (Admin/Superadmin/Operator) */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            size="large"
+            style={{ 
+              backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px',
+              height: '40px', padding: '8px 16px', fontSize: '16px'
+            }}
+            onClick={showAddModal}
+          >
+            Tambah Pengeluaran
+          </Button>
+        )}
       </div>
 
       <div style={{ marginBottom: '24px' }}>
@@ -535,7 +540,7 @@ function ExpenseManagementContent() {
                   expense={exp}
                   onEditClick={showEditModal}
                   onDetailClick={handleViewDetail}
-                  isAdmin={isAdmin}
+                  canEdit={canEdit} // [RBAC] Pass prop canEdit
                 />
               ))
             ) : (
@@ -564,7 +569,8 @@ function ExpenseManagementContent() {
 
 export default function ExpensePage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Semua Role boleh masuk (Investor/Viewer Read Only)
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ExpenseManagementContent />
     </ProtectedRoute>
   );

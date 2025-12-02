@@ -15,6 +15,7 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
 import { getAssets, getOwners, updateAsset, createOwner } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
@@ -194,6 +195,7 @@ const AssetFormModal = ({
       <Form.Item 
         label="% Bagi Hasil Pemilik" 
         name="landowner_share_percentage"
+        initialValue={10}
         tooltip="Persentase keuntungan untuk pemilik lahan (default 10%)"
         rules={[{ required: true, message: '% Bagi Hasil wajib diisi' }]}
       >
@@ -242,6 +244,11 @@ function AssetDetailContent() {
   const [form] = Form.useForm();
   const [ownerForm] = Form.useForm();
 
+  // [RBAC] Cek Role
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
   // Data Fetching
   const { data: assets, isLoading: isLoadingAssets, isError, error } = useQuery({
     queryKey: ['assets'],
@@ -250,7 +257,8 @@ function AssetDetailContent() {
 
   const { data: owners, isLoading: isLoadingOwners } = useQuery({
     queryKey: ['owners'],
-    queryFn: getOwners
+    queryFn: getOwners,
+    enabled: canEdit // Hanya fetch owner jika user berhak edit
   });
 
   const asset = assets?.find(a => a.id === parseInt(assetId));
@@ -419,22 +427,26 @@ function AssetDetailContent() {
             </Text>
           </div>
         </Flex>
-        <Button
-          type="primary"
-          icon={<EditOutlined />}
-          size="large"
-          style={{ 
-            backgroundColor: '#237804', 
-            borderRadius: '24px', 
-            height: 'auto', 
-            padding: '8px 16px', 
-            fontSize: '16px' 
-          }}
-          onClick={handleEdit}
-          loading={updateMutation.isPending}
-        >
-          Edit Aset
-        </Button>
+        
+        {/* [RBAC] Tombol Edit disembunyikan untuk Investor/Viewer */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
+            size="large"
+            style={{ 
+              backgroundColor: '#237804', 
+              borderRadius: '24px', 
+              height: 'auto', 
+              padding: '8px 16px', 
+              fontSize: '16px' 
+            }}
+            onClick={handleEdit}
+            loading={updateMutation.isPending}
+          >
+            Edit Aset
+          </Button>
+        )}
       </Flex>
 
       {/* Main Content */}
@@ -606,18 +618,20 @@ function AssetDetailContent() {
         </Col>
       </Row>
 
-      {/* Edit Modal */}
-      <AssetFormModal
-        open={isModalOpen}
-        asset={asset}
-        form={form}
-        owners={owners}
-        isLoadingOwners={isLoadingOwners}
-        onCancel={handleModalCancel}
-        onSubmit={handleFormSubmit}
-        isSubmitting={updateMutation.isPending}
-        onAddOwner={handleShowOwnerModal}
-      />
+      {/* Edit Modal (Hanya render jika canEdit untuk keamanan tambahan) */}
+      {canEdit && (
+        <AssetFormModal
+          open={isModalOpen}
+          asset={asset}
+          form={form}
+          owners={owners}
+          isLoadingOwners={isLoadingOwners}
+          onCancel={handleModalCancel}
+          onSubmit={handleFormSubmit}
+          isSubmitting={updateMutation.isPending}
+          onAddOwner={handleShowOwnerModal}
+        />
+      )}
 
       {/* Owner Modal */}
       <OwnerFormModal
@@ -633,7 +647,8 @@ function AssetDetailContent() {
 
 export default function AssetDetailPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Operator tidak boleh akses
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <AssetDetailContent />
     </ProtectedRoute>
   );

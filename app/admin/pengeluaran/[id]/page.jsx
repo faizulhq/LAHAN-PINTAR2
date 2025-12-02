@@ -17,6 +17,7 @@ import { FaMoneyBillWave } from 'react-icons/fa6';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Store
 import { getExpenses, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
@@ -150,6 +151,11 @@ function ExpenseDetailContent() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
+
+  // [RBAC] Cek Role
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
   const { data: expenses, isLoading: isLoadingExpenses, isError, error } = useQuery({
     queryKey: ['expenses'],
@@ -345,39 +351,43 @@ function ExpenseDetailContent() {
             </Text>
           </div>
         </Flex>
-        <Space>
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            size="large"
-            style={{
-              borderRadius: '24px',
-              height: 'auto',
-              padding: '8px 16px',
-              fontSize: '16px'
-            }}
-            onClick={handleDelete}
-            loading={deleteMutation.isPending}
-          >
-            Hapus
-          </Button>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            size="large"
-            style={{
-              backgroundColor: '#237804',
-              borderRadius: '24px',
-              height: 'auto',
-              padding: '8px 16px',
-              fontSize: '16px'
-            }}
-            onClick={handleEdit}
-            loading={updateMutation.isPending}
-          >
-            Edit Pengeluaran
-          </Button>
-        </Space>
+        
+        {/* [RBAC] Tombol Edit & Hapus hanya jika canEdit */}
+        {canEdit && (
+          <Space>
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              size="large"
+              style={{
+                borderRadius: '24px',
+                height: 'auto',
+                padding: '8px 16px',
+                fontSize: '16px'
+              }}
+              onClick={handleDelete}
+              loading={deleteMutation.isPending}
+            >
+              Hapus
+            </Button>
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              size="large"
+              style={{
+                backgroundColor: '#237804',
+                borderRadius: '24px',
+                height: 'auto',
+                padding: '8px 16px',
+                fontSize: '16px'
+              }}
+              onClick={handleEdit}
+              loading={updateMutation.isPending}
+            >
+              Edit Pengeluaran
+            </Button>
+          </Space>
+        )}
       </Flex>
 
       <Row gutter={[24, 24]}>
@@ -569,24 +579,28 @@ function ExpenseDetailContent() {
         </Col>
       </Row>
 
-      <ExpenseFormModal
-        open={isModalOpen}
-        expense={expense}
-        form={form}
-        projects={projects}
-        fundings={fundings}
-        fundingMap={fundingMap}
-        onCancel={handleModalCancel}
-        onSubmit={handleFormSubmit}
-        isSubmitting={updateMutation.isPending}
-      />
+      {/* Modal Edit (hanya jika canEdit) */}
+      {canEdit && (
+        <ExpenseFormModal
+          open={isModalOpen}
+          expense={expense}
+          form={form}
+          projects={projects}
+          fundings={fundings}
+          fundingMap={fundingMap}
+          onCancel={handleModalCancel}
+          onSubmit={handleFormSubmit}
+          isSubmitting={updateMutation.isPending}
+        />
+      )}
     </>
   );
 }
 
 export default function ExpenseDetailPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Semua Role boleh masuk (Investor/Viewer Read Only)
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ExpenseDetailContent />
     </ProtectedRoute>
   );

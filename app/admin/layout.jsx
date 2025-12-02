@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import {
-  Layout, Menu, Avatar, Typography, Flex, Dropdown,
+  Layout, Menu, Avatar, Typography, Flex, Dropdown, Spin 
 } from 'antd';
 import { BiSolidDashboard, BiSolidCalculator, BiUser } from 'react-icons/bi';
-import { FileTextFilled, UserAddOutlined } from '@ant-design/icons';
+import { FileTextFilled } from '@ant-design/icons';
 import { FaDollarSign } from 'react-icons/fa';
 import { HiUserGroup, HiUsers } from 'react-icons/hi';
 import { GiPayMoney, GiSprout } from 'react-icons/gi';
@@ -29,7 +29,7 @@ const menuConfig = [
   { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Admin', 'Superadmin'] },
   { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi' },
   { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil', roles: ['Admin', 'Superadmin'] },
-  { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan' }, // Tunu bisa lihat
+  { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan' }, 
   { key: '11', icon: <HiUsers />, label: 'User Management', path: '/admin/user-management', superadminOnly: true },
   { key: '12', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan', roles: ['Admin', 'Superadmin'] },
 ];
@@ -37,14 +37,19 @@ const menuConfig = [
 export default function AdminLayout({ children }) {
   const pathname = usePathname();
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const logoutMutation = useLogout();
   
+  // [PERBAIKAN KRITIKAL] Ambil state secara terpisah untuk mencegah Infinite Loop re-render
+  const user = useAuthStore((state) => state.user);
+  const initializeAuth = useAuthStore((state) => state.initializeAuth);
+  
+  const logoutMutation = useLogout();
   const [mounted, setMounted] = useState(false);
 
+  // Inisialisasi auth saat mount
   useEffect(() => {
+    initializeAuth();
     setMounted(true);
-  }, []);
+  }, [initializeAuth]);
 
   const handleLogout = () => {
     logoutMutation.mutate();
@@ -54,23 +59,26 @@ export default function AdminLayout({ children }) {
     if (key === 'logout') handleLogout();
   };
 
+  // Safe access role name
+  const userRoleName = user?.role?.name || user?.role || 'Role not found';
+
   const profileMenuItems = [
     {
       key: 'info',
       type: 'group',
-      label: <Text strong>{user?.username || 'Username'}</Text>,
+      label: <Text strong>{user?.username || 'Loading...'}</Text>,
       children: [
         {
           key: 'email',
           icon: <MailOutlined />,
-          label: user?.email || 'Email not found',
+          label: user?.email || '...',
           disabled: true,
           style: { cursor: 'default', color: 'rgba(0, 0, 0, 0.88)' },
         },
         {
           key: 'role',
           icon: <UserSwitchOutlined />,
-          label: user?.role || 'Role not found', // Ini akan menampilkan 'Operator'
+          label: userRoleName, 
           disabled: true,
           style: { cursor: 'default', color: 'rgba(0, 0, 0, 0.88)' },
         },
@@ -109,17 +117,15 @@ export default function AdminLayout({ children }) {
   const baseIconSize = '18px';
   const iconTextGap = '10px';
 
+  // Filter menu
   const processedMenuItems = menuConfig
     .filter(item => {
-      if (item.superadminOnly && user?.role !== 'Superadmin') {
-        return false;
-      }
-      // --- PERUBAHAN DI SINI ---
-      // Cek role user (yang sekarang 'Operator')
-      if (item.roles && !item.roles.includes(user?.role)) {
-      // --- BATAS PERUBAHAN ---
-        return false;
-      }
+      // Tunggu hydration selesai (user ada) baru filter strict, 
+      // atau tampilkan menu dasar saja jika user belum load
+      if (!mounted || !user) return false; 
+      
+      if (item.superadminOnly && userRoleName !== 'Superadmin') return false;
+      if (item.roles && !item.roles.includes(userRoleName)) return false;
       return true;
     })
     .map((item) => {
@@ -131,33 +137,17 @@ export default function AdminLayout({ children }) {
       return {
         key: item.key,
         icon: React.cloneElement(item.icon, {
-          style: {
-            fontSize: baseIconSize,
-            color: iconColor,
-            width: baseIconSize,
-            height: baseIconSize,
-          },
+          style: { fontSize: baseIconSize, color: iconColor, width: baseIconSize, height: baseIconSize },
         }),
         label: (
-          <span
-            style={{
-              color: textColor,
-              fontFamily: 'Roboto, sans-serif',
-              fontWeight: 400,
-              fontSize: '14px',
-              lineHeight: '22px',
-              marginLeft: iconTextGap,
-              flexGrow: 1,
-            }}
-          >
+          <span style={{ color: textColor, fontFamily: 'Roboto, sans-serif', fontSize: '14px', marginLeft: iconTextGap, flexGrow: 1 }}>
             {item.label}
           </span>
         ),
         style: currentStyle,
         onClick: () => router.push(item.path),
       };
-    }
-  );
+    });
 
   return (
     <Layout style={{ minHeight: '100vh', background: '#F9FAFB' }} suppressHydrationWarning>
@@ -178,28 +168,28 @@ export default function AdminLayout({ children }) {
       >
         <Flex align="center" gap="12px">
           <GiSprout style={{ fontSize: '32px', color: '#237804' }} />
-          <Title
-            level={4}
-            style={{
-              margin: 0,
-              color: '#111928',
-              whiteSpace: 'nowrap',
-              // fontFamily: 'Inter, sans-serif',
-              fontWeight: 600,
-              fontSize: '24px',
-              lineHeight: '150%',
-            }}
-          >
+          <Title level={4} style={{ margin: 0, color: '#111928', fontWeight: 600, fontSize: '24px' }}>
             Lahan Pintar
           </Title>
         </Flex>
+        
         <Dropdown
           menu={{ items: profileMenuItems, onClick: handleMenuClick }}
           placement="bottomRight"
           arrow
           trigger={['click']}
         >
-          <Avatar size={32} icon={<UserOutlined />} style={{ cursor: 'pointer' }} />
+          <Flex align="center" gap={8} style={{ cursor: 'pointer' }}>
+             {/* Tampilkan Loading spinner kecil jika user belum siap */}
+             {mounted && user ? (
+                 <>
+                   <Text strong style={{ marginRight: 8 }}>{user.username}</Text>
+                   <Avatar size={32} icon={<UserOutlined />} />
+                 </>
+             ) : (
+                 <Spin size="small" /> 
+             )}
+          </Flex>
         </Dropdown>
       </Header>
 
@@ -218,19 +208,13 @@ export default function AdminLayout({ children }) {
           theme="light"
           suppressHydrationWarning
         >
-          {mounted && (
+          {/* Tampilkan menu hanya jika sudah mounted & user terload untuk mencegah flash */}
+          {mounted && user && (
             <Menu
               mode="inline"
               selectedKeys={[selectedKey]}
               items={processedMenuItems}
-              style={{
-                borderRight: 0,
-                width: '100%',
-                padding: '0px',
-                gap: '8px',
-                display: 'flex',
-                flexDirection: 'column',
-              }}
+              style={{ borderRight: 0, width: '100%', padding: '0px', gap: '8px', display: 'flex', flexDirection: 'column' }}
             />
           )}
         </Sider>

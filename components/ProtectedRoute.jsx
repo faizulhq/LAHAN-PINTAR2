@@ -1,45 +1,60 @@
 'use client';
-import { useEffect, useState } from 'react'; // Tambah useState
+
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import useAuthStore from '@/lib/store/authStore';
 import { Spin } from 'antd';
 
-const ProtectedRoute = ({ children, allowedRoles = [] }) => {
+const ProtectedRoute = ({ children, roles }) => {
+  const { isAuthenticated, user, initializeAuth } = useAuthStore();
   const router = useRouter();
-  const { user, isAuthenticated } = useAuthStore();
-  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
-    // 1. Cek Login
-    if (!isAuthenticated || !user) {
-      router.push('/login');
-      return;
-    }
+    // 1. Load data user dari Cookie saat pertama kali buka/refresh
+    initializeAuth();
+    
+    // Beri waktu 100ms agar state store terisi sebelum memutuskan redirect
+    const timer = setTimeout(() => {
+      setIsChecking(false);
+    }, 100);
 
-    // 2. Ambil Role Name (Support Object & String)
-    const userRole = user.role?.name || user.role;
+    return () => clearTimeout(timer);
+  }, [initializeAuth]);
 
-    // 3. Cek Hak Akses Role
-    if (allowedRoles.length > 0 && !allowedRoles.includes(userRole)) {
-      // Jika role tidak diizinkan, redirect ke halaman yang sesuai
-      if (userRole === 'Viewer') {
-        router.push('/dashboard');
-      } else {
-        router.push('/admin'); // Default redirect
+  useEffect(() => {
+    // 2. Logika Redirect hanya jalan setelah checking selesai
+    if (!isChecking) {
+      if (!isAuthenticated || !user) {
+        router.push('/login');
+      } else if (roles) {
+        const userRole = user.role?.name || user.role;
+        if (!roles.includes(userRole)) {
+          router.push('/dashboard');
+        }
       }
-    } else {
-      // Lolos semua cek
-      setIsAuthorized(true);
     }
-  }, [isAuthenticated, user, router, allowedRoles]);
+  }, [isAuthenticated, user, roles, router, isChecking]);
 
-  // Tampilkan loading selagi mengecek (Mencegah kedipan konten terlarang)
-  if (!isAuthorized) {
+  // 3. Tampilkan Loading Bersih (Tanpa Warning Antd)
+  if (isChecking || (!isAuthenticated && !user)) {
     return (
-      <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <Spin size="large" tip="Memverifikasi akses..." />
+      <div className="flex justify-center items-center h-screen w-full bg-white">
+        <div className="flex flex-col items-center gap-4">
+          {/* Hapus prop 'tip' agar tidak warning */}
+          <Spin size="large" /> 
+          <span className="text-gray-500 font-medium mt-4">Memuat data...</span>
+        </div>
       </div>
     );
+  }
+
+  // 4. Return Null jika user ada tapi role salah (menunggu redirect)
+  if (roles && user) {
+    const userRole = user.role?.name || user.role;
+    if (!roles.includes(userRole)) {
+      return null;
+    }
   }
 
   return children;

@@ -46,6 +46,7 @@ import { ChevronDown } from 'lucide-react';
 
 // API IMPORTS
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
 import { getFinancialReport } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
@@ -58,7 +59,7 @@ import {
   getFundings,
   createFunding,
   updateFunding,
-} from '@/lib/api/funding'; // <-- Jika getFunding belum ada di file ini, tambahkan
+} from '@/lib/api/funding';
 
 // --- HELPERS ---
 const { Title, Text } = Typography;
@@ -93,7 +94,6 @@ const getStatusProps = (status) => {
     padding: '4px 10px', 
     borderRadius: '6px',
     lineHeight: '17px',
-    // // fontFamily: 'Inter, sans-serif'
   };
   return { text, style }; 
 };
@@ -115,7 +115,6 @@ const getSourceTypeProps = (type) => {
     padding: '4px 10px', 
     borderRadius: '6px',
     lineHeight: '17px',
-    // fontFamily: 'Inter, sans-serif'
   };
   
   text = SOURCE_TYPE_MAP[type] || type || 'Lainnya';
@@ -595,7 +594,7 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
 // =================================================================
 // === KOMPONEN FUNDING CARD (PERBAIKAN TOMBOL DETAIL) ===
 // =================================================================
-const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => { // <-- Tambah prop onDetailClick
+const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { // [RBAC] Tambah prop canEdit
   const status = getStatusProps(funding.status);
   const sourceType = getSourceTypeProps(funding.source_type);
   
@@ -727,23 +726,27 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => 
         >
           Detail
         </Button>
-        <Button 
-          style={{ 
-            width: '128px',
-            height: '40px',
-            background: '#237804',
-            borderColor: '#237804',
-            borderRadius: '8px',
-            color: '#FFFFFF',
-            // fontFamily: 'Inter, sans-serif',
-            fontWeight: 500,
-            fontSize: '14px',
-            lineHeight: '21px'
-          }}
-          onClick={() => onEditClick(funding)}
-        >
-          Edit
-        </Button>
+        
+        {/* [RBAC] Tombol Edit hanya jika canEdit=true */}
+        {canEdit && (
+          <Button 
+            style={{ 
+              width: '128px',
+              height: '40px',
+              background: '#237804',
+              borderColor: '#237804',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              // fontFamily: 'Inter, sans-serif',
+              fontWeight: 500,
+              fontSize: '14px',
+              lineHeight: '21px'
+            }}
+            onClick={() => onEditClick(funding)}
+          >
+            Edit
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -767,7 +770,10 @@ function PendanaanContent() {
   
   const [detailSourceId, setDetailSourceId] = useState(null);
   
-  // --- STATE BARU: Untuk Modal Detail PENDANAAN ---\
+  // [RBAC] Cek Role
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
   // Data Fetching
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
@@ -808,7 +814,6 @@ function PendanaanContent() {
   });
 
   // Data Processing
-  // === PERUBAHAN DI SINI (1) ===
   const ringkasanData = useMemo(() => {
     if (!fundings) return [];
     
@@ -817,13 +822,13 @@ function PendanaanContent() {
     fundings.forEach(funding => {
       const sourceName = funding.source_name || 'Tanpa Sumber';
       const sourceType = funding.source_type || 'unknown';
-      const sourceId = funding.source; // <-- Ambil source_id
+      const sourceId = funding.source;
       
       if (!summary.has(sourceName)) {
         summary.set(sourceName, {
           source_name: sourceName,
           source_type: sourceType,
-          source_id: sourceId, // <-- Simpan source_id
+          source_id: sourceId,
           totalAmount: 0,
           totalTerpakai: 0,
         });
@@ -876,7 +881,7 @@ function PendanaanContent() {
 
   // --- HANDLER BARU: Untuk Detail PENDANAAN (dari tombol "Detail") ---
   const handleOpenFundingDetail = (id) => {
-    router.push(`/admin/pendanaan/${id}`);
+    router.push(`/admin/pendanaan/${id}`);
   };
 
   // Render
@@ -917,28 +922,32 @@ function PendanaanContent() {
             Kelola semua sumber pendanaan dan alokasi dana
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          style={{ 
-            background: '#237804',
-            borderColor: '#237804',
-            borderRadius: '24px',
-            height: '40px',
-            padding: '8px 16px',
-            // fontFamily: 'Roboto, sans-serif',
-            fontWeight: 400,
-            fontSize: '16px',
-            boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-            lineHeight: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-          onClick={() => handleOpenModal(null)}
-        >
-          Tambah Pendanaan
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah hanya untuk Admin/Superadmin */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            style={{ 
+              background: '#237804',
+              borderColor: '#237804',
+              borderRadius: '24px',
+              height: '40px',
+              padding: '8px 16px',
+              // fontFamily: 'Roboto, sans-serif',
+              fontWeight: 400,
+              fontSize: '16px',
+              boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+              lineHeight: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => handleOpenModal(null)}
+          >
+            Tambah Pendanaan
+          </Button>
+        )}
       </div>
 
       {/* Filter */}
@@ -1004,7 +1013,6 @@ function PendanaanContent() {
         </Row>
       </div>
 
-      {/* === PERUBAHAN DI SINI (3) === */}
       {/* Main Content */}
     <Row gutter={[0, 24]}>
     {/* Ringkasan - Atas */}
@@ -1049,6 +1057,7 @@ function PendanaanContent() {
                 <FundingCard 
                     key={funding.id} 
                     funding={funding} 
+                    canEdit={canEdit} // [RBAC] Pass canEdit
                     onEditClick={handleOpenModal}
                     onSourceClick={handleOpenSourceDetail} // <-- handler u/ detail SUMBER (dari Tag)
                     onDetailClick={handleOpenFundingDetail} // <-- handler u/ detail PENDANAAN (dari Tombol)
@@ -1105,7 +1114,8 @@ function PendanaanContent() {
 
 export default function PendanaanPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Operator tidak boleh akses
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <PendanaanContent />
     </ProtectedRoute>
   );

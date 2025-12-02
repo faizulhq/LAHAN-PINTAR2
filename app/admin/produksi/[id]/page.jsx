@@ -16,7 +16,7 @@ import { BsBox2Fill } from 'react-icons/bs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC]
 import {
   getProduction, patchProduction, deleteProduction
 } from '@/lib/api/production';
@@ -256,8 +256,11 @@ function ProductionDetailContent() {
   const [editingProduction, setEditingProduction] = useState(null);
   const [form] = Form.useForm();
 
+  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
-  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
+  const userRole = user?.role?.name || user?.role;
+  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
+  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
   const { data: production, isLoading: isLoadingProduction, isError, error } = useQuery({
     queryKey: ['production', productionId],
@@ -365,7 +368,9 @@ function ProductionDetailContent() {
             </Text>
           </div>
         </Flex>
-        {isAdmin && (
+        
+        {/* [RBAC] Tombol Edit & Hapus hanya jika canEdit */}
+        {canEdit && (
           <Space>
             <Popconfirm 
               key="delete"
@@ -580,7 +585,7 @@ function ProductionDetailContent() {
 
 export default function ProductionDetailPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ProductionDetailContent />
     </ProtectedRoute>
   );
