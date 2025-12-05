@@ -489,10 +489,15 @@ function AssetManagementContent() {
 
   // [RBAC] Ambil data user dari store
   const user = useAuthStore((state) => state.user);
-  // Pastikan ambil .name jika role berupa object, atau role itu sendiri jika string
   const userRole = user?.role?.name || user?.role; 
   // Definisikan siapa yang boleh edit/tambah/hapus
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
+  // [LOGIKA JUDUL DINAMIS]
+  const pageTitle = canEdit ? "Manajemen Aset" : "Daftar Aset";
+  const pageDesc = canEdit 
+    ? "Kelola semua aset fisik yang dimiliki"
+    : "Lihat daftar aset fisik dan status operasionalnya.";
 
   // Data Fetching
   const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
@@ -663,22 +668,12 @@ function AssetManagementContent() {
     <>
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div className='gap-[6px]'>
-          <Title level={2} style={{ 
-            margin: 0, 
-            color: '#111928',
-            fontWeight: 700,
-            fontSize: '30px',
-            lineHeight: '125%',
-          }}>
-            Manajemen Aset
+          {/* [UBAH DI SINI] Gunakan variabel pageTitle & pageDesc */}
+          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>
+            {pageTitle}
           </Title>
-          <Text style={{ 
-            fontSize: '16px',
-            fontWeight: 500,
-            color: '#727272',
-            lineHeight: '19px', 
-          }}>
-            Kelola semua aset fisik yang dimiliki
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+            {pageDesc}
           </Text>
         </div>
         

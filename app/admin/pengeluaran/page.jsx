@@ -325,7 +325,21 @@ function ExpenseManagementContent() {
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   // Admin, Superadmin, & Operator boleh Create/Edit/Delete
+  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
+  const isOperator = userRole === 'Operator';
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
+
+  // [LOGIKA JUDUL DINAMIS]
+  let headerTitle = "Laporan Pengeluaran";
+  let headerDesc = "Lihat rincian penggunaan biaya operasional.";
+
+  if (isAdmin) {
+    headerTitle = "Manajemen Pengeluaran";
+    headerDesc = "Audit dan kelola pencatatan biaya operasional proyek.";
+  } else if (isOperator) {
+    headerTitle = "Input Pengeluaran";
+    headerDesc = "Catat pembelian barang dan biaya operasional harian di sini.";
+  }
 
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
@@ -406,10 +420,10 @@ function ExpenseManagementContent() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px' }}>
-            Manajemen Pengeluaran
+            {headerTitle}
           </Title>
           <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272' }}>
-            Catat dan kelola semua biaya operasional
+            {headerDesc}
           </Text>
         </div>
         

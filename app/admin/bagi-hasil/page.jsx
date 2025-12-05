@@ -1,13 +1,13 @@
-// app/admin/bagi-hasil/page.jsx
 'use client';
 import React, { useMemo, useState } from 'react';
 import {
-  Row, Col, Card, Select, Tabs, List, Avatar, Typography, Divider, Tag, Spin, Alert, Empty, Table
+  Row, Col, Card, Select, Tabs, List, Typography, Divider, Tag, Spin, Alert, Empty, Table, Button
 } from 'antd';
-import { DollarCircleFilled } from '@ant-design/icons';
+import { DollarCircleFilled, PlusOutlined } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC]
 import {
   getProfitDistributions,
 } from '@/lib/api/profit_distribution';
@@ -32,9 +32,6 @@ const formatRupiah = (value) =>
 const formatShortDate = (dateString) =>
   dateString ? moment(dateString).format('MMMM YYYY') : '-';
 
-const formatFullDate = (dateString) =>
-  dateString ? moment(dateString).format('DD MMM YYYY, HH:mm') : '-';
-
 // Get period from distribution (prefer period field, fallback to created_at)
 const getPeriodText = (distribution) => {
   if (distribution.period) {
@@ -55,6 +52,23 @@ function ProfitDistributionContent() {
   const [assetFilter, setAssetFilter] = useState(null);
   const [activeTab, setActiveTab] = useState('ringkasan');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
+
+  // [RBAC] Logic
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  
+  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
+  const isInvestor = userRole === 'Investor';
+  // Admin boleh Edit/Tambah
+  const canEdit = isAdmin; 
+
+  // [Dynamic Title]
+  let pageTitle = "Laporan Bagi Hasil";
+  let pageDesc = "Pantau distribusi keuntungan investasi Anda.";
+  if (isAdmin) {
+    pageTitle = "Manajemen Bagi Hasil";
+    pageDesc = "Kelola dan pantau distribusi keuntungan kepada investor.";
+  }
 
   // ============================================
   // DATA FETCHING
@@ -126,18 +140,47 @@ function ProfitDistributionContent() {
   }, [details]);
 
   const filteredDistributions = useMemo(() => {
-    if (!assetFilter) return distributions;
-    const prodIds = (productions || [])
-      .filter(p => p.asset === assetFilter)
-      .map(p => p.id);
-    return (distributions || []).filter(d => prodIds.includes(d.production));
-  }, [distributions, productions, assetFilter]);
+    let dists = distributions || [];
+
+    // 1. Filter by Asset (Dropdown)
+    if (assetFilter) {
+      const prodIds = (productions || [])
+        .filter(p => p.asset === assetFilter)
+        .map(p => p.id);
+      dists = dists.filter(d => prodIds.includes(d.production));
+    }
+
+    // 2. [RBAC] Filter by Investor (jika user adalah Investor)
+    // Hanya tampilkan distribusi yang memiliki detail atas nama investor ini
+    if (isInvestor && user?.investor_id) { // Pastikan user punya investor_id di authStore atau cari mappingnya
+       // Note: Idealnya backend memfilter. Jika backend mengirim semua, kita filter di sini:
+       // Cari ID investor yang login
+       const myInvestorId = investors.find(inv => inv.user === user.id)?.id;
+       
+       if (myInvestorId) {
+          dists = dists.filter(d => {
+             const distDetails = detailsByDist[d.id] || [];
+             return distDetails.some(detail => detail.investor === myInvestorId);
+          });
+       }
+    }
+
+    return dists;
+  }, [distributions, productions, assetFilter, isInvestor, user, detailsByDist, investors]);
 
   const totalDistribution = useMemo(() => {
-    return (filteredDistributions || []).reduce((sum, d) =>
-      sum + Number(d.net_profit || 0), 0
-    );
-  }, [filteredDistributions]);
+    return (filteredDistributions || []).reduce((sum, d) => {
+       // Jika Investor, hitung hanya bagian dia
+       if (isInvestor && user) {
+          const myInvestorId = investors.find(inv => inv.user === user.id)?.id;
+          const myDetails = (detailsByDist[d.id] || []).filter(det => det.investor === myInvestorId);
+          const myShare = myDetails.reduce((s, det) => s + Number(det.amount_received || 0), 0);
+          return sum + myShare;
+       }
+       // Jika Admin, hitung total semua
+       return sum + Number(d.investor_share || 0);
+    }, 0);
+  }, [filteredDistributions, isInvestor, user, investors, detailsByDist]);
 
   const totalInvestorUnique = useMemo(() => {
     const ids = new Set();
@@ -145,23 +188,37 @@ function ProfitDistributionContent() {
       const det = detailsByDist[dist.id] || [];
       det.forEach(dd => ids.add(dd.investor));
     });
+    
+    // Jika investor login, ya cuma dia sendiri
+    if (isInvestor) return 1;
+
     if (ids.size > 0) return ids.size;
     return (investors || []).length || 0;
-  }, [filteredDistributions, detailsByDist, investors]);
+  }, [filteredDistributions, detailsByDist, investors, isInvestor]);
 
   const latestDistributions = useMemo(() => {
     return (filteredDistributions || [])
       .slice()
       .sort((a, b) => moment(b.created_at).unix() - moment(a.created_at).unix())
       .slice(0, 6)
-      .map(d => ({
-        ...d,
-        periodText: getPeriodText(d),
-        investorCount: (detailsByDist[d.id] || []).length,
-        investorAmount: Number(d.investor_share || 0),
-        productionInfo: productionMap[d.production],
-      }));
-  }, [filteredDistributions, detailsByDist, productionMap]);
+      .map(d => {
+        // Kalkulasi amount dinamis (Admin lihat total, Investor lihat punya dia aja)
+        let displayAmount = Number(d.investor_share || 0);
+        if (isInvestor) {
+           const myInvestorId = investors.find(inv => inv.user === user.id)?.id;
+           const myDetails = (detailsByDist[d.id] || []).filter(det => det.investor === myInvestorId);
+           displayAmount = myDetails.reduce((s, det) => s + Number(det.amount_received || 0), 0);
+        }
+
+        return {
+          ...d,
+          periodText: getPeriodText(d),
+          investorCount: (detailsByDist[d.id] || []).length,
+          investorAmount: displayAmount,
+          productionInfo: productionMap[d.production],
+        };
+      });
+  }, [filteredDistributions, detailsByDist, productionMap, isInvestor, investors, user]);
 
   // Get detail for selected period
   const selectedDistribution = useMemo(() => {
@@ -171,34 +228,32 @@ function ProfitDistributionContent() {
 
   // Detail investor data with 'all' option
   const detailInvestorData = useMemo(() => {
-    if (selectedPeriod === 'all') {
-      // Gabungkan semua detail dari semua distribusi
-      const allDetails = [];
-      filteredDistributions.forEach(dist => {
-        const distDetails = detailsByDist[dist.id] || [];
-        distDetails.forEach(d => {
-          allDetails.push({
-            key: `${dist.id}-${d.id}`,
-            investor: d.investor_name || investorMap[d.investor] || `Investor ${d.investor}`,
-            persentase: Number(d.ownership_percentage || 0),
-            jumlah: Number(d.amount_received || 0),
-            status: dist.created_at,
-            periode: getPeriodText(dist),
-          });
+    let targetDistributions = selectedPeriod === 'all' ? filteredDistributions : [selectedDistribution].filter(Boolean);
+    
+    const allDetails = [];
+    targetDistributions.forEach(dist => {
+      let distDetails = detailsByDist[dist.id] || [];
+      
+      // [RBAC] Filter detail hanya milik investor yang login
+      if (isInvestor) {
+         const myInvestorId = investors.find(inv => inv.user === user.id)?.id;
+         distDetails = distDetails.filter(det => det.investor === myInvestorId);
+      }
+
+      distDetails.forEach(d => {
+        allDetails.push({
+          key: `${dist.id}-${d.id}`,
+          investor: d.investor_name || investorMap[d.investor] || `Investor ${d.investor}`,
+          persentase: Number(d.ownership_percentage || 0),
+          jumlah: Number(d.amount_received || 0),
+          status: dist.created_at,
+          periode: getPeriodText(dist),
         });
       });
-      return allDetails;
-    }
-    // Single period
-    if (!selectedPeriod) return [];
-    return (detailsByDist[selectedPeriod] || []).map((d, idx) => ({
-      key: d.id || idx,
-      investor: d.investor_name || investorMap[d.investor] || `Investor ${d.investor}`,
-      persentase: Number(d.ownership_percentage || 0),
-      jumlah: Number(d.amount_received || 0),
-      status: selectedDistribution?.created_at,
-    }));
-  }, [selectedPeriod, detailsByDist, selectedDistribution, filteredDistributions, investorMap]);
+    });
+    
+    return allDetails;
+  }, [selectedPeriod, detailsByDist, selectedDistribution, filteredDistributions, investorMap, isInvestor, investors, user]);
 
   // ============================================
   // STATUS TAG FUNCTION
@@ -247,24 +302,38 @@ function ProfitDistributionContent() {
       <style>{tabStyle}</style>
 
       {/* HEADER SECTION */}
-      <div style={{ marginBottom: 24 }}>
-        <Typography.Title
-          level={2}
-          style={{
-            fontFamily: 'Inter',
-            fontWeight: 700,
-            fontSize: '30px',
-            lineHeight: '125%',
-            letterSpacing: '0%',
-            color: '#111928',
-            marginBottom: '8px'
-          }}
-        >
-          Bagi Hasil
-        </Typography.Title>
-        <Text type="secondary">
-          Kelola dan pantau distribusi keuntungan kepada investor
-        </Text>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+            <Typography.Title
+            level={2}
+            style={{
+                fontWeight: 700,
+                fontSize: '30px',
+                lineHeight: '125%',
+                letterSpacing: '0%',
+                color: '#111928',
+                marginBottom: '8px'
+            }}
+            >
+            {pageTitle}
+            </Typography.Title>
+            <Text type="secondary">
+             {pageDesc}
+            </Text>
+        </div>
+
+        {/* [RBAC] Tombol Tambah Distribusi (Hanya Admin) */}
+        {canEdit && (
+             <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                size="large"
+                style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+                onClick={() => message.info('Fitur Tambah Distribusi (Backend Process)')}
+              >
+                Proses Bagi Hasil
+              </Button>
+        )}
       </div>
 
       {/* FILTER ASSET */}
@@ -272,9 +341,8 @@ function ProfitDistributionContent() {
         <Typography.Title
           level={5}
           style={{
-            fontFamily: 'Inter',
             fontWeight: 500,
-            fontSize: '16px',
+            fontSize: '20px',
             color: '#111928',
             marginBottom: '8px'
           }}
@@ -323,12 +391,11 @@ function ProfitDistributionContent() {
                   flexShrink: 0,
                 }}
               >
-                <DollarCircleFilled style={{ color: '#7CB305', fontSize: 28 }} />
+                <DollarCircleFilled style={{ color: '#7CB305', fontSize: 30 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    fontFamily: 'Inter',
                     fontWeight: 600,
                     fontSize: 16,
                     lineHeight: '150%',
@@ -336,13 +403,12 @@ function ProfitDistributionContent() {
                     marginBottom: 4,
                   }}
                 >
-                  Total Distribusi
+                  {isInvestor ? "Total Dividen Diterima" : "Total Distribusi"}
                 </div>
                 <div
                   style={{
-                    fontFamily: 'Inter',
                     fontWeight: 700,
-                    fontSize: 24,
+                    fontSize: 30,
                     lineHeight: '125%',
                     color: '#111928',
                     wordBreak: 'break-word',
@@ -355,7 +421,7 @@ function ProfitDistributionContent() {
           </Card>
         </Col>
 
-        {/* CARD: TOTAL INVESTOR */}
+        {/* CARD: TOTAL INVESTOR (Hidden for Investor, or show 1) */}
         <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card
             bordered
@@ -382,12 +448,11 @@ function ProfitDistributionContent() {
                   flexShrink: 0,
                 }}
               >
-                <HiUserGroup style={{ color: '#1E3A8A', fontSize: 28 }} />
+                <HiUserGroup style={{ color: '#1E3A8A', fontSize: 30 }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    fontFamily: 'Inter',
                     fontWeight: 600,
                     fontSize: 16,
                     lineHeight: '150%',
@@ -395,18 +460,17 @@ function ProfitDistributionContent() {
                     marginBottom: 4,
                   }}
                 >
-                  Total Investor
+                   {isInvestor ? "Status Investor" : "Total Investor"}
                 </div>
                 <div
                   style={{
-                    fontFamily: 'Inter',
                     fontWeight: 700,
-                    fontSize: 24,
+                    fontSize: 30,
                     lineHeight: '125%',
                     color: '#111928',
                   }}
                 >
-                  {totalInvestorUnique}
+                  {isInvestor ? "Aktif" : totalInvestorUnique}
                 </div>
               </div>
             </div>
@@ -431,7 +495,6 @@ function ProfitDistributionContent() {
             <Typography.Title
               level={4}
               style={{
-                fontFamily: 'Inter',
                 fontWeight: 700,
                 fontSize: '22px',
                 color: '#111928',
@@ -463,7 +526,7 @@ function ProfitDistributionContent() {
                     <div>
                       <Text strong>{item.periodText}</Text>
                       <div style={{ color: '#6B7280', marginTop: 6 }}>
-                        {(item.investorCount || 0)} Investor
+                        {isInvestor ? "Dividen Anda" : `${(item.investorCount || 0)} Investor`}
                       </div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
@@ -487,7 +550,6 @@ function ProfitDistributionContent() {
             <Typography.Title
               level={4}
               style={{
-                fontFamily: 'Inter',
                 fontWeight: 700,
                 fontSize: '22px',
                 color: '#111928',
@@ -515,8 +577,10 @@ function ProfitDistributionContent() {
                   key: 'periode',
                   render: (text) => <span style={{ fontWeight: 600, color: '#111928' }}>{text}</span>
                 },
+                // Kolom Laba Bersih & Total Distribusi (Global) mungkin disembunyikan untuk Investor jika mau strict
+                // Tapi untuk transparansi biasanya ditampilkan
                 {
-                  title: 'Laba Bersih',
+                  title: 'Laba Bersih Global',
                   dataIndex: 'labaBersih',
                   key: 'labaBersih',
                   render: (value) => <span style={{ color: '#111928' }}>{formatRupiah(value)}</span>
@@ -562,7 +626,6 @@ function ProfitDistributionContent() {
                 <Typography.Title
                   level={4}
                   style={{
-                    fontFamily: 'Inter',
                     fontWeight: 700,
                     fontSize: '22px',
                     color: '#111928',
@@ -650,8 +713,9 @@ function ProfitDistributionContent() {
 // EXPORT WITH PROTECTED ROUTE
 // ============================================
 export default function ProfitDistributionPage() {
+  // [RBAC] Operator tidak boleh akses
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <ProfitDistributionContent />
     </ProtectedRoute>
   );

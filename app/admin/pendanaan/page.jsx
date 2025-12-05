@@ -775,6 +775,18 @@ function PendanaanContent() {
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
+  // [LOGIKA JUDUL DINAMIS]
+  let pageTitle = "Laporan Pendanaan";
+  let pageDesc = "Ringkasan aliran dana masuk dan penggunaannya.";
+
+  if (canEdit) {
+    pageTitle = "Manajemen Pendanaan";
+    pageDesc = "Kelola semua sumber pendanaan dan alokasi dana";
+  } else if (userRole === 'Investor') {
+    pageTitle = "Portofolio Pendanaan";
+    pageDesc = "Pantau status dan penggunaan dana investasi Anda.";
+  }
+
   // Data Fetching
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
@@ -822,13 +834,13 @@ function PendanaanContent() {
     fundings.forEach(funding => {
       const sourceName = funding.source_name || 'Tanpa Sumber';
       const sourceType = funding.source_type || 'unknown';
-      const sourceId = funding.source;
+      const sourceId = funding.source; // <-- Ambil source_id
       
       if (!summary.has(sourceName)) {
         summary.set(sourceName, {
           source_name: sourceName,
           source_type: sourceType,
-          source_id: sourceId,
+          source_id: sourceId, // <-- Simpan source_id
           totalAmount: 0,
           totalTerpakai: 0,
         });
@@ -896,30 +908,11 @@ function PendanaanContent() {
         gap: '16px'
       }}>
         <div>
-          <Title 
-            level={2} 
-            style={{ 
-              // fontFamily: 'Inter, sans-serif',
-              fontSize: '30px', 
-              fontWeight: 700, 
-              color: '#111928',
-              lineHeight: '38px',
-              margin: 0,
-              marginBottom: '6px'
-            }}
-          >
-            Manajemen Pendanaan
+          <Title level={2} style={{ fontSize: '30px', fontWeight: 700, color: '#111928', lineHeight: '38px', margin: 0, marginBottom: '6px' }}>
+            {pageTitle}
           </Title>
-          <Text 
-            style={{ 
-              // fontFamily: 'Inter, sans-serif',
-              fontSize: '16px', 
-              fontWeight: 500, 
-              color: '#727272',
-              lineHeight: '19px'
-            }}
-          >
-            Kelola semua sumber pendanaan dan alokasi dana
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+            {pageDesc}
           </Text>
         </div>
         

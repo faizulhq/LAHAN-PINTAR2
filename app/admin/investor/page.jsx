@@ -15,7 +15,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import {
   getInvestors, createInvestor, updateInvestor, deleteInvestor
 } from '@/lib/api/investor';
-import { getAvailableUsersForInvestor } from '@/lib/api/user'; // NEW IMPORT
+import { getAvailableUsersForInvestor } from '@/lib/api/user';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -38,7 +38,6 @@ function InvestorManagementContent() {
     queryFn: getInvestors,
   });
 
-  // NEW: Fetch available users untuk dropdown (hanya saat create)
   const { data: availableUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['availableUsersForInvestor'],
     queryFn: getAvailableUsersForInvestor,
@@ -296,14 +295,17 @@ function InvestorManagementContent() {
                 showSearch
                 optionFilterProp="children"
                 filterOption={(input, option) =>
-                  option.children.toLowerCase().includes(input.toLowerCase())
+                   String(option.children).toLowerCase().includes(input.toLowerCase())
                 }
               >
-                {availableUsers?.map(user => (
-                  <Option key={user.id} value={user.id}>
-                    {user.username} ({user.email}) - {user.role}
-                  </Option>
-                ))}
+                {availableUsers?.map(user => {
+                    const roleName = user.role?.name || user.role || 'No Role';
+                    return (
+                        <Option key={user.id} value={user.id}>
+                           {`${user.username} (${user.email}) - ${roleName}`}
+                        </Option>
+                    );
+                })}
               </Select>
             </Form.Item>
           )}

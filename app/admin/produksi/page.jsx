@@ -495,9 +495,22 @@ function ProductionManagementContent() {
   // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
+  
   const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
-  // Operator & Admin boleh Edit
-  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
+  const isOperator = userRole === 'Operator';
+  const canEdit = isAdmin || isOperator;
+
+  // [LOGIKA JUDUL DINAMIS]
+  let titleText = "Laporan Hasil Produksi";
+  let subText = "Pantau hasil panen dan nilai produksi dari aset.";
+
+  if (isAdmin) {
+    titleText = "Manajemen Produksi";
+    subText = "Kelola data hasil panen dan validasi nilai produksi.";
+  } else if (isOperator) {
+    titleText = "Catatan Produksi";
+    subText = "Input hasil panen harian dari lahan atau ternak.";
+  }
 
   const statsParams = useMemo(() => ({
     asset: selectedAsset === 'all' ? undefined : selectedAsset,
@@ -575,44 +588,33 @@ function ProductionManagementContent() {
         marginBottom: '24px',
       }}>
         <div>
-          <Title level={2} style={{ 
-            margin: 0, 
-            color: '#111928',
-            fontWeight: 700,
-            fontSize: '30px',
-            lineHeight: '125%',
-          }}>
-            Manajemen Produksi
+          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>
+            {titleText}
           </Title>
-          <Text style={{ 
-            fontSize: '16px',
-            fontWeight: 500,
-            color: '#727272',
-            lineHeight: '19px',
-          }}>
-            Kelola hasil produksi ternak dan lahan
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+            {subText}
           </Text>
         </div>
         
-        {/* [RBAC] Tombol Tambah hanya jika canEdit */}
+        {/* Tombol Tambah */}
         {canEdit && (
-          <Button
-            type="primary"
-            icon={<PlusCircleOutlined />}
-            size="large"
-            style={{ 
-              backgroundColor: '#237804', 
-              borderColor: '#237804', 
-              borderRadius: '24px',
-              height: '40px',
-              padding: '8px 16px',
-              boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-              fontSize: '16px',
-            }}
-            onClick={showAddModal}
-          >
-            Tambah Produksi
-          </Button>
+           <Button
+             type="primary"
+             icon={<PlusCircleOutlined />}
+             size="large"
+             style={{ 
+               backgroundColor: '#237804', 
+               borderColor: '#237804', 
+               borderRadius: '24px', 
+               height: '40px', 
+               padding: '8px 16px', 
+               boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)', 
+               fontSize: '16px', 
+             }}
+             onClick={showAddModal}
+           >
+             Tambah Produksi
+           </Button>
         )}
       </div>
 
