@@ -1,6 +1,7 @@
 // Di app/admin/proyek/page.jsx
 'use client';
 import React, { useState, useMemo } from 'react';
+import { useRouter } from 'next/navigation'; // TAMBAH INI
 import {
   Button,
   Modal,
@@ -34,7 +35,7 @@ import {
   updateProject,
   deleteProject,
 } from '@/lib/api/project';
-import { getAssets } from '@/lib/api/asset'; // IMPORT BARU
+import { getAssets } from '@/lib/api/asset';
 import { BsCalculatorFill } from 'react-icons/bs';
 import { BiSolidCalendar } from 'react-icons/bi';
 import { MdLocationPin } from 'react-icons/md';
@@ -55,11 +56,10 @@ const formatDate = (dateString) => {
 };
 
 function ProjectManagementContent() {
+  const router = useRouter(); 
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState(null);
-  const [detailProject, setDetailProject] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAsset, setFilterAsset] = useState('all');
   const [filterType, setFilterType] = useState('all');
@@ -71,7 +71,7 @@ function ProjectManagementContent() {
     queryFn: getProjects,
   });
 
-  // --- FETCH ASSETS (BARU) ---
+  // Fetch Assets
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets,
@@ -131,25 +131,20 @@ function ProjectManagementContent() {
       description: project.description,
       dates: [moment(project.start_date), moment(project.end_date)],
       budget: parseFloat(project.budget),
-      asset: project.asset, // TAMBAH FIELD ASSET
+      asset: project.asset,
     });
     setIsModalOpen(true);
   };
 
-  const showDetailModal = (project) => {
-    setDetailProject(project);
-    setIsDetailModalOpen(true);
+  // TAMBAH FUNGSI INI (menggantikan showDetailModal)
+  const handleGoToDetail = (projectId) => {
+    router.push(`/admin/proyek/${projectId}`);
   };
 
   const handleCancel = () => {
     setIsModalOpen(false);
     setEditingProject(null);
     form.resetFields();
-  };
-
-  const handleDetailCancel = () => {
-    setIsDetailModalOpen(false);
-    setDetailProject(null);
   };
 
   const handleFormSubmit = (values) => {
@@ -159,7 +154,7 @@ function ProjectManagementContent() {
       start_date: values.dates[0].format('YYYY-MM-DD'),
       end_date: values.dates[1].format('YYYY-MM-DD'),
       budget: values.budget,
-      asset: values.asset, // KIRIM FIELD ASSET KE BACKEND
+      asset: values.asset,
     };
 
     if (editingProject) {
@@ -175,7 +170,7 @@ function ProjectManagementContent() {
       const matchSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          project.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAsset = filterAsset === 'all' || project.asset === parseInt(filterAsset);
-      
+     
       return matchSearch && matchAsset;
     });
   }, [projects, searchTerm, filterAsset]);
@@ -191,7 +186,7 @@ function ProjectManagementContent() {
       {/* Page Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <div>
-          <Title level={2} style={{ margin: 0, color: '#111928', fontFamily: 'Inter, sans-serif', fontWeight: 600, fontSize: '30px' }}>
+          <Title level={2} style={{ margin: 0, color: '#111928', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '30px' }}>
             Manajemen Proyek
           </Title>
           <Text type="secondary" style={{ fontSize: '14px', color: '#6B7280' }}>
@@ -271,7 +266,7 @@ function ProjectManagementContent() {
 
       {/* Pencarian & Filter */}
       <Card style={{ marginBottom: 24, borderRadius: '8px' }}>
-        <Text 
+        <Text
           style={{
             fontFamily: 'Inter',
             fontWeight: 500,
@@ -334,7 +329,7 @@ function ProjectManagementContent() {
                   border: '1px solid #E5E7EB',
                   boxShadow: '0px 2px 4px -2px rgba(0, 0, 0, 0.05), 0px 4px 6px -1px rgba(0, 0, 0, 0.1)',
                 }}
-                styles={{ 
+                styles={{
                   padding: '4px 4px 16px 4px',
                   height: '100%',
                   display: 'flex',
@@ -342,12 +337,12 @@ function ProjectManagementContent() {
                 }}
               >
                 <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Title level={5} style={{ 
-                    margin: 0, 
-                    marginBottom: 8, 
-                    color: '#111928', 
-                    fontSize: '16px', 
-                    fontWeight: 600 
+                  <Title level={5} style={{
+                    margin: 0,
+                    marginBottom: 8,
+                    color: '#111928',
+                    fontSize: '16px',
+                    fontWeight: 600
                   }}>
                     {project.name}
                   </Title>
@@ -369,6 +364,7 @@ function ProjectManagementContent() {
                     </Text>
                   </Flex>
                   <Flex gap={8} style={{ marginTop: 16 }}>
+                    {/* UBAH onClick BUTTON DETAIL INI */}
                     <Button
                       style={{
                         flex: 1,
@@ -377,7 +373,7 @@ function ProjectManagementContent() {
                         color: '#237804',
                         fontWeight: 500,
                       }}
-                      onClick={() => showDetailModal(project)}
+                      onClick={() => handleGoToDetail(project.id)}
                     >
                       Detail
                     </Button>
@@ -433,7 +429,6 @@ function ProjectManagementContent() {
             <Input placeholder="Masukkan nama proyek" size="large" />
           </Form.Item>
 
-          {/* FORM ITEM ASSET (BARU) */}
           <Form.Item
             name="asset"
             label="Aset Terkait"
@@ -498,57 +493,7 @@ function ProjectManagementContent() {
         </Form>
       </Modal>
 
-      {/* Modal Detail Proyek */}
-      <Modal
-        title="Detail Proyek"
-        open={isDetailModalOpen}
-        onCancel={handleDetailCancel}
-        footer={[
-          <Button key="close" onClick={handleDetailCancel}>
-            Tutup
-          </Button>,
-        ]}
-        width={600}
-      >
-        {detailProject && (
-          <div style={{ padding: '16px 0' }}>
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <div>
-                <Text strong style={{ color: '#6B7280' }}>Nama Proyek</Text>
-                <Title level={4} style={{ margin: '4px 0', color: '#111928' }}>
-                  {detailProject.name}
-                </Title>
-              </div>
-              <div>
-                <Text strong style={{ color: '#6B7280' }}>Deskripsi</Text>
-                <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
-                  {detailProject.description}
-                </Text>
-              </div>
-              <Row gutter={16}>
-                <Col span={12}>
-                  <Text strong style={{ color: '#6B7280' }}>Tanggal Mulai</Text>
-                  <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
-                    {formatDate(detailProject.start_date)}
-                  </Text>
-                </Col>
-                <Col span={12}>
-                  <Text strong style={{ color: '#6B7280' }}>Tanggal Selesai</Text>
-                  <Text style={{ display: 'block', marginTop: 4, color: '#374151' }}>
-                    {formatDate(detailProject.end_date)}
-                  </Text>
-                </Col>
-              </Row>
-              <div>
-                <Text strong style={{ color: '#6B7280' }}>Anggaran</Text>
-                <Title level={3} style={{ margin: '4px 0', color: '#237804' }}>
-                  {formatRupiah(detailProject.budget)}
-                </Title>
-              </div>
-            </Space>
-          </div>
-        )}
-      </Modal>
+      {/* HAPUS MODAL DETAIL PROYEK - TIDAK DIPAKAI LAGI */}
     </div>
   );
 }
