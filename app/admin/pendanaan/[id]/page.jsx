@@ -1,12 +1,12 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card, Button, Typography, Space, Tag, Flex, Spin, Alert, Descriptions, Row, Col,
-  Modal, Form, Input, Select, DatePicker, InputNumber, message,
+  Modal, Form, Input, Select, DatePicker, InputNumber, message, Popconfirm
 } from 'antd';
 import {
-  ArrowLeftOutlined, EditOutlined, PlusOutlined,
+  ArrowLeftOutlined, EditOutlined, PlusOutlined, DeleteOutlined,
   UserOutlined, PhoneOutlined, BankOutlined,
   InfoCircleOutlined,
 } from '@ant-design/icons';
@@ -27,6 +27,7 @@ import {
 import {
   getFunding,
   updateFunding,
+  deleteFunding, // Import deleteFunding
   createFunding,
 } from '@/lib/api/funding';
 
@@ -137,9 +138,65 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
   </Card>
 );
 
-// ... (Modal FundingSourceFormModal dan FundingModal - Sama seperti file page.jsx) ...
-// Anda bisa memisahkan Modal ke file components sendiri agar reusable, tapi untuk sekarang
-// Anda bisa copy-paste modal yang sama dari file page.jsx ke sini jika ingin fitur Edit di halaman detail.
+// =================================================================
+// === MODAL EDIT (Disisipkan dari List Page) ===
+// =================================================================
+const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceModal }) => {
+  const queryClient = useQueryClient();
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: getProjects });
+  const { data: sources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
+  
+  const mutation = useMutation({ 
+      mutationFn: (vals) => updateFunding({ id: initialData.id, fundingData: vals }), 
+      onSuccess: () => { 
+          message.success('Pendanaan diperbarui'); 
+          queryClient.invalidateQueries({ queryKey: ['funding'] }); 
+          onClose(); 
+      },
+      onError: (err) => message.error(`Gagal: ${err.message}`)
+  });
+  
+  const onFinish = (v) => mutation.mutate({ ...v, date_received: v.date_received.format('YYYY-MM-DD') });
+
+  return (
+    <Modal title="Edit Pendanaan" open={visible} onCancel={onClose} footer={null} width={700} centered destroyOnClose>
+       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{...initialData, date_received: moment(initialData?.date_received)}} style={{marginTop: 24}}>
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="project" label="Proyek" rules={[{required:true}]}><Select showSearch optionFilterProp="children">{projects?.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}</Select></Form.Item></Col>
+            <Col span={12}>
+                <Form.Item label="Sumber Dana">
+                    <Space.Compact block>
+                        <Form.Item name="source" noStyle rules={[{required:true}]}><Select showSearch optionFilterProp="children">{sources?.map(s => <Option key={s.id} value={s.id}>{s.name}</Option>)}</Select></Form.Item>
+                        <Button icon={<PlusOutlined />} onClick={handleShowSourceModal}/>
+                    </Space.Compact>
+                </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}><Form.Item name="amount" label="Jumlah (Rp)" rules={[{required:true}]}><InputNumber style={{width: '100%'}} formatter={v => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={v => v.replace(/,/g, '')}/></Form.Item></Col>
+            <Col span={12}><Form.Item name="date_received" label="Tanggal" rules={[{required:true}]}><DatePicker style={{width: '100%'}} /></Form.Item></Col>
+          </Row>
+          <Form.Item name="purpose" label="Tujuan"><Input.TextArea /></Form.Item>
+          <Form.Item name="status" label="Status"><Select><Option value="available">Tersedia</Option><Option value="allocated">Dialokasikan</Option><Option value="used">Digunakan</Option></Select></Form.Item>
+          <Form.Item style={{textAlign:'right', marginBottom: 0}}><Space style={{ width: '100%', justifyContent: 'flex-end' }}><Button onClick={onClose}>Batal</Button><Button type="primary" htmlType="submit" loading={mutation.isPending}>Simpan Perubahan</Button></Space></Form.Item>
+       </Form>
+    </Modal>
+  );
+};
+
+// =================================================================
+// === MODAL ADD SOURCE (Disisipkan dari List Page) ===
+// =================================================================
+const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
+    <Modal title="Tambah Sumber Dana" open={open} onCancel={onCancel} footer={null} destroyOnClose>
+      <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
+        <Form.Item name="name" label="Nama" rules={[{ required: true }]}><Input /></Form.Item>
+        <Form.Item name="type" label="Tipe" rules={[{ required: true }]}><Select>{Object.entries(SOURCE_TYPE_MAP).map(([k, v]) => <Option key={k} value={k}>{v}</Option>)}</Select></Form.Item>
+        <Form.Item name="contact_info" label="Kontak"><Input.TextArea /></Form.Item>
+        <Form.Item style={{ textAlign: 'right', marginBottom: 0 }}><Space style={{ width: '100%', justifyContent: 'flex-end' }}><Button onClick={onCancel}>Batal</Button><Button type="primary" htmlType="submit" loading={isSubmitting}>Simpan</Button></Space></Form.Item>
+      </Form>
+    </Modal>
+);
 
 // =================================================================
 // === MAIN COMPONENT ===
@@ -151,7 +208,9 @@ function FundingDetailContent() {
   const fundingId = params.id;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [sourceForm] = Form.useForm();
 
   // [RBAC] Check Role
   const user = useAuthStore((state) => state.user);
@@ -164,15 +223,34 @@ function FundingDetailContent() {
     enabled: !!fundingId,
   });
 
+  // DELETE MUTATION
+  const deleteMutation = useMutation({ 
+      mutationFn: deleteFunding, 
+      onSuccess: () => { message.success('Dihapus'); router.push('/admin/pendanaan'); },
+      onError: (err) => message.error(`Gagal menghapus: ${err.message}`)
+  });
+
+  // CREATE SOURCE MUTATION
+  const createSourceMutation = useMutation({ 
+      mutationFn: createFundingSource, 
+      onSuccess: (ns) => { message.success('Sumber ditambahkan'); queryClient.invalidateQueries({ queryKey: ['fundingSources'] }); setIsSourceModalOpen(false); form.setFieldsValue({ source: ns.id }); }
+  });
+
   const handleBack = () => {
     router.push('/admin/pendanaan');
   };
 
   const handleEdit = () => {
-    // Implementasi logika edit (buka modal)
-    // Anda perlu menyalin FundingModal ke file ini atau import dari components terpisah
-    message.info("Fitur edit dari detail page (implementasi sama dengan list page)");
+    setIsModalOpen(true);
   };
+
+  const handleDelete = () => {
+    deleteMutation.mutate(funding.id);
+  };
+
+  const handleShowSourceModal = () => setIsSourceModalOpen(true);
+  const handleCancelSourceModal = () => { setIsSourceModalOpen(false); sourceForm.resetFields(); };
+  const handleSourceFormSubmit = (values) => createSourceMutation.mutate(values);
 
   if (isLoadingFunding) {
     return (
@@ -240,23 +318,35 @@ function FundingDetailContent() {
           </div>
         </Flex>
         
-        {/* [RBAC] Tombol Edit disembunyikan */}
+        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            size="large"
-            style={{ 
-              backgroundColor: '#237804', 
-              borderRadius: '24px', 
-              height: 'auto', 
-              padding: '8px 16px', 
-              fontSize: '16px' 
-            }}
-            onClick={handleEdit}
-          >
-            Edit Pendanaan
-          </Button>
+          <Space>
+             <Popconfirm 
+                title="Hapus Pendanaan?" 
+                description="Yakin hapus data ini?" 
+                onConfirm={handleDelete} 
+                okText="Ya, Hapus" 
+                cancelText="Batal" 
+                okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+             >
+                <Button danger icon={<DeleteOutlined />} size="large" style={{ borderRadius: 24 }}>Hapus</Button>
+             </Popconfirm>
+             <Button
+                type="primary"
+                icon={<EditOutlined />}
+                size="large"
+                style={{ 
+                  backgroundColor: '#237804', 
+                  borderRadius: '24px', 
+                  height: 'auto', 
+                  padding: '8px 16px', 
+                  fontSize: '16px' 
+                }}
+                onClick={handleEdit}
+             >
+                Edit Pendanaan
+            </Button>
+          </Space>
         )}
       </Flex>
 
@@ -420,6 +510,9 @@ function FundingDetailContent() {
           </Space>
         </Col>
       </Row>
+
+      {canEdit && <FundingModal visible={isModalOpen} onClose={() => setIsModalOpen(false)} initialData={funding} form={form} handleShowSourceModal={handleShowSourceModal} />}
+      <FundingSourceFormModal open={isSourceModalOpen} form={sourceForm} onCancel={handleCancelSourceModal} onSubmit={handleSourceFormSubmit} isSubmitting={createSourceMutation.isPending} />
     </>
   );
 }

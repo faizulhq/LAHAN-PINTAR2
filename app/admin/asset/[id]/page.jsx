@@ -3,11 +3,11 @@ import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card, Button, Typography, Space, Tag, Flex, Spin, Alert, Descriptions, Row, Col,
-  Modal, Form, Input, Select, DatePicker, InputNumber, Upload, message
+  Modal, Form, Input, Select, DatePicker, InputNumber, Upload, message, Popconfirm
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, DollarCircleFilled, UploadOutlined, PlusOutlined,
-  UserOutlined, PhoneOutlined, BankOutlined
+  UserOutlined, PhoneOutlined, BankOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import { MdLocationPin } from 'react-icons/md';
 import { TbArrowsMaximize } from 'react-icons/tb';
@@ -15,8 +15,8 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
-import { getAssets, getOwners, updateAsset, createOwner } from '@/lib/api/asset';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC]
+import { getAssets, getOwners, updateAsset, createOwner, deleteAsset } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -119,8 +119,12 @@ const AssetFormModal = ({
     footer={null}
     width={600}
     zIndex={1000}
+    destroyOnClose
   >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
+    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }} initialValues={{
+        ...asset,
+        acquisition_date: asset?.acquisition_date ? moment(asset.acquisition_date) : null
+    }}>
       <Form.Item label="Nama Aset" name="name" rules={[{ required: true, message: 'Nama aset wajib diisi' }]}>
         <Input placeholder="Masukkan nama aset" />
       </Form.Item>
@@ -137,19 +141,24 @@ const AssetFormModal = ({
         <Input placeholder="Masukkan lokasi" />
       </Form.Item>
 
-      <Form.Item label="Ukuran (m²)" name="size" rules={[{ required: true, message: 'Ukuran wajib diisi' }]}>
-        <InputNumber style={{ width: '100%' }} placeholder="Masukkan ukuran" min={0} />
-      </Form.Item>
-
-      <Form.Item label="Nilai (Rp)" name="value" rules={[{ required: true, message: 'Nilai wajib diisi' }]}>
-        <InputNumber 
-          style={{ width: '100%' }} 
-          placeholder="Masukkan nilai" 
-          min={0}
-          formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
-        />
-      </Form.Item>
+      <Row gutter={16}>
+        <Col span={12}>
+          <Form.Item label="Ukuran (m²)" name="size" rules={[{ required: true, message: 'Ukuran wajib diisi' }]}>
+            <InputNumber style={{ width: '100%' }} placeholder="Masukkan ukuran" min={0} />
+          </Form.Item>
+        </Col>
+        <Col span={12}>
+          <Form.Item label="Nilai (Rp)" name="value" rules={[{ required: true, message: 'Nilai wajib diisi' }]}>
+            <InputNumber 
+              style={{ width: '100%' }} 
+              placeholder="Masukkan nilai" 
+              min={0}
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
+            />
+          </Form.Item>
+        </Col>
+      </Row>
 
       <Form.Item label="Tanggal Akuisisi" name="acquisition_date" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
         <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
@@ -174,6 +183,14 @@ const AssetFormModal = ({
           loading={isLoadingOwners}
           showSearch
           optionFilterProp="children"
+          dropdownRender={menu => (
+            <>
+              {menu}
+              <Button type="link" block icon={<PlusOutlined />} onClick={onAddOwner}>
+                Tambah Pemilik Baru
+              </Button>
+            </>
+          )}
         >
           {owners?.map(owner => (
             <Option key={owner.id} value={owner.id}>
@@ -182,15 +199,6 @@ const AssetFormModal = ({
           ))}
         </Select>
       </Form.Item>
-
-      <Button 
-        type="link" 
-        icon={<PlusOutlined />} 
-        onClick={onAddOwner} 
-        style={{ paddingLeft: 0, marginTop: '-16px', marginBottom: '16px' }}
-      >
-        Tambah Pemilik Lahan Baru
-      </Button>
 
       <Form.Item 
         label="% Bagi Hasil Pemilik" 
@@ -219,11 +227,11 @@ const AssetFormModal = ({
         />
       </Form.Item>
 
-      <Form.Item>
+      <Form.Item style={{marginBottom: 0}}>
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting}>
-            Perbarui
+          <Button type="primary" htmlType="submit" loading={isSubmitting} style={{background: '#237804'}}>
+            Simpan Perubahan
           </Button>
         </Space>
       </Form.Item>
@@ -250,7 +258,7 @@ function AssetDetailContent() {
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
   // Data Fetching
-  const { data: assets, isLoading: isLoadingAssets, isError, error } = useQuery({
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets,
   });
@@ -281,6 +289,18 @@ function AssetDetailContent() {
     }
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: deleteAsset,
+    onSuccess: () => {
+      message.success('Aset berhasil dihapus');
+      queryClient.invalidateQueries({ queryKey: ['assets'] });
+      router.push('/admin/asset');
+    },
+    onError: (err) => {
+      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus aset'}`);
+    }
+  });
+
   const createOwnerMutation = useMutation({
     mutationFn: createOwner,
     onSuccess: (newOwner) => {
@@ -291,365 +311,132 @@ function AssetDetailContent() {
       form.setFieldsValue({ landowner: newOwner.id });
     },
     onError: (err) => {
-      let errorMsg = 'Gagal menambahkan pemilik.';
-      if (err.response?.data) {
-        const errors = err.response.data;
-        const firstKey = Object.keys(errors)[0];
-        if (firstKey && Array.isArray(errors[firstKey])) {
-          errorMsg = `${errors[firstKey][0]}`;
-        } else if (errors.detail) {
-          errorMsg = errors.detail;
-        }
-      } else {
-        errorMsg = err.message;
-      }
-      message.error(`Error: ${errorMsg}`);
+      message.error('Gagal menambahkan pemilik');
     }
   });
 
   // Handlers
-  const handleBack = () => {
-    router.push('/admin/asset');
-  };
-
   const handleEdit = () => {
     if (!asset) return;
-    
     form.setFieldsValue({
-      name: asset.name,
-      type: asset.type,
-      location: asset.location,
-      size: asset.size,
-      value: asset.value,
-      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
-      ownership_status: asset.ownership_status,
-      landowner: asset.landowner,
-      landowner_share_percentage: asset.landowner_share_percentage || 10,
-      document_url: asset.document_url || '',
+      ...asset,
+      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null
     });
     setIsModalOpen(true);
   };
 
-  const handleModalCancel = () => {
-    setIsModalOpen(false);
-    form.resetFields();
-  };
-
-  const handleFormSubmit = async (values) => {
+  const handleFormSubmit = (values) => {
     const formData = {
       ...values,
       acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
     };
-    
-    if (!formData.landowner) {
-      formData.landowner = null;
-    }
-
+    if (!formData.landowner) formData.landowner = null;
     updateMutation.mutate({ id: asset.id, data: formData });
   };
 
-  const handleShowOwnerModal = () => {
-    setIsOwnerModalOpen(true);
+  const handleDelete = () => {
+    deleteMutation.mutate(asset.id);
   };
 
-  const handleCancelOwnerModal = () => {
-    setIsOwnerModalOpen(false);
-    ownerForm.resetFields();
-  };
-
-  const handleOwnerFormSubmit = (values) => {
-    createOwnerMutation.mutate(values);
-  };
+  const handleShowOwnerModal = () => setIsOwnerModalOpen(true);
+  const handleCancelOwnerModal = () => setIsOwnerModalOpen(false);
+  const handleOwnerFormSubmit = (values) => createOwnerMutation.mutate(values);
 
   // Render Loading
-  if (isLoading) {
-    return (
-      <div style={{ textAlign: 'center', padding: 50 }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  // Render Error
-  if (isError) {
-    return (
-      <Alert 
-        message="Error Memuat Data" 
-        description={error?.message || 'Gagal memuat data aset'} 
-        type="error" 
-        showIcon 
-      />
-    );
-  }
-
+  if (isLoading) return <div style={{ textAlign: 'center', padding: 50 }}><Spin size="large" /></div>;
+  
   // Render Not Found
-  if (!asset) {
-    return (
-      <Alert 
-        message="Aset Tidak Ditemukan" 
-        description="Aset yang Anda cari tidak tersedia" 
-        type="warning" 
-        showIcon 
-      />
-    );
-  }
+  if (!asset) return <Alert message="Aset Tidak Ditemukan" type="warning" showIcon />;
 
   return (
-    <>
+    <div style={{ padding: 24 }}>
       {/* Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <Flex align="center" gap={16}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
-            onClick={handleBack}
-            style={{ 
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-            }}
-          />
+          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/admin/asset')} style={{ border: '1px solid #E5E7EB', borderRadius: '8px' }} />
           <div>
-            <Title level={2} style={{ 
-              margin: 0, 
-              color: '#111928',
-              fontWeight: 700,
-              fontSize: '30px',
-              lineHeight: '125%',
-            }}>
-              Detail Aset
-            </Title>
-            <Text style={{ 
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#727272',
-              lineHeight: '19px', 
-            }}>
-              Informasi lengkap mengenai aset
-            </Text>
+            <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>Detail Aset</Title>
+            <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>Informasi lengkap mengenai aset</Text>
           </div>
         </Flex>
         
-        {/* [RBAC] Tombol Edit disembunyikan untuk Investor/Viewer */}
+        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            size="large"
-            style={{ 
-              backgroundColor: '#237804', 
-              borderRadius: '24px', 
-              height: 'auto', 
-              padding: '8px 16px', 
-              fontSize: '16px' 
-            }}
-            onClick={handleEdit}
-            loading={updateMutation.isPending}
-          >
-            Edit Aset
-          </Button>
+          <Space>
+             <Popconfirm
+                title="Hapus Aset?"
+                description="Data yang dihapus tidak dapat dikembalikan."
+                onConfirm={handleDelete}
+                okText="Ya, Hapus"
+                cancelText="Batal"
+                okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+             >
+                <Button danger icon={<DeleteOutlined />} size="large" style={{ borderRadius: 24 }}>Hapus</Button>
+             </Popconfirm>
+             <Button
+                type="primary"
+                icon={<EditOutlined />}
+                size="large"
+                style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+                onClick={handleEdit}
+            >
+                Edit Aset
+            </Button>
+          </Space>
         )}
       </Flex>
 
       {/* Main Content */}
       <Row gutter={[24, 24]}>
-        {/* Left Column - Main Info */}
         <Col xs={24} lg={16}>
-          <Card 
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '12px',
-              boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-              marginBottom: 24,
-            }}
-          >
+          <Card style={{ border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)', marginBottom: 24 }}>
             <Flex justify="space-between" align="start" style={{ marginBottom: 24 }}>
               <div>
-                <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-                  {asset.name}
-                </Title>
-                <Tag 
-                  color={typeProps.color}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                  }}
-                >
-                  {typeProps.text}
-                </Tag>
+                <Title level={3} style={{ margin: 0, marginBottom: 8 }}>{asset.name}</Title>
+                <Tag color={typeProps.color} style={{ padding: '4px 10px', borderRadius: '6px', fontWeight: 600, fontSize: '14px' }}>{typeProps.text}</Tag>
               </div>
-              <Text style={{ 
-                fontWeight: 600,
-                fontSize: '24px',
-                color: '#7CB305',
-              }}>
-                {formatRupiah(asset.value)}
-              </Text>
+              <Text style={{ fontWeight: 600, fontSize: '24px', color: '#7CB305' }}>{formatRupiah(asset.value)}</Text>
             </Flex>
 
             <Space direction="vertical" style={{ width: '100%' }} size={16}>
-              <Flex align="center" gap={12}>
-                <MdLocationPin style={{ color: '#CF1322', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Lokasi
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {asset.location}
-                  </Text>
-                </div>
-              </Flex>
-
-              <Flex align="center" gap={12}>
-                <TbArrowsMaximize style={{ color: '#D46B08', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Ukuran
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {asset.size} m²
-                  </Text>
-                </div>
-              </Flex>
-
-              <Flex align="center" gap={12}>
-                <BiSolidCalendar style={{ color: '#531DAB', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Tanggal Akuisisi
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {formatDate(asset.acquisition_date)}
-                  </Text>
-                </div>
-              </Flex>
+              <Flex align="center" gap={12}><MdLocationPin style={{ color: '#CF1322', fontSize: '24px' }} /><div><Text style={{ fontSize: '12px', color: '#6B7280' }}>Lokasi</Text><Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>{asset.location}</Text></div></Flex>
+              <Flex align="center" gap={12}><TbArrowsMaximize style={{ color: '#D46B08', fontSize: '24px' }} /><div><Text style={{ fontSize: '12px', color: '#6B7280' }}>Ukuran</Text><Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>{asset.size} m²</Text></div></Flex>
+              <Flex align="center" gap={12}><BiSolidCalendar style={{ color: '#531DAB', fontSize: '24px' }} /><div><Text style={{ fontSize: '12px', color: '#6B7280' }}>Tanggal Akuisisi</Text><Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>{formatDate(asset.acquisition_date)}</Text></div></Flex>
             </Space>
           </Card>
 
-          {/* Detail Information */}
-          <Card 
-            title="Informasi Detail"
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '12px',
-              boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-            }}
-          >
+          <Card title="Informasi Detail" style={{ border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
             <Descriptions bordered column={1} size="middle">
-              <Descriptions.Item label="Status Kepemilikan">
-                <Text style={{ fontWeight: 500 }}>
-                  {OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Pemilik Lahan">
-                <Text style={{ fontWeight: 500 }}>
-                  {owner?.nama || '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Kontak Pemilik">
-                <Text style={{ fontWeight: 500 }}>
-                  {owner?.kontak || '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="% Bagi Hasil Pemilik">
-                <Text style={{ fontWeight: 500, color: '#7CB305' }}>
-                  {asset.landowner_share_percentage ? `${asset.landowner_share_percentage}%` : '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Dokumen">
-                {asset.document_url ? (
-                  <a 
-                    href={asset.document_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ fontWeight: 500, color: '#1890ff' }}
-                  >
-                    {asset.document_url.split('/').pop() || 'Lihat Dokumen'}
-                  </a>
-                ) : (
-                  <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>
-                )}
-              </Descriptions.Item>
+              <Descriptions.Item label="Status Kepemilikan"><Text style={{ fontWeight: 500 }}>{OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}</Text></Descriptions.Item>
+              <Descriptions.Item label="Pemilik Lahan"><Text style={{ fontWeight: 500 }}>{owner?.nama || '-'}</Text></Descriptions.Item>
+              <Descriptions.Item label="Kontak Pemilik"><Text style={{ fontWeight: 500 }}>{owner?.kontak || '-'}</Text></Descriptions.Item>
+              <Descriptions.Item label="% Bagi Hasil Pemilik"><Text style={{ fontWeight: 500, color: '#7CB305' }}>{asset.landowner_share_percentage ? `${asset.landowner_share_percentage}%` : '-'}</Text></Descriptions.Item>
+              <Descriptions.Item label="Dokumen">{asset.document_url ? <a href={asset.document_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500, color: '#1890ff' }}>Lihat Dokumen</a> : <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>}</Descriptions.Item>
             </Descriptions>
           </Card>
         </Col>
 
-        {/* Right Column - Stats */}
         <Col xs={24} lg={8}>
           <Space direction="vertical" style={{ width: '100%' }} size={24}>
-            <InfoCard
-              icon={<DollarCircleFilled />}
-              label="Total Investasi"
-              value={formatRupiah(asset.total_investment || 0)}
-              iconColor="#7CB305"
-            />
-            
-            <InfoCard
-              icon={<TbArrowsMaximize />}
-              label="Luas Total"
-              value={`${asset.size} m²`}
-              iconColor="#D46B08"
-            />
-
-            <Card 
-              title="Informasi Tambahan"
-              style={{
-                border: '1px solid #E5E7EB',
-                borderRadius: '12px',
-                boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-              }}
-            >
+            <InfoCard icon={<DollarCircleFilled />} label="Total Investasi" value={formatRupiah(asset.total_investment || 0)} iconColor="#7CB305" />
+            <InfoCard icon={<TbArrowsMaximize />} label="Luas Total" value={`${asset.size} m²`} iconColor="#D46B08" />
+            <Card title="Informasi Tambahan" style={{ border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>ID Aset</Text>
-                  <Text style={{ fontWeight: 600 }}>#{asset.id}</Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>Tipe</Text>
-                  <Text style={{ fontWeight: 600 }}>{typeProps.text}</Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>Status</Text>
-                  <Tag color="green">Aktif</Tag>
-                </Flex>
+                <Flex justify="space-between"><Text style={{ color: '#6B7280' }}>ID Aset</Text><Text style={{ fontWeight: 600 }}>#{asset.id}</Text></Flex>
+                <Flex justify="space-between"><Text style={{ color: '#6B7280' }}>Tipe</Text><Text style={{ fontWeight: 600 }}>{typeProps.text}</Text></Flex>
+                <Flex justify="space-between"><Text style={{ color: '#6B7280' }}>Status</Text><Tag color="green">Aktif</Tag></Flex>
               </Space>
             </Card>
           </Space>
         </Col>
       </Row>
 
-      {/* Edit Modal (Hanya render jika canEdit untuk keamanan tambahan) */}
-      {canEdit && (
-        <AssetFormModal
-          open={isModalOpen}
-          asset={asset}
-          form={form}
-          owners={owners}
-          isLoadingOwners={isLoadingOwners}
-          onCancel={handleModalCancel}
-          onSubmit={handleFormSubmit}
-          isSubmitting={updateMutation.isPending}
-          onAddOwner={handleShowOwnerModal}
-        />
-      )}
-
-      {/* Owner Modal */}
-      <OwnerFormModal
-        open={isOwnerModalOpen}
-        form={ownerForm}
-        onCancel={handleCancelOwnerModal}
-        onSubmit={handleOwnerFormSubmit}
-        isSubmitting={createOwnerMutation.isPending}
-      />
-    </>
+      {canEdit && <AssetFormModal open={isModalOpen} asset={asset} form={form} owners={owners} isLoadingOwners={isLoadingOwners} onCancel={() => setIsModalOpen(false)} onSubmit={handleFormSubmit} isSubmitting={updateMutation.isPending} onAddOwner={handleShowOwnerModal} />}
+      <OwnerFormModal open={isOwnerModalOpen} form={ownerForm} onCancel={handleCancelOwnerModal} onSubmit={handleOwnerFormSubmit} isSubmitting={createOwnerMutation.isPending} />
+    </div>
   );
 }
 
 export default function AssetDetailPage() {
-  return (
-    // [RBAC] Operator tidak boleh akses
-    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
-      <AssetDetailContent />
-    </ProtectedRoute>
-  );
+  return <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}><AssetDetailContent /></ProtectedRoute>;
 }

@@ -16,7 +16,7 @@ import { BsBox2Fill } from 'react-icons/bs';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC]
+import useAuthStore from '@/lib/store/authStore';
 import {
   getProduction, patchProduction, deleteProduction
 } from '@/lib/api/production';
@@ -59,10 +59,10 @@ const getAssetTypeProps = (type) => {
 };
 
 // =================================================================
-// === KOMPONEN INFO CARD (Style dari detail Aset) ===
+// === KOMPONEN INFO CARD ===
 // =================================================================
 const InfoCard = ({ icon, label, value, iconColor }) => (
-  <Card 
+  <Card
     style={{
       border: '1px solid #E5E7EB',
       borderRadius: '12px',
@@ -86,15 +86,14 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
 );
 
 // =================================================================
-// === KOMPONEN MODAL EDIT (Diambil dari production/page.jsx) ===
+// === KOMPONEN MODAL EDIT ===
 // =================================================================
-const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadingAssets, isAdmin }) => {
+const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadingAssets }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isEditMode = Boolean(initialData);
 
-  const updateMutation = useMutation({ 
-    mutationFn: ({ id, data }) => patchProduction(id, data), 
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => patchProduction(id, data),
     onSuccess: (data) => {
       message.success('Produksi berhasil diperbarui');
       queryClient.invalidateQueries({ queryKey: ['productions'] });
@@ -110,16 +109,17 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
   });
 
   useEffect(() => {
-    if (visible && isEditMode && initialData) {
+    if (visible && initialData) {
       form.setFieldsValue({
         ...initialData,
         date: moment(initialData.date, 'YYYY-MM-DD'),
         quantity: parseFloat(initialData.quantity),
         unit_price: parseFloat(initialData.unit_price),
         asset: initialData.asset,
+        status: initialData.status, 
       });
     }
-  }, [visible, initialData, form, isEditMode]);
+  }, [visible, initialData, form]);
 
   const onFinish = (values) => {
     setIsSubmitting(true);
@@ -212,18 +212,17 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
           </Col>
         </Row>
 
-        {isAdmin && (
-          <Form.Item
-            name="status"
-            label="Status"
-            rules={[{ required: true, message: 'Status wajib dipilih' }]}
-          >
-            <Select placeholder="Pilih status produksi">
-              <Option value="stok">Stok</Option>
-              <Option value="terjual">Terjual</Option>
-            </Select>
-          </Form.Item>
-        )}
+        {/* [REVISI] Field Status ditampilkan untuk semua yang bisa edit (Operator & Admin) */}
+        <Form.Item
+          name="status"
+          label="Status"
+          rules={[{ required: true, message: 'Status wajib dipilih' }]}
+        >
+          <Select placeholder="Pilih status produksi">
+            <Option value="stok">Stok</Option>
+            <Option value="terjual">Terjual</Option>
+          </Select>
+        </Form.Item>
 
         <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
           <Space>
@@ -259,8 +258,9 @@ function ProductionDetailContent() {
   // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
+  // Admin & Operator bisa edit/delete
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
+  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
 
   const { data: production, isLoading: isLoadingProduction, isError, error } = useQuery({
     queryKey: ['production', productionId],
@@ -268,22 +268,22 @@ function ProductionDetailContent() {
     enabled: !!productionId,
   });
 
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({ 
-    queryKey: ['assets'], 
-    queryFn: getAssets 
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['assets'],
+    queryFn: getAssets
   });
 
-  const deleteMutation = useMutation({ 
-    mutationFn: deleteProduction, 
-    onSuccess: () => { 
-      message.success('Data produksi berhasil dihapus'); 
+  const deleteMutation = useMutation({
+    mutationFn: deleteProduction,
+    onSuccess: () => {
+      message.success('Data produksi berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['productions'] });
       queryClient.invalidateQueries({ queryKey: ['productionStats'] });
       router.push('/admin/produksi');
-    }, 
-    onError: (err) => { 
-      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`); 
-    } 
+    },
+    onError: (err) => {
+      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`);
+    }
   });
 
   const handleBack = () => {
@@ -316,22 +316,22 @@ function ProductionDetailContent() {
 
   if (isError) {
     return (
-      <Alert 
-        message="Error Memuat Data" 
-        description={error?.message || 'Gagal memuat data produksi'} 
-        type="error" 
-        showIcon 
+      <Alert
+        message="Error Memuat Data"
+        description={error?.message || 'Gagal memuat data produksi'}
+        type="error"
+        showIcon
       />
     );
   }
 
   if (!production) {
     return (
-      <Alert 
-        message="Produksi Tidak Ditemukan" 
-        description="Data produksi yang Anda cari tidak tersedia" 
-        type="warning" 
-        showIcon 
+      <Alert
+        message="Produksi Tidak Ditemukan"
+        description="Data produksi yang Anda cari tidak tersedia"
+        type="warning"
+        showIcon
       />
     );
   }
@@ -343,14 +343,14 @@ function ProductionDetailContent() {
     <>
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <Flex align="center" gap={16}>
-          <Button 
-            icon={<ArrowLeftOutlined />} 
+          <Button
+            icon={<ArrowLeftOutlined />}
             onClick={handleBack}
             style={{ border: '1px solid #E5E7EB', borderRadius: '8px' }}
           />
           <div>
-            <Title level={2} style={{ 
-              margin: 0, 
+            <Title level={2} style={{
+              margin: 0,
               color: '#111928',
               fontWeight: 700,
               fontSize: '30px',
@@ -358,11 +358,11 @@ function ProductionDetailContent() {
             }}>
               Detail Produksi
             </Title>
-            <Text style={{ 
+            <Text style={{
               fontSize: '16px',
               fontWeight: 500,
               color: '#727272',
-              lineHeight: '19px', 
+              lineHeight: '19px',
             }}>
               Informasi lengkap mengenai hasil produksi
             </Text>
@@ -372,24 +372,24 @@ function ProductionDetailContent() {
         {/* [RBAC] Tombol Edit & Hapus hanya jika canEdit */}
         {canEdit && (
           <Space>
-            <Popconfirm 
+            <Popconfirm
               key="delete"
-              title="Hapus Produksi?" 
-              description="Yakin hapus data ini?" 
+              title="Hapus Produksi?"
+              description="Yakin hapus data ini?"
               onConfirm={handleDelete}
-              okText="Ya, Hapus" 
-              cancelText="Batal" 
+              okText="Ya, Hapus"
+              cancelText="Batal"
               okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
             >
               <Button
                 danger
                 icon={<DeleteOutlined />}
                 size="large"
-                style={{ 
-                  borderRadius: '24px', 
-                  height: 'auto', 
-                  padding: '8px 16px', 
-                  fontSize: '16px' 
+                style={{
+                  borderRadius: '24px',
+                  height: 'auto',
+                  padding: '8px 16px',
+                  fontSize: '16px'
                 }}
               >
                 Hapus
@@ -399,12 +399,12 @@ function ProductionDetailContent() {
               type="primary"
               icon={<EditOutlined />}
               size="large"
-              style={{ 
-                backgroundColor: '#237804', 
-                borderRadius: '24px', 
-                height: 'auto', 
-                padding: '8px 16px', 
-                fontSize: '16px' 
+              style={{
+                backgroundColor: '#237804',
+                borderRadius: '24px',
+                height: 'auto',
+                padding: '8px 16px',
+                fontSize: '16px'
               }}
               onClick={handleEdit}
             >
@@ -416,7 +416,7 @@ function ProductionDetailContent() {
 
       <Row gutter={[24, 24]}>
         <Col xs={24} lg={16}>
-          <Card 
+          <Card
             style={{
               border: '1px solid #E5E7EB',
               borderRadius: '12px',
@@ -430,25 +430,25 @@ function ProductionDetailContent() {
                   {production.name}
                 </Title>
                 <Space wrap>
-                  <Tag style={{ 
-                    background: assetTypeProps.bgColor, 
-                    color: assetTypeProps.color, 
-                    border: 'none', fontWeight: 600, fontSize: '14px', 
+                  <Tag style={{
+                    background: assetTypeProps.bgColor,
+                    color: assetTypeProps.color,
+                    border: 'none', fontWeight: 600, fontSize: '14px',
                     padding: '4px 10px', borderRadius: '6px'
                   }}>
                     {assetTypeProps.label}
                   </Tag>
-                  <Tag style={{ 
-                    background: statusProps.bgColor, 
-                    color: statusProps.color, 
-                    border: 'none', fontWeight: 600, fontSize: '14px', 
+                  <Tag style={{
+                    background: statusProps.bgColor,
+                    color: statusProps.color,
+                    border: 'none', fontWeight: 600, fontSize: '14px',
                     padding: '4px 10px', borderRadius: '6px'
                   }}>
                     {statusProps.label}
                   </Tag>
                 </Space>
               </div>
-              <Text style={{ 
+              <Text style={{
                 fontWeight: 600,
                 fontSize: '24px',
                 color: '#7CB305',
@@ -484,7 +484,7 @@ function ProductionDetailContent() {
             </Space>
           </Card>
 
-          <Card 
+          <Card
             title="Informasi Rinci"
             style={{
               border: '1px solid #E5E7EB',
@@ -497,9 +497,9 @@ function ProductionDetailContent() {
               <Descriptions.Item label="Aset Terkait">{production.asset_name}</Descriptions.Item>
               <Descriptions.Item label="Tanggal">{formatDate(production.date)}</Descriptions.Item>
               <Descriptions.Item label="Status">
-                <Tag style={{ 
-                    background: statusProps.bgColor, 
-                    color: statusProps.color, 
+                <Tag style={{
+                    background: statusProps.bgColor,
+                    color: statusProps.color,
                     border: 'none', fontWeight: 600,
                   }}>
                   {statusProps.label}
@@ -537,7 +537,7 @@ function ProductionDetailContent() {
               iconColor="#9061F9"
             />
             
-            <Card 
+            <Card
               title="Informasi Tambahan"
               style={{
                 border: '1px solid #E5E7EB',
@@ -556,9 +556,9 @@ function ProductionDetailContent() {
                 </Flex>
                 <Flex justify="space-between">
                   <Text style={{ color: '#6B7280' }}>Status</Text>
-                  <Tag style={{ 
-                      background: statusProps.bgColor, 
-                      color: statusProps.color, 
+                  <Tag style={{
+                      background: statusProps.bgColor,
+                      color: statusProps.color,
                       border: 'none', fontWeight: 600,
                     }}>
                     {statusProps.label}
@@ -570,15 +570,18 @@ function ProductionDetailContent() {
         </Col>
       </Row>
 
-      <ProductionModal
-        visible={isModalOpen}
-        onClose={handleModalCancel}
-        initialData={editingProduction}
-        form={form}
-        assets={assets}
-        isLoadingAssets={isLoadingAssets}
-        isAdmin={isAdmin}
-      />
+      {/* Modal Edit (hanya jika canEdit) */}
+      {canEdit && (
+        <ProductionModal
+          visible={isModalOpen}
+          onClose={handleModalCancel}
+          initialData={editingProduction}
+          form={form}
+          assets={assets}
+          isLoadingAssets={isLoadingAssets}
+          // isAdmin dihapus, logika di dalam modal sudah terbuka
+        />
+      )}
     </>
   );
 }

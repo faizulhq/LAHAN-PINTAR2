@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Row, Col, Card, Statistic, Typography,
-  Divider, Spin, Alert, Flex, Steps
+  Divider, Spin, Alert, Flex, Steps, Button, Progress // [FIX] Progress ditambahkan di sini
 } from 'antd';
 import {
   ContainerOutlined, DollarCircleOutlined, RiseOutlined, 
@@ -100,7 +100,7 @@ const OperatorDashboard = ({ dashboardData, user }) => {
           size="small"
           current={-1}
           items={[
-            { title: 'Cek Kondisi Aset', description: 'Pastikan aset (lahan/ternak) dalam kondisi baik.' },
+            { title: 'Cek Kondisi Aset', description: 'Pastikan kondisi lahan dan ternak dalam keadaan baik.' },
             { title: 'Catat Pengeluaran', description: 'Setiap pembelian operasional wajib dicatat beserta foto bukti.' },
             { title: 'Input Hasil Panen', description: 'Hasil produksi harus diinput segera setelah panen/pengambilan.' },
           ]}
@@ -165,11 +165,10 @@ const InvestorDashboard = ({ dashboardData, user }) => {
                  <Flex justify="space-between" align='center'>
                     <div>
                         <Text strong style={{ fontSize: 16 }}>{owner.name || 'Nama Aset'}</Text>
-                        {/* Jika backend mengirim 'units' */}
-                        {owner.units && <div style={{ fontSize: 12, color: '#999' }}>Unit Dimiliki: {owner.units}</div>}
+                        <div style={{ fontSize: 12, color: '#999' }}>Unit Dimiliki: {owner.units || 0}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                         <Text strong style={{ color: '#1890ff', fontSize: 18 }}>{owner.percentage}%</Text>
+                         <Text strong style={{ color: '#1890ff', fontSize: 18 }}>{owner.percentage.toFixed(2)}%</Text>
                          <div style={{ fontSize: 12, color: '#999' }}>Saham</div>
                     </div>
                  </Flex>
@@ -260,7 +259,7 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
                    <div key={i} style={{ marginBottom: 12 }}>
                        <Flex justify="space-between">
                            <Text>{owner.name}</Text>
-                           <Text>{owner.percentage}%</Text>
+                           <Text>{owner.percentage.toFixed(1)}%</Text>
                        </Flex>
                        <Progress percent={owner.percentage} size="small" showInfo={false} />
                    </div>
@@ -276,7 +275,7 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
 };
 
 // ==========================================================================
-// MAIN COMPONENT (DISINI KITA GABUNGKAN SEMUA)
+// MAIN COMPONENT
 // ==========================================================================
 function AdminDashboardContent() {
   const user = useAuthStore((state) => state.user);
@@ -287,18 +286,16 @@ function AdminDashboardContent() {
   const isInvestor = userRole === 'Investor';
 
   // Fetch Data Dashboard
-  // API Backend sudah otomatis filter data berdasarkan role (Investor vs Global)
   const {
     data: dashboardData,
     isLoading: isLoadingDashboard,
     isError: isErrorDashboard,
   } = useQuery({
     queryKey: ['dashboard'],
-    queryFn: getDashboardData
+    queryFn: getDashboardData,
   });
 
-  // Fetch Data Report (Hanya jika bukan Operator)
-  // Operator tidak perlu data laporan keuangan detail di dashboard
+  // Fetch Financial Report (Hanya jika BUKAN Operator)
   const {
     data: reportData,
     isLoading: isLoadingReport,
@@ -306,26 +303,22 @@ function AdminDashboardContent() {
   } = useQuery({
     queryKey: ['financialReport'],
     queryFn: getFinancialReport,
-    enabled: !isOperator 
+    enabled: !isOperator,
   });
 
   const isLoading = isLoadingDashboard || (isLoadingReport && !isOperator);
 
   if (isLoading) return <div style={{ padding: 50, textAlign: 'center' }}><Spin size="large" /></div>;
   
-  if (isErrorDashboard) return <Alert message="Gagal memuat dashboard" type="error" showIcon />;
+  if (isErrorDashboard) return <Alert message="Gagal memuat data dashboard" type="error" showIcon />;
 
-  // --- LOGIKA PEMILIHAN TAMPILAN ---
   return (
     <div style={{ padding: '0px' }}>
       {isOperator ? (
-         // Tampilan 1: Operator (Kerja Lapangan)
          <OperatorDashboard dashboardData={dashboardData} user={user} />
       ) : isInvestor ? (
-         // Tampilan 2: Investor (Portofolio Pribadi - Data sudah difilter Backend)
          <InvestorDashboard dashboardData={dashboardData} user={user} />
       ) : (
-         // Tampilan 3: Admin/Superadmin/Viewer (Global View)
          <ExecutiveDashboard dashboardData={dashboardData} reportData={reportData} />
       )}
     </div>

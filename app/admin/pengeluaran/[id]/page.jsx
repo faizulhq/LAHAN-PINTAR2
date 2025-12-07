@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card, Button, Typography, Space, Tag, Flex, Spin, Alert, Descriptions, Row, Col,
-  Modal, Form, Input, Select, DatePicker, InputNumber, message
+  Modal, Form, Input, Select, DatePicker, InputNumber, message, Popconfirm
 } from 'antd';
 import {
   ArrowLeftOutlined, EditOutlined, DollarCircleFilled, LinkOutlined,
@@ -18,7 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Store
-import { getExpenses, updateExpense, deleteExpense } from '@/lib/api/expense';
+import { getExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
 import { getFundings } from '@/lib/api/funding';
@@ -72,7 +72,10 @@ const ExpenseFormModal = ({
     width={700}
     destroyOnClose
   >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
+    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }} initialValues={{
+        ...expense,
+        date: expense?.date ? moment(expense.date) : null
+    }}>
       <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori wajib dipilih' }]}>
         <Select placeholder="Pilih kategori pengeluaran">
           {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
@@ -131,11 +134,11 @@ const ExpenseFormModal = ({
         />
       </Form.Item>
 
-      <Form.Item>
+      <Form.Item style={{marginBottom: 0}}>
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Button onClick={onCancel}>Batal</Button>
           <Button type="primary" htmlType="submit" loading={isSubmitting}>
-            Perbarui
+            Simpan Perubahan
           </Button>
         </Space>
       </Form.Item>
@@ -157,9 +160,9 @@ function ExpenseDetailContent() {
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
-  const { data: expenses, isLoading: isLoadingExpenses, isError, error } = useQuery({
-    queryKey: ['expenses'],
-    queryFn: getExpenses,
+  const { data: expense, isLoading: isLoadingExpense, isError, error } = useQuery({
+    queryKey: ['expense', expenseId],
+    queryFn: () => getExpense(expenseId),
   });
 
   const { data: projects, isLoading: isLoadingProjects } = useQuery({
@@ -182,13 +185,12 @@ function ExpenseDetailContent() {
     queryFn: getFundingSources,
   });
 
-  const expense = expenses?.find(e => e.id === parseInt(expenseId));
   const project = projects?.find(p => p.id === expense?.project_id);
   const asset = assets?.find(a => a.id === project?.asset);
   const funding = fundings?.find(f => f.id === expense?.funding_id);
   const fundingSource = fundingSources?.find(fs => fs.id === funding?.source);
 
-  const isLoading = isLoadingExpenses || isLoadingProjects || isLoadingAssets || isLoadingFundings;
+  const isLoading = isLoadingExpense || isLoadingProjects || isLoadingAssets || isLoadingFundings;
 
   const fundingMap = React.useMemo(() => {
     if (!fundings || !fundingSources) return {};
@@ -203,10 +205,10 @@ function ExpenseDetailContent() {
   }, [fundings, fundingSources]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => updateExpense(id, data),
+    mutationFn: ({ id, data }) => updateExpense({id, data}), // Sesuaikan signature
     onSuccess: () => {
       message.success('Pengeluaran berhasil diperbarui');
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
+      queryClient.invalidateQueries({ queryKey: ['expense'] });
       setIsModalOpen(false);
       form.resetFields();
     },
@@ -262,16 +264,7 @@ function ExpenseDetailContent() {
   };
 
   const handleDelete = () => {
-    Modal.confirm({
-      title: 'Hapus Pengeluaran?',
-      content: 'Apakah Anda yakin ingin menghapus pengeluaran ini?',
-      okText: 'Ya, Hapus',
-      okType: 'danger',
-      cancelText: 'Batal',
-      onOk: () => {
-        deleteMutation.mutate(expense.id);
-      }
-    });
+     deleteMutation.mutate(expense.id);
   };
 
   if (isLoading) {
@@ -352,24 +345,19 @@ function ExpenseDetailContent() {
           </div>
         </Flex>
         
-        {/* [RBAC] Tombol Edit & Hapus hanya jika canEdit */}
+        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
           <Space>
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              size="large"
-              style={{
-                borderRadius: '24px',
-                height: 'auto',
-                padding: '8px 16px',
-                fontSize: '16px'
-              }}
-              onClick={handleDelete}
-              loading={deleteMutation.isPending}
+            <Popconfirm
+                title="Hapus Pengeluaran?"
+                description="Yakin hapus data ini?"
+                onConfirm={handleDelete}
+                okText="Ya, Hapus"
+                cancelText="Batal"
+                okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
             >
-              Hapus
-            </Button>
+                <Button danger icon={<DeleteOutlined />} size="large" style={{borderRadius: 24}}>Hapus</Button>
+            </Popconfirm>
             <Button
               type="primary"
               icon={<EditOutlined />}
@@ -382,7 +370,6 @@ function ExpenseDetailContent() {
                 fontSize: '16px'
               }}
               onClick={handleEdit}
-              loading={updateMutation.isPending}
             >
               Edit Pengeluaran
             </Button>
