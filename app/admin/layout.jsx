@@ -19,33 +19,33 @@ import { useLogout } from '@/lib/hooks/useAuth';
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-// KONFIGURASI MENU BERDASARKAN PRD
+// KONFIGURASI MENU (Sesuai Tabel PRD)
 const menuConfig = [
   // 1. Dashboard: Semua Role
   { key: '1', icon: <BiSolidDashboard />, label: 'Dashboard', path: '/admin', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
-  // 2. Aset: Admin (CRUD), Investor/Viewer (Read). Operator: Hidden (❌)
+  // 2. Aset: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
   { key: '2', icon: <FileTextFilled />, label: 'Asset', path: '/admin/asset', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 3. Pendanaan: Admin (Input), Investor/Viewer (Read). Operator: Hidden (❌)
+  // 3. Pendanaan: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
   { key: '4', icon: <FaDollarSign />, label: 'Pendanaan', path: '/admin/pendanaan', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 4. Kepemilikan: Admin (Manage), Investor/Viewer (Read). Operator: Hidden (❌)
+  // 4. Kepemilikan: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
   { key: '5', icon: <HiUserGroup />, label: 'Kepemilikan', path: '/admin/kepemilikan', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 5. Proyek: Admin (CRUD), Operator (Read), Viewer (Read). Investor: Hidden (❌ Sesuai Tabel PRD)
+  // 5. Proyek: Admin/Superadmin (CRUD), Operator/Viewer (Read). Investor: Hidden
   { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Superadmin', 'Admin', 'Operator', 'Viewer'] },
   
-  // 6. Pengeluaran: Admin (Full), Operator (Input), Investor (Read Project), Viewer (Read)
+  // 6. Pengeluaran: Admin/Superadmin (Full), Operator (Input), Investor/Viewer (Read)
   { key: '6', icon: <GiPayMoney />, label: 'Pengeluaran', path: '/admin/pengeluaran', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
-  // 7. Produksi: Admin (Full), Operator (Input), Investor (Read Project), Viewer (Read)
+  // 7. Produksi: Admin/Superadmin (Full), Operator (Input), Investor/Viewer (Read)
   { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
-  // 8. Bagi Hasil: Admin (Full), Investor (Read Own), Viewer (Read). Operator: Hidden (❌)
+  // 8. Bagi Hasil: Admin/Superadmin (Full), Investor (Read Own), Viewer (Read). Operator: Hidden
   { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 9. Laporan: Semua Role (Konten berbeda tiap role diatur di halaman)
+  // 9. Laporan: Semua Role
   { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
   // User Management: Superadmin Only
