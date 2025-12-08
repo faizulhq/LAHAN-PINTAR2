@@ -335,7 +335,7 @@ function ExpenseManagementContent() {
 
   if (isAdmin) {
     headerTitle = "Manajemen Pengeluaran";
-    headerDesc = "Audit dan kelola pencatatan biaya operasional proyek.";
+    headerDesc = "Kelola semua pengeluaran operasional, proyek, dan pembelian";
   } else if (isOperator) {
     headerTitle = "Input Pengeluaran";
     headerDesc = "Catat pembelian barang dan biaya operasional harian di sini.";

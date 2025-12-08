@@ -508,7 +508,7 @@ function ProductionManagementContent() {
 
   if (isAdmin) {
     titleText = "Manajemen Produksi";
-    subText = "Kelola data hasil panen dan validasi nilai produksi.";
+    subText = "Kelola hasil produksi ternak dan lahan";
   } else if (isOperator) {
     titleText = "Catatan Produksi";
     subText = "Input hasil panen harian dan update status penjualan.";

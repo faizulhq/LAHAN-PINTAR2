@@ -19,7 +19,7 @@ import { useLogout } from '@/lib/hooks/useAuth';
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-// KONFIGURASI MENU (Sesuai Tabel PRD)
+// KONFIGURASI MENU (Sesuai Tabel PRD & Prinsip Transparansi)
 const menuConfig = [
   // 1. Dashboard: Semua Role
   { key: '1', icon: <BiSolidDashboard />, label: 'Dashboard', path: '/admin', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
@@ -33,8 +33,8 @@ const menuConfig = [
   // 4. Kepemilikan: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
   { key: '5', icon: <HiUserGroup />, label: 'Kepemilikan', path: '/admin/kepemilikan', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 5. Proyek: Admin/Superadmin (CRUD), Operator/Viewer (Read). Investor: Hidden
-  { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Superadmin', 'Admin', 'Operator', 'Viewer'] },
+  // 5. Proyek: Semua Role Boleh Lihat (Transparansi). CUD hanya Admin/Superadmin.
+  { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
   // 6. Pengeluaran: Admin/Superadmin (Full), Operator (Input), Investor/Viewer (Read)
   { key: '6', icon: <GiPayMoney />, label: 'Pengeluaran', path: '/admin/pengeluaran', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },

@@ -26,10 +26,13 @@ import { HiUserGroup } from 'react-icons/hi';
 import { BiSolidBox } from 'react-icons/bi';
 import { FaMoneyBillTransfer } from 'react-icons/fa6';
 import { MdLocationPin } from 'react-icons/md';
+// [RBAC] Import Auth Store
+import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// ... (Helper functions tetap sama)
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD MMMM YYYY') : '-';
 const formatDateShort = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => {
@@ -50,7 +53,6 @@ const getStatusColor = (percentage) => {
   return '#ef4444';
 };
 
-// Component StatCard
 const StatCard = ({ icon, label, value, color, suffix }) => (
   <Card style={{ height: '100%', borderRadius: '12px' }}>
     <Flex align="center" gap={12}>
@@ -76,7 +78,6 @@ const StatCard = ({ icon, label, value, color, suffix }) => (
   </Card>
 );
 
-// Component Timeline Item
 const TimelineItem = ({ title, date, description, color, isLast }) => (
   <div style={{ display: 'flex', gap: 16 }}>
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -99,6 +100,12 @@ function OwnershipDetailContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [form] = Form.useForm();
 
+  // [RBAC] Logic Hak Akses
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  // Hanya Admin & Superadmin yang bisa Edit Kepemilikan. Investor hanya Read.
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
   // Fetch ownership detail
   const { data: ownershipData, isLoading: loadingOwnership } = useQuery({
     queryKey: ['ownership', ownershipId],
@@ -106,7 +113,6 @@ function OwnershipDetailContent() {
     enabled: !!ownershipId
   });
 
-  // Fetch related data
   const { data: investorData } = useQuery({
     queryKey: ['investor', ownershipData?.investor],
     queryFn: () => getInvestor(ownershipData.investor),
@@ -131,7 +137,6 @@ function OwnershipDetailContent() {
     enabled: !!fundingData?.source
   });
 
-  // Fetch data for edit modal
   const { data: allInvestors } = useQuery({ queryKey: ['investors'], queryFn: getInvestors });
   const { data: allAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
   const { data: allFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
@@ -212,326 +217,97 @@ function OwnershipDetailContent() {
             Informasi lengkap tentang kepemilikan investasi
           </Text>
         </Space>
-        <Button
-          type="primary"
-          icon={<EditOutlined />}
-          size="large"
-          onClick={showEditModal}
-          style={{ backgroundColor: '#237804', borderColor: '#237804', borderRadius: 8 }}
-        >
-          Edit Data
-        </Button>
+        
+        {/* [RBAC] Tombol Edit - Hanya muncul jika canEdit */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
+            size="large"
+            onClick={showEditModal}
+            style={{ backgroundColor: '#237804', borderColor: '#237804', borderRadius: 8 }}
+          >
+            Edit Data
+          </Button>
+        )}
       </Flex>
 
-      {/* Informasi Investor dengan Ringkasan */}
-      <Card title={
-        <Flex align="center" gap={8}>
-          <HiUserGroup style={{ fontSize: 24, color: '#3b82f6' }} />
-          <Text strong style={{ fontSize: 18 }}>Informasi Investor</Text>
-        </Flex>
-      } style={{ marginBottom: 24, borderRadius: 12 }}>
+      {/* --- Bagian Card Informasi Investor, Aset, dll di bawah ini SAMA PERSIS, tidak disentuh --- */}
+      <Card title={<Flex align="center" gap={8}><HiUserGroup style={{ fontSize: 24, color: '#3b82f6' }} /><Text strong style={{ fontSize: 18 }}>Informasi Investor</Text></Flex>} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Nama Investor
-              </Text>
-              <Text strong style={{ fontSize: 18 }}>
-                {investorData?.username || ownershipData.investor_name || '-'}
-              </Text>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Email
-              </Text>
-              <Text style={{ fontSize: 16 }}>{investorData?.email || '-'}</Text>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Nomor Telepon
-              </Text>
-              <Text style={{ fontSize: 16 }}>{investorData?.phone_number || '-'}</Text>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                ID Investor
-              </Text>
-              <Tag color="blue" style={{ fontSize: 14, padding: '4px 12px' }}>
-                #{ownershipData.investor}
-              </Tag>
-            </div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Nama Investor</Text><Text strong style={{ fontSize: 18 }}>{investorData?.username || ownershipData.investor_name || '-'}</Text></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Email</Text><Text style={{ fontSize: 16 }}>{investorData?.email || '-'}</Text></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Nomor Telepon</Text><Text style={{ fontSize: 16 }}>{investorData?.phone_number || '-'}</Text></div>
+            <div><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>ID Investor</Text><Tag color="blue" style={{ fontSize: 14, padding: '4px 12px' }}>#{ownershipData.investor}</Tag></div>
           </Col>
           <Col xs={24} md={12}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Tanggal Bergabung
-              </Text>
-              <Flex align="center" gap={8}>
-                <CalendarOutlined style={{ color: '#3b82f6' }} />
-                <Text style={{ fontSize: 16 }}>{formatDate(ownershipData.investment_date)}</Text>
-              </Flex>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Durasi Investasi
-              </Text>
-              <Flex align="center" gap={8}>
-                <ClockCircleOutlined style={{ color: '#10b981' }} />
-                <Text style={{ fontSize: 16 }}>
-                  {joinDurationDays} hari ({Math.floor(joinDurationDays / 30)} bulan)
-                </Text>
-              </Flex>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                ID Kepemilikan
-              </Text>
-              <Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>
-                #{ownershipData.id}
-              </Tag>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Status
-              </Text>
-              <Tag color="green" icon={<CheckCircleOutlined />} style={{ fontSize: 14, padding: '4px 12px' }}>
-                Aktif
-              </Tag>
-            </div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Tanggal Bergabung</Text><Flex align="center" gap={8}><CalendarOutlined style={{ color: '#3b82f6' }} /><Text style={{ fontSize: 16 }}>{formatDate(ownershipData.investment_date)}</Text></Flex></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Durasi Investasi</Text><Flex align="center" gap={8}><ClockCircleOutlined style={{ color: '#10b981' }} /><Text style={{ fontSize: 16 }}>{joinDurationDays} hari ({Math.floor(joinDurationDays / 30)} bulan)</Text></Flex></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>ID Kepemilikan</Text><Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>#{ownershipData.id}</Tag></div>
+            <div><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Status</Text><Tag color="green" icon={<CheckCircleOutlined />} style={{ fontSize: 14, padding: '4px 12px' }}>Aktif</Tag></div>
           </Col>
         </Row>
       </Card>
 
-      {/* Statistik Kepemilikan */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                icon={<BiSolidBox style={{ fontSize: 24, color: '#9333ea' }} />}
-                label="Total Unit"
-                value={ownershipData.units?.toLocaleString('id-ID') || '0'}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                icon={<FaMoneyBillTransfer style={{ fontSize: 24, color: '#10b981' }} />}
-                label="Total Investasi"
-                value={formatRupiah(ownershipData.total_investment)}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                icon={<DollarOutlined style={{ fontSize: 24, color: '#f59e0b' }} />}
-                label="Nilai per Unit"
-                value={formatRupiah(ownershipData.total_investment / (ownershipData.units || 1))}
-              />
-            </Col>
-          </Row>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={8}><StatCard icon={<BiSolidBox style={{ fontSize: 24, color: '#9333ea' }} />} label="Total Unit" value={ownershipData.units?.toLocaleString('id-ID') || '0'} /></Col>
+        <Col xs={24} sm={12} lg={8}><StatCard icon={<FaMoneyBillTransfer style={{ fontSize: 24, color: '#10b981' }} />} label="Total Investasi" value={formatRupiah(ownershipData.total_investment)} /></Col>
+        <Col xs={24} sm={12} lg={8}><StatCard icon={<DollarOutlined style={{ fontSize: 24, color: '#f59e0b' }} />} label="Nilai per Unit" value={formatRupiah(ownershipData.total_investment / (ownershipData.units || 1))} /></Col>
+      </Row>
 
-      {/* Informasi Aset */}
-      <Card title={
-        <Flex align="center" gap={8}>
-          <AppstoreOutlined style={{ fontSize: 24, color: '#9333ea' }} />
-          <Text strong style={{ fontSize: 18 }}>Informasi Aset</Text>
-        </Flex>
-      } style={{ marginBottom: 24, borderRadius: 12 }}>
+      <Card title={<Flex align="center" gap={8}><AppstoreOutlined style={{ fontSize: 24, color: '#9333ea' }} /><Text strong style={{ fontSize: 18 }}>Informasi Aset</Text></Flex>} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[24, 24]}>
           <Col xs={24} md={16}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Nama Aset
-              </Text>
-              <Text strong style={{ fontSize: 18 }}>
-                {assetData?.name || ownershipData.asset_name || '-'}
-              </Text>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Tipe Aset
-              </Text>
-              <Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>
-                {assetData?.asset_type || 'Properti'}
-              </Tag>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Lokasi Aset
-              </Text>
-              <Flex align="start" gap={8}>
-                <MdLocationPin style={{ fontSize: 16, color: '#9333ea', marginTop: 4 }} />
-                <Text style={{ fontSize: 16 }}>{assetData?.location || '-'}</Text>
-              </Flex>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                ID Aset
-              </Text>
-              <Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>
-                #{ownershipData.asset}
-              </Tag>
-            </div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Nama Aset</Text><Text strong style={{ fontSize: 18 }}>{assetData?.name || ownershipData.asset_name || '-'}</Text></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Tipe Aset</Text><Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>{assetData?.asset_type || 'Properti'}</Tag></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Lokasi Aset</Text><Flex align="start" gap={8}><MdLocationPin style={{ fontSize: 16, color: '#9333ea', marginTop: 4 }} /><Text style={{ fontSize: 16 }}>{assetData?.location || '-'}</Text></Flex></div>
+            <div><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>ID Aset</Text><Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>#{ownershipData.asset}</Tag></div>
           </Col>
           <Col xs={24} md={8}>
             <div style={{ backgroundColor: '#f9fafb', borderRadius: 12, padding: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>
-                Progress Kepemilikan
-              </Text>
-              <div style={{ marginBottom: 8 }}>
-                <Text strong style={{ fontSize: 16 }}>{ownershipProgress.toFixed(1)}%</Text>
-              </div>
-              <div style={{ width: '100%', height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{
-                  width: `${ownershipProgress}%`,
-                  height: '100%',
-                  backgroundColor: getStatusColor(ownershipProgress),
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {ownershipData.units || 0} unit
-                </Text>
-              </div>
+              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 12 }}>Progress Kepemilikan</Text>
+              <div style={{ marginBottom: 8 }}><Text strong style={{ fontSize: 16 }}>{ownershipProgress.toFixed(1)}%</Text></div>
+              <div style={{ width: '100%', height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}><div style={{ width: `${ownershipProgress}%`, height: '100%', backgroundColor: getStatusColor(ownershipProgress), transition: 'width 0.3s ease' }} /></div>
+              <div style={{ marginTop: 8 }}><Text type="secondary" style={{ fontSize: 12 }}>{ownershipData.units || 0} unit</Text></div>
             </div>
           </Col>
         </Row>
       </Card>
 
-      {/* Informasi Pendanaan & Timeline */}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
-          <Card title={
-            <Flex align="center" gap={8}>
-              <BankOutlined style={{ fontSize: 24, color: '#10b981' }} />
-              <Text strong style={{ fontSize: 18 }}>Informasi Pendanaan</Text>
-            </Flex>
-          } style={{ height: '100%', borderRadius: 12 }}>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Sumber Dana
-              </Text>
-              <Text strong style={{ fontSize: 16 }}>{fundingSourceData?.name || '-'}</Text>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Total Pendanaan
-              </Text>
-              <Text strong style={{ fontSize: 18, color: '#10b981' }}>
-                {formatRupiah(fundingData?.amount)}
-              </Text>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                Tanggal Pendanaan
-              </Text>
-              <Flex align="center" gap={8}>
-                <CalendarOutlined style={{ color: '#3b82f6' }} />
-                <Text style={{ fontSize: 16 }}>{formatDate(fundingData?.date_received)}</Text>
-              </Flex>
-            </div>
-            <div style={{ marginBottom: 16 }}>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>
-                ID Pendanaan
-              </Text>
-              <Tag color="green" style={{ fontSize: 14, padding: '4px 12px' }}>
-                #{ownershipData.funding}
-              </Tag>
-            </div>
-            <div>
-              <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>
-                Rasio Investment
-              </Text>
-              <div style={{ width: '100%', height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}>
-                <div style={{
-                  width: `${fundingData?.amount ? (ownershipData.total_investment / fundingData.amount * 100) : 0}%`,
-                  height: '100%',
-                  backgroundColor: '#10b981',
-                  transition: 'width 0.3s ease'
-                }} />
-              </div>
-              <Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
-                {fundingData?.amount ? ((ownershipData.total_investment / fundingData.amount * 100).toFixed(1)) : 0}%
-              </Text>
-            </div>
+          <Card title={<Flex align="center" gap={8}><BankOutlined style={{ fontSize: 24, color: '#10b981' }} /><Text strong style={{ fontSize: 18 }}>Informasi Pendanaan</Text></Flex>} style={{ height: '100%', borderRadius: 12 }}>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Sumber Dana</Text><Text strong style={{ fontSize: 16 }}>{fundingSourceData?.name || '-'}</Text></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Total Pendanaan</Text><Text strong style={{ fontSize: 18, color: '#10b981' }}>{formatRupiah(fundingData?.amount)}</Text></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Tanggal Pendanaan</Text><Flex align="center" gap={8}><CalendarOutlined style={{ color: '#3b82f6' }} /><Text style={{ fontSize: 16 }}>{formatDate(fundingData?.date_received)}</Text></Flex></div>
+            <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>ID Pendanaan</Text><Tag color="green" style={{ fontSize: 14, padding: '4px 12px' }}>#{ownershipData.funding}</Tag></div>
+            <div><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 8 }}>Rasio Investment</Text><div style={{ width: '100%', height: 8, backgroundColor: '#e5e7eb', borderRadius: 4, overflow: 'hidden' }}><div style={{ width: `${fundingData?.amount ? (ownershipData.total_investment / fundingData.amount * 100) : 0}%`, height: '100%', backgroundColor: '#10b981', transition: 'width 0.3s ease' }} /></div><Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>{fundingData?.amount ? ((ownershipData.total_investment / fundingData.amount * 100).toFixed(1)) : 0}%</Text></div>
           </Card>
         </Col>
 
         <Col xs={24} lg={12}>
-          <Card title={
-            <Flex align="center" gap={8}>
-              <ClockCircleOutlined style={{ fontSize: 24, color: '#3b82f6' }} />
-              <Text strong style={{ fontSize: 18 }}>Timeline Investasi</Text>
-            </Flex>
-          } style={{ height: '100%', borderRadius: 12 }}>
-            <TimelineItem
-              title="Pendanaan Diterima"
-              date={formatDate(fundingData?.date_received)}
-              description={formatRupiah(fundingData?.amount)}
-              color="#10b981"
-            />
-            <TimelineItem
-              title="Investasi Dimulai"
-              date={formatDate(ownershipData.investment_date)}
-              description={`${ownershipData.units || 0} unit dibeli`}
-              color="#3b82f6"
-            />
-            <TimelineItem
-              title="Status Saat Ini"
-              date="Aktif"
-              description={`Durasi: ${Math.floor(joinDurationDays / 30)} bulan`}
-              color="#f59e0b"
-              isLast
-            />
+          <Card title={<Flex align="center" gap={8}><ClockCircleOutlined style={{ fontSize: 24, color: '#3b82f6' }} /><Text strong style={{ fontSize: 18 }}>Timeline Investasi</Text></Flex>} style={{ height: '100%', borderRadius: 12 }}>
+            <TimelineItem title="Pendanaan Diterima" date={formatDate(fundingData?.date_received)} description={formatRupiah(fundingData?.amount)} color="#10b981" />
+            <TimelineItem title="Investasi Dimulai" date={formatDate(ownershipData.investment_date)} description={`${ownershipData.units || 0} unit dibeli`} color="#3b82f6" />
+            <TimelineItem title="Status Saat Ini" date="Aktif" description={`Durasi: ${Math.floor(joinDurationDays / 30)} bulan`} color="#f59e0b" isLast />
           </Card>
         </Col>
       </Row>
 
       {/* Modal Edit */}
-      <Modal
-        title="Edit Kepemilikan"
-        open={isEditModalOpen}
-        onCancel={() => setIsEditModalOpen(false)}
-        footer={null}
-        width={600}
-      >
+      <Modal title="Edit Kepemilikan" open={isEditModalOpen} onCancel={() => setIsEditModalOpen(false)} footer={null} width={600}>
         <Form form={form} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 24 }}>
-          <Form.Item name="investor" label="Investor" rules={[{ required: true, message: 'Investor harus dipilih!' }]}>
-            <Select placeholder="Pilih investor" showSearch size="large">
-              {allInvestors?.map(inv => (
-                <Option key={inv.id} value={inv.id}>{inv.username || `Investor ${inv.id}`}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="asset" label="Aset" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
-            <Select placeholder="Pilih aset" showSearch size="large">
-              {allAssets?.map(a => (
-                <Option key={a.id} value={a.id}>{a.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}>
-            <Select placeholder="Pilih pendanaan" showSearch size="large">
-              {allFundings?.map(f => (
-                <Option key={f.id} value={f.id}>
-                  {formatRupiah(f.amount)} - {formatDateShort(f.date_received)}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+          <Form.Item name="investor" label="Investor" rules={[{ required: true, message: 'Investor harus dipilih!' }]}><Select placeholder="Pilih investor" showSearch size="large">{allInvestors?.map(inv => (<Option key={inv.id} value={inv.id}>{inv.username || `Investor ${inv.id}`}</Option>))}</Select></Form.Item>
+          <Form.Item name="asset" label="Aset" rules={[{ required: true, message: 'Aset harus dipilih!' }]}><Select placeholder="Pilih aset" showSearch size="large">{allAssets?.map(a => (<Option key={a.id} value={a.id}>{a.name}</Option>))}</Select></Form.Item>
+          <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}><Select placeholder="Pilih pendanaan" showSearch size="large">{allFundings?.map(f => (<Option key={f.id} value={f.id}>{formatRupiah(f.amount)} - {formatDateShort(f.date_received)}</Option>))}</Select></Form.Item>
           <Form.Item name="units" label="Jumlah Unit" rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]}>
             <InputNumber style={{ width: '100%' }} min={1} placeholder="Masukkan jumlah unit" size="large" />
           </Form.Item>
           <Form.Item name="investment_date" label="Tanggal Investasi" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}>
             <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
           </Form.Item>
-          <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
-            <Space>
-              <Button onClick={() => setIsEditModalOpen(false)} size="large">Batal</Button>
-              <Button type="primary" htmlType="submit" loading={updateMutation.isPending} 
-                style={{ backgroundColor: '#237804', borderColor: '#237804' }} size="large">
-                Simpan Perubahan
-              </Button>
-            </Space>
-          </Form.Item>
+          <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}><Space><Button onClick={() => setIsEditModalOpen(false)} size="large">Batal</Button><Button type="primary" htmlType="submit" loading={updateMutation.isPending} style={{ backgroundColor: '#237804', borderColor: '#237804' }} size="large">Simpan Perubahan</Button></Space></Form.Item>
         </Form>
       </Modal>
     </div>
