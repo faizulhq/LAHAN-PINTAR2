@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker, Input, Typography, Flex, Space,
-  message, Spin, Alert, Card, Row, Col, Skeleton, Tag
+  message, Spin, Alert, Card, Row, Col, Skeleton, Descriptions, Popconfirm, Tag
 } from 'antd';
 import {
-  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined
+  PlusCircleOutlined, EditOutlined, DeleteOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
 import { FaMoneyBillWave } from 'react-icons/fa6';
@@ -16,7 +15,7 @@ import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
+import useAuthStore from '@/lib/store/authStore';
 import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
@@ -27,6 +26,7 @@ import { getFinancialReport } from '@/lib/api/reporting';
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// ==================== HELPERS ====================
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -34,12 +34,20 @@ const formatRupiah = (value) =>
 
 const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
+// KATEGORI YANG BENAR SESUAI BACKEND
 const EXPENSE_CATEGORIES = {
   'Proyek': 'Proyek',
   'Operasional': 'Operasional',
   'Pembelian': 'Pembelian',
 };
 
+const SOURCE_TYPE_MAP = {
+  'foundation': 'Yayasan',
+  'csr': 'CSR',
+  'investor': 'Investor',
+};
+
+// Helper untuk menghitung total per kategori
 const calculateCategoryTotals = (expenses) => {
   if (!expenses) return { Operasional: 0, Proyek: 0, Pembelian: 0 };
   
@@ -57,6 +65,7 @@ const calculateCategoryTotals = (expenses) => {
   return totals;
 };
 
+// ==================== STAT CARD COMPONENT ====================
 const StatCard = ({ title, value, icon, loading, iconColor }) => {
   const displayValue = () => {
     if (loading) return <Skeleton.Input active size="small" style={{ width: 120, height: 38 }} />;
@@ -90,15 +99,21 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
   );
 };
 
-const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [RBAC] canEdit prop
+// ==================== EXPENSE CARD COMPONENT ====================
+const ExpenseCard = ({ expense, onEditClick, onDetailClick, onDelete, isAdmin, projectMap, fundingMap }) => {
   const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
   
+  // Tentukan warna tag berdasarkan kategori
   const getCategoryColor = () => {
     switch (expense.category) {
-      case 'Operasional': return { background: '#E1EFFE', color: '#1E429F' };
-      case 'Proyek': return { background: '#D5F5E3', color: '#27AE60' };
-      case 'Pembelian': return { background: '#FFE1E1', color: '#E74C3C' };
-      default: return { background: '#F3F4F6', color: '#6B7280' };
+      case 'Operasional':
+        return { background: '#E1EFFE', color: '#1E429F' }; // Biru
+      case 'Proyek':
+        return { background: '#D5F5E3', color: '#27AE60' }; // Hijau
+      case 'Pembelian':
+        return { background: '#FFE1E1', color: '#E74C3C' }; // Merah
+      default:
+        return { background: '#F3F4F6', color: '#6B7280' }; // Abu-abu
     }
   };
   
@@ -148,9 +163,7 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [
             >
               Detail
             </Button>
-            
-            {/* [RBAC] Tombol Edit disembunyikan jika !canEdit */}
-            {canEdit && (
+            {isAdmin && (
               <Button 
                 style={{ 
                   minWidth: '128px', height: '40px', background: '#237804', borderColor: '#237804',
@@ -174,7 +187,8 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [
   );
 };
 
-const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings, fundingMap }) => {
+// ==================== EXPENSE MODAL ====================
+const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings, fundingMap, isAdmin }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = Boolean(initialData);
@@ -310,36 +324,94 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
   );
 };
 
+// ==================== DETAIL MODAL ====================
+const ExpenseDetailModal = ({ visible, onClose, expenseId, onEditClick, onDelete, isAdmin, projectMap, assetMap, fundingMap }) => {
+  const { data: expenses } = useQuery({ queryKey: ['expenses'], queryFn: getExpenses });
+  const expense = expenses?.find(e => e.id === expenseId);
+
+  if (!expense) return null;
+
+  const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
+  const projectName = projectMap[expense.project_id] || `ID ${expense.project_id}`;
+  const assetName = assetMap[expense.project_id] || '-';
+  const fundingLabel = fundingMap[expense.funding_id] || `ID ${expense.funding_id}`;
+
+  return (
+    <Modal
+      title="Detail Pengeluaran"
+      open={visible}
+      onCancel={onClose}
+      footer={[
+        <Button key="close" onClick={onClose}>Tutup</Button>,
+        ...(isAdmin ? [
+          <Popconfirm
+            key="delete"
+            title="Hapus Pengeluaran?"
+            description="Yakin hapus data ini?"
+            onConfirm={() => { onDelete(expenseId); onClose(); }}
+            okText="Ya, Hapus"
+            cancelText="Batal"
+            okButtonProps={{ danger: true }}
+          >
+            <Button danger icon={<DeleteOutlined />}>Hapus</Button>
+          </Popconfirm>,
+          <Button
+            key="edit"
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={() => { onEditClick(expense); onClose(); }}
+            style={{ background: '#237804', borderColor: '#237804' }}
+          >
+            Edit
+          </Button>
+        ] : [])
+      ]}
+      width={700}
+      destroyOnClose
+    >
+      <Descriptions bordered layout="vertical" column={2} style={{ marginTop: 24 }}>
+        <Descriptions.Item label="Kategori" span={1}>
+          <Tag style={{ background: '#E1EFFE', color: '#1E429F', border: 'none', fontWeight: 600 }}>
+            {categoryLabel}
+          </Tag>
+        </Descriptions.Item>
+        <Descriptions.Item label="Tanggal">{formatDate(expense.date)}</Descriptions.Item>
+        <Descriptions.Item label="Jumlah" span={2}>
+          <Text strong style={{ fontSize: '18px', color: '#CF1322' }}>
+            {formatRupiah(expense.amount)}
+          </Text>
+        </Descriptions.Item>
+        <Descriptions.Item label="Deskripsi" span={2}>{expense.description}</Descriptions.Item>
+        <Descriptions.Item label="Proyek">{projectName}</Descriptions.Item>
+        <Descriptions.Item label="Aset Terkait">{assetName}</Descriptions.Item>
+        <Descriptions.Item label="Sumber Dana" span={2}>{fundingLabel}</Descriptions.Item>
+        <Descriptions.Item label="Bukti" span={2}>
+          {expense.proof_url ? (
+            <a href={expense.proof_url} target="_blank" rel="noopener noreferrer">
+              <Button size="small">Lihat Bukti</Button>
+            </a>
+          ) : '-'}
+        </Descriptions.Item>
+      </Descriptions>
+    </Modal>
+  );
+};
+
+// ==================== MAIN CONTENT ====================
 function ExpenseManagementContent() {
-  const router = useRouter();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
+  const [detailExpenseId, setDetailExpenseId] = useState(null);
   const [form] = Form.useForm();
   
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
-  const userRole = user?.role?.name || user?.role;
-  // Admin, Superadmin, & Operator boleh Create/Edit/Delete
-  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
-  const isOperator = userRole === 'Operator';
-  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
-
-  // [LOGIKA JUDUL DINAMIS]
-  let headerTitle = "Laporan Pengeluaran";
-  let headerDesc = "Lihat rincian penggunaan biaya operasional.";
-
-  if (isAdmin) {
-    headerTitle = "Manajemen Pengeluaran";
-    headerDesc = "Kelola semua pengeluaran operasional, proyek, dan pembelian";
-  } else if (isOperator) {
-    headerTitle = "Input Pengeluaran";
-    headerDesc = "Catat pembelian barang dan biaya operasional harian di sini.";
-  }
+  const isAdmin = useMemo(() => user?.role === 'Admin' || user?.role === 'Superadmin', [user]);
 
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
@@ -355,14 +427,13 @@ function ExpenseManagementContent() {
   const { data: fundings, isLoading: isLoadingFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
   const { data: fundingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
 
+  const projectMap = useMemo(() => projects ? projects.reduce((acc, p) => { acc[p.id] = p.name; return acc; }, {}) : {}, [projects]);
   const assetMap = useMemo(() => {
     if (!projects || !assets) return {};
     const aMap = assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {});
     return projects.reduce((acc, p) => { acc[p.id] = aMap[p.asset] || '-'; return acc; }, {});
   }, [projects, assets]);
-
   const sourceMap = useMemo(() => fundingSources ? fundingSources.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {}) : {}, [fundingSources]);
-  
   const fundingMap = useMemo(() => {
     if (!fundings || !sourceMap) return {};
     return fundings.reduce((acc, f) => {
@@ -391,26 +462,11 @@ function ExpenseManagementContent() {
     });
   }, [expenses, searchTerm, selectedCategory, selectedAsset, assetMap, assets]);
 
-  const showAddModal = () => { 
-    setEditingExpense(null); 
-    form.resetFields(); 
-    setIsModalOpen(true); 
-  };
-
-  const showEditModal = (expense) => { 
-    setEditingExpense(expense); 
-    setIsModalOpen(true); 
-  };
-
-  const handleViewDetail = (expenseId) => {
-    router.push(`/admin/pengeluaran/${expenseId}`);
-  };
-
-  const handleCancel = () => { 
-    setIsModalOpen(false); 
-    setEditingExpense(null); 
-    form.resetFields(); 
-  };
+  const showAddModal = () => { setEditingExpense(null); form.resetFields(); setIsModalOpen(true); };
+  const showEditModal = (expense) => { setEditingExpense(expense); setIsModalOpen(true); };
+  const showDetailModal = (id) => { setDetailExpenseId(id); setIsDetailModalOpen(true); };
+  const handleCancel = () => { setIsModalOpen(false); setEditingExpense(null); form.resetFields(); };
+  const handleDetailCancel = () => { setIsDetailModalOpen(false); setDetailExpenseId(null); };
 
   const stats = reportData?.ringkasan_dana || {};
   const categoryTotals = useMemo(() => calculateCategoryTotals(filteredExpenses), [filteredExpenses]);
@@ -420,28 +476,24 @@ function ExpenseManagementContent() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px' }}>
-            {headerTitle}
+            Manajemen Pengeluaran
           </Title>
           <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272' }}>
-            {headerDesc}
+            Catat dan kelola semua biaya operasional
           </Text>
         </div>
-        
-        {/* [RBAC] Tombol Tambah hanya jika canEdit (Admin/Superadmin/Operator) */}
-        {canEdit && (
-          <Button
-            type="primary"
-            icon={<PlusCircleOutlined />}
-            size="large"
-            style={{ 
-              backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px',
-              height: '40px', padding: '8px 16px', fontSize: '16px'
-            }}
-            onClick={showAddModal}
-          >
-            Tambah Pengeluaran
-          </Button>
-        )}
+        <Button
+          type="primary"
+          icon={<PlusCircleOutlined />}
+          size="large"
+          style={{ 
+            backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px',
+            height: '40px', padding: '8px 16px', fontSize: '16px'
+          }}
+          onClick={showAddModal}
+        >
+          Tambah Pengeluaran
+        </Button>
       </div>
 
       <div style={{ marginBottom: '24px' }}>
@@ -553,8 +605,11 @@ function ExpenseManagementContent() {
                   key={exp.id} 
                   expense={exp}
                   onEditClick={showEditModal}
-                  onDetailClick={handleViewDetail}
-                  canEdit={canEdit} // [RBAC] Pass prop canEdit
+                  onDetailClick={showDetailModal}
+                  onDelete={deleteMutation.mutate}
+                  isAdmin={isAdmin}
+                  projectMap={projectMap}
+                  fundingMap={fundingMap}
                 />
               ))
             ) : (
@@ -576,6 +631,19 @@ function ExpenseManagementContent() {
         projects={projects}
         fundings={fundings}
         fundingMap={fundingMap}
+        isAdmin={isAdmin}
+      />
+      
+      <ExpenseDetailModal
+        visible={isDetailModalOpen}
+        onClose={handleDetailCancel}
+        expenseId={detailExpenseId}
+        onEditClick={showEditModal}
+        onDelete={deleteMutation.mutate}
+        isAdmin={isAdmin}
+        projectMap={projectMap}
+        assetMap={assetMap}
+        fundingMap={fundingMap}
       />
     </>
   );
@@ -583,8 +651,7 @@ function ExpenseManagementContent() {
 
 export default function ExpensePage() {
   return (
-    // [RBAC] Semua Role boleh masuk (Investor/Viewer Read Only)
-    <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
+    <ProtectedRoute>
       <ExpenseManagementContent />
     </ProtectedRoute>
   );

@@ -1,6 +1,7 @@
+// Di app/admin/proyek/page.jsx
 'use client';
 import React, { useState, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // TAMBAH INI
 import {
   Button,
   Modal,
@@ -38,7 +39,6 @@ import { getAssets } from '@/lib/api/asset';
 import { BsCalculatorFill } from 'react-icons/bs';
 import { BiSolidCalendar } from 'react-icons/bi';
 import { MdLocationPin } from 'react-icons/md';
-import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -64,23 +64,6 @@ function ProjectManagementContent() {
   const [filterAsset, setFilterAsset] = useState('all');
   const [filterType, setFilterType] = useState('all');
   const [form] = Form.useForm();
-
-  // [RBAC] Logic Hak Akses & Judul Dinamis
-  const user = useAuthStore((state) => state.user);
-  const userRole = user?.role?.name || user?.role;
-  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
-  const isOperator = userRole === 'Operator';
-
-  let titleText = "Laporan Proyek";
-  let subText = "Pantau progres dan status proyek berjalan.";
-
-  if (canEdit) {
-    titleText = "Manajemen Proyek";
-    subText = "Kelola proyek-proyek yang terkait dengan aset tertentu";
-  } else if (isOperator) {
-    titleText = "Daftar Proyek";
-    subText = "Lihat proyek yang sedang aktif di lapangan.";
-  }
 
   // Fetch Projects
   const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
@@ -153,6 +136,7 @@ function ProjectManagementContent() {
     setIsModalOpen(true);
   };
 
+  // TAMBAH FUNGSI INI (menggantikan showDetailModal)
   const handleGoToDetail = (projectId) => {
     router.push(`/admin/proyek/${projectId}`);
   };
@@ -203,33 +187,29 @@ function ProjectManagementContent() {
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '30px' }}>
-            {titleText}
+            Manajemen Proyek
           </Title>
           <Text type="secondary" style={{ fontSize: '14px', color: '#6B7280' }}>
-            {subText}
+            Kelola proyek-proyek yang terkait dengan aset tertentu
           </Text>
         </div>
-        
-        {/* [RBAC] Tombol Tambah - Hanya muncul jika canEdit */}
-        {canEdit && (
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            size="large"
-            style={{
-              backgroundColor: '#237804',
-              borderColor: '#237804',
-              borderRadius: '8px',
-              height: '40px',
-              fontSize: '16px',
-              fontWeight: 400,
-            }}
-            onClick={showAddModal}
-            loading={createMutation.isPending || updateMutation.isPending}
-          >
-            Tambah Proyek
-          </Button>
-        )}
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          style={{
+            backgroundColor: '#237804',
+            borderColor: '#237804',
+            borderRadius: '8px',
+            height: '40px',
+            fontSize: '16px',
+            fontWeight: 400,
+          }}
+          onClick={showAddModal}
+          loading={createMutation.isPending || updateMutation.isPending}
+        >
+          Tambah Proyek
+        </Button>
       </Flex>
 
       {/* Filter Asset */}
@@ -384,6 +364,7 @@ function ProjectManagementContent() {
                     </Text>
                   </Flex>
                   <Flex gap={8} style={{ marginTop: 16 }}>
+                    {/* UBAH onClick BUTTON DETAIL INI */}
                     <Button
                       style={{
                         flex: 1,
@@ -396,23 +377,19 @@ function ProjectManagementContent() {
                     >
                       Detail
                     </Button>
-                    
-                    {/* [RBAC] Tombol Edit - Hanya muncul jika canEdit */}
-                    {canEdit && (
-                      <Button
-                        type="primary"
-                        style={{
-                          flex: 1,
-                          backgroundColor: '#237804',
-                          borderColor: '#237804',
-                          borderRadius: '6px',
-                          fontWeight: 500,
-                        }}
-                        onClick={() => showEditModal(project)}
-                      >
-                        Edit
-                      </Button>
-                    )}
+                    <Button
+                      type="primary"
+                      style={{
+                        flex: 1,
+                        backgroundColor: '#237804',
+                        borderColor: '#237804',
+                        borderRadius: '6px',
+                        fontWeight: 500,
+                      }}
+                      onClick={() => showEditModal(project)}
+                    >
+                      Edit
+                    </Button>
                   </Flex>
                 </div>
               </Card>
@@ -431,92 +408,92 @@ function ProjectManagementContent() {
       )}
 
       {/* Modal Tambah/Edit Proyek */}
-      {canEdit && (
-        <Modal
-          title={editingProject ? 'Edit Proyek' : 'Tambah Proyek Baru'}
-          open={isModalOpen}
-          onCancel={handleCancel}
-          footer={null}
-          width={600}
+      <Modal
+        title={editingProject ? 'Edit Proyek' : 'Tambah Proyek Baru'}
+        open={isModalOpen}
+        onCancel={handleCancel}
+        footer={null}
+        width={600}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={handleFormSubmit}
+          style={{ marginTop: 24 }}
         >
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleFormSubmit}
-            style={{ marginTop: 24 }}
+          <Form.Item
+            name="name"
+            label="Nama Proyek"
+            rules={[{ required: true, message: 'Nama proyek tidak boleh kosong!' }]}
           >
-            <Form.Item
-              name="name"
-              label="Nama Proyek"
-              rules={[{ required: true, message: 'Nama proyek tidak boleh kosong!' }]}
-            >
-              <Input placeholder="Masukkan nama proyek" size="large" />
-            </Form.Item>
+            <Input placeholder="Masukkan nama proyek" size="large" />
+          </Form.Item>
 
-            <Form.Item
-              name="asset"
-              label="Aset Terkait"
-              rules={[{ required: true, message: 'Aset harus dipilih!' }]}
+          <Form.Item
+            name="asset"
+            label="Aset Terkait"
+            rules={[{ required: true, message: 'Aset harus dipilih!' }]}
+          >
+            <Select
+              placeholder="Pilih aset yang terkait proyek"
+              loading={isLoadingAssets}
+              showSearch
+              optionFilterProp="children"
+              size="large"
             >
-              <Select
-                placeholder="Pilih aset yang terkait proyek"
-                loading={isLoadingAssets}
-                showSearch
-                optionFilterProp="children"
-                size="large"
+              {assets?.map(asset => (
+                <Option key={asset.id} value={asset.id}>
+                  {asset.name} ({asset.location})
+                </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item
+            name="description"
+            label="Deskripsi"
+            rules={[{ required: true, message: 'Deskripsi tidak boleh kosong!' }]}
+          >
+            <Input.TextArea rows={4} placeholder="Masukkan deskripsi singkat proyek" />
+          </Form.Item>
+          <Form.Item
+            name="dates"
+            label="Periode Proyek"
+            rules={[{ required: true, message: 'Tanggal mulai dan selesai harus dipilih!' }]}
+          >
+            <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
+          </Form.Item>
+          <Form.Item
+            name="budget"
+            label="Anggaran (Rp)"
+            rules={[{ required: true, message: 'Anggaran tidak boleh kosong!' }]}
+          >
+            <InputNumber
+              size="large"
+              style={{ width: '100%' }}
+              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+              min={0}
+              placeholder="Masukkan total anggaran proyek"
+            />
+          </Form.Item>
+          <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
+            <Space>
+              <Button onClick={handleCancel}>Batal</Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={createMutation.isPending || updateMutation.isPending}
+                style={{ backgroundColor: '#237804', borderColor: '#237804' }}
               >
-                {assets?.map(asset => (
-                  <Option key={asset.id} value={asset.id}>
-                    {asset.name} ({asset.location})
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
+                {editingProject ? 'Simpan Perubahan' : 'Tambah Proyek'}
+              </Button>
+            </Space>
+          </Form.Item>
+        </Form>
+      </Modal>
 
-            <Form.Item
-              name="description"
-              label="Deskripsi"
-              rules={[{ required: true, message: 'Deskripsi tidak boleh kosong!' }]}
-            >
-              <Input.TextArea rows={4} placeholder="Masukkan deskripsi singkat proyek" />
-            </Form.Item>
-            <Form.Item
-              name="dates"
-              label="Periode Proyek"
-              rules={[{ required: true, message: 'Tanggal mulai dan selesai harus dipilih!' }]}
-            >
-              <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
-            </Form.Item>
-            <Form.Item
-              name="budget"
-              label="Anggaran (Rp)"
-              rules={[{ required: true, message: 'Anggaran tidak boleh kosong!' }]}
-            >
-              <InputNumber
-                size="large"
-                style={{ width: '100%' }}
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-                min={0}
-                placeholder="Masukkan total anggaran proyek"
-              />
-            </Form.Item>
-            <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
-              <Space>
-                <Button onClick={handleCancel}>Batal</Button>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={createMutation.isPending || updateMutation.isPending}
-                  style={{ backgroundColor: '#237804', borderColor: '#237804' }}
-                >
-                  {editingProject ? 'Simpan Perubahan' : 'Tambah Proyek'}
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        </Modal>
-      )}
+      {/* HAPUS MODAL DETAIL PROYEK - TIDAK DIPAKAI LAGI */}
     </div>
   );
 }

@@ -8,19 +8,22 @@ import { DollarCircleFilled } from '@ant-design/icons';
 import { useQuery } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { getProfitDistributions } from '@/lib/api/profit_distribution';
+import {
+  getProfitDistributions,
+} from '@/lib/api/profit_distribution';
 import { getDistributionDetails } from '@/lib/api/distribution_detail';
 import { getProductions } from '@/lib/api/production';
 import { getAssets } from '@/lib/api/asset';
 import { getInvestors } from '@/lib/api/investor';
 import { HiUserGroup } from 'react-icons/hi';
-import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
-// Helper functions tetap sama (formatRupiah, dll)
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -29,11 +32,17 @@ const formatRupiah = (value) =>
 const formatShortDate = (dateString) =>
   dateString ? moment(dateString).format('MMMM YYYY') : '-';
 
+const formatFullDate = (dateString) =>
+  dateString ? moment(dateString).format('DD MMM YYYY, HH:mm') : '-';
+
+// Get period from distribution (prefer period field, fallback to created_at)
 const getPeriodText = (distribution) => {
   if (distribution.period) {
+    // Jika period sudah dalam format "Oktober 2024", pakai langsung
     if (distribution.period.match(/[A-Za-z]+\s+\d{4}/)) {
       return distribution.period;
     }
+    // Jika period dalam format date, convert ke nama bulan
     return formatShortDate(distribution.period);
   }
   return formatShortDate(distribution.created_at);
@@ -47,28 +56,9 @@ function ProfitDistributionContent() {
   const [activeTab, setActiveTab] = useState('ringkasan');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
 
-  // [RBAC] Logic Hak Akses & Judul Dinamis
-  const user = useAuthStore((state) => state.user);
-  const userRole = user?.role?.name || user?.role;
-  const isInvestor = userRole === 'Investor';
-  const isViewer = userRole === 'Viewer';
-  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
-
-  let titleText = "Bagi Hasil";
-  let subText = "Kelola dan pantau distribusi keuntungan kepada investor";
-
-  if (canEdit) {
-    titleText = "Bagi Hasil";
-    subText = "Kelola dan pantau distribusi keuntungan kepada investor";
-  } else if (isInvestor) {
-    titleText = "Bagi Hasil Anda";
-    subText = "Pantau dividen dan keuntungan bersih dari investasi Anda.";
-  } else if (isViewer) {
-    titleText = "Laporan Bagi Hasil";
-    subText = "Rekapitulasi distribusi keuntungan proyek.";
-  }
-
-  // DATA FETCHING (Sama seperti sebelumnya)
+  // ============================================
+  // DATA FETCHING
+  // ============================================
   const { data: distributions = [], isLoading: loadingDist, isError: errorDist } = useQuery({
     queryKey: ['profitDistributions'],
     queryFn: getProfitDistributions,
@@ -98,7 +88,9 @@ function ProfitDistributionContent() {
   const isLoading = loadingDist || loadingDetails || loadingProductions || loadingAssets || loadingInvestors;
   const isError = errorDist;
 
-  // DATA PROCESSING (Sama seperti sebelumnya)
+  // ============================================
+  // DATA PROCESSING
+  // ============================================
   const assetMap = useMemo(() =>
     (assets || []).reduce((acc, a) => {
       acc[a.id] = a.name;
@@ -171,13 +163,16 @@ function ProfitDistributionContent() {
       }));
   }, [filteredDistributions, detailsByDist, productionMap]);
 
+  // Get detail for selected period
   const selectedDistribution = useMemo(() => {
     if (selectedPeriod === 'all') return null;
     return filteredDistributions.find(d => d.id === selectedPeriod);
   }, [filteredDistributions, selectedPeriod]);
 
+  // Detail investor data with 'all' option
   const detailInvestorData = useMemo(() => {
     if (selectedPeriod === 'all') {
+      // Gabungkan semua detail dari semua distribusi
       const allDetails = [];
       filteredDistributions.forEach(dist => {
         const distDetails = detailsByDist[dist.id] || [];
@@ -194,6 +189,7 @@ function ProfitDistributionContent() {
       });
       return allDetails;
     }
+    // Single period
     if (!selectedPeriod) return [];
     return (detailsByDist[selectedPeriod] || []).map((d, idx) => ({
       key: d.id || idx,
@@ -204,6 +200,9 @@ function ProfitDistributionContent() {
     }));
   }, [selectedPeriod, detailsByDist, selectedDistribution, filteredDistributions, investorMap]);
 
+  // ============================================
+  // STATUS TAG FUNCTION
+  // ============================================
   const getStatusTag = (createdAt) => {
     if (!createdAt) {
       return <span style={{ color: '#727272', fontWeight: 500 }}>pending</span>;
@@ -214,6 +213,9 @@ function ProfitDistributionContent() {
       : <span style={{ color: '#727272', fontWeight: 500 }}>pending</span>;
   };
 
+  // ============================================
+  // STYLE FOR GREEN TAB
+  // ============================================
   const tabStyle = `
     .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
       color: #7CB305 !important;
@@ -226,6 +228,9 @@ function ProfitDistributionContent() {
     }
   `;
 
+  // ============================================
+  // LOADING & ERROR STATES
+  // ============================================
   if (isLoading) {
     return <Spin size="large" tip="Memuat data..." style={{ width: '100%', padding: 80 }} />;
   }
@@ -234,6 +239,9 @@ function ProfitDistributionContent() {
     return <Alert message="Gagal memuat data" type="error" showIcon />;
   }
 
+  // ============================================
+  // RENDER
+  // ============================================
   return (
     <div style={{ padding: 24 }}>
       <style>{tabStyle}</style>
@@ -251,10 +259,10 @@ function ProfitDistributionContent() {
             marginBottom: '8px'
           }}
         >
-          {titleText}
+          Bagi Hasil
         </Typography.Title>
         <Text type="secondary">
-          {subText}
+          Kelola dan pantau distribusi keuntungan kepada investor
         </Text>
       </div>
 
@@ -286,6 +294,7 @@ function ProfitDistributionContent() {
 
       {/* STATISTICS CARDS */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
+        {/* CARD: TOTAL DISTRIBUSI */}
         <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card
             bordered
@@ -341,6 +350,7 @@ function ProfitDistributionContent() {
           </Card>
         </Col>
 
+        {/* CARD: TOTAL INVESTOR */}
         <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card
             bordered
@@ -625,6 +635,9 @@ function ProfitDistributionContent() {
   );
 }
 
+// ============================================
+// EXPORT WITH PROTECTED ROUTE
+// ============================================
 export default function ProfitDistributionPage() {
   return (
     <ProtectedRoute>

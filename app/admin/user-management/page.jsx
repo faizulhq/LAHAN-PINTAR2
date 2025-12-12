@@ -1,304 +1,348 @@
 'use client';
-import React, { useState } from 'react';
+
+import React, { useState, useMemo } from 'react';
 import {
-  Table, Card, Button, Tag, Space, Modal, Form, Input, Select,
-  Typography, message, Popconfirm, Tooltip, Row, Col, Spin, Alert
+  Table, Button, Modal, Form, Input, Select,
+  Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag
 } from 'antd';
 import {
-  UserAddOutlined, EditOutlined, DeleteOutlined, 
-  SearchOutlined, PhoneOutlined, HomeOutlined, SafetyCertificateOutlined
+  PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UserOutlined, LockOutlined, MailOutlined
 } from '@ant-design/icons';
+import { HiUsers } from 'react-icons/hi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getUsers, createUser, updateUser, deleteUser } from '@/lib/api/user';
-import { getRoles } from '@/lib/api/role';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore';
+import {
+  getUsers, createUser, updateUser, deleteUser
+} from '@/lib/api/user';
 
 const { Title, Text } = Typography;
+const { Search } = Input;
 const { Option } = Select;
 
-const UserManagementContent = () => {
-  const [form] = Form.useForm();
+// --- PERUBAHAN DI SINI ---
+const ROLE_CHOICES = {
+  'Superadmin': { text: 'Superadmin', color: 'red' },
+  'Admin': { text: 'Admin', color: 'blue' },
+  'Operator': { text: 'Operator', color: 'green' }, // Ejaan diubah di sini
+  'Investor': { text: 'Investor', color: 'purple' },
+  'Viewer': { text: 'Viewer', color: 'default' },
+};
+// --- BATAS PERUBAHAN ---
+
+function UserManagementContent() {
   const queryClient = useQueryClient();
-  
-  const [isModalVisible, setIsModalVisible] = useState(false);
+  const currentUser = useAuthStore((state) => state.user);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [searchText, setSearchText] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRole, setSelectedRole] = useState('semua');
+  const [form] = Form.useForm();
 
-  // Fetch Data User & Role
-  const { data: users, isLoading: loadingUsers, isError, error } = useQuery({ 
-    queryKey: ['users'], 
-    queryFn: getUsers 
-  });
-  
-  const { data: roles, isLoading: loadingRoles } = useQuery({ 
-    queryKey: ['roles'], 
-    queryFn: getRoles 
+  const { data: users, isLoading, isError, error } = useQuery({
+    queryKey: ['users'],
+    queryFn: getUsers,
   });
 
-  // Konfigurasi Mutasi (Create/Update/Delete)
   const mutationOptions = {
     onSuccess: () => {
-      message.success(editingUser ? 'User berhasil diperbarui' : 'User berhasil dibuat');
-      handleCancel();
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setIsModalOpen(false);
+      setEditingUser(null);
+      form.resetFields();
+    },
+    onError: (err) => {
+      const errorMsg = err.response?.data?.detail || 
+                       JSON.stringify(err.response?.data) || 
+                       err.message || 
+                       'Gagal';
+      message.error(`Error: ${errorMsg}`);
+    },
+  };
+
+  const createMutation = useMutation({
+    mutationFn: createUser,
+    ...mutationOptions,
+    onSuccess: (...args) => {
+      message.success('User berhasil ditambahkan');
+      mutationOptions.onSuccess(...args);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }) => updateUser(id, data),
+    ...mutationOptions,
+    onSuccess: (...args) => {
+      message.success('User berhasil diperbarui');
+      mutationOptions.onSuccess(...args);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteUser,
+    onSuccess: () => {
+      message.success('User berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
     onError: (err) => {
-      const errorMsg = err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message;
-      message.error(`Gagal: ${errorMsg}`);
-    }
-  };
-
-  const createMutation = useMutation({ mutationFn: createUser, ...mutationOptions });
-  const updateMutation = useMutation({ mutationFn: ({ id, data }) => updateUser(id, data), ...mutationOptions });
-  const deleteMutation = useMutation({
-    mutationFn: deleteUser,
-    onSuccess: () => { 
-      message.success('User berhasil dihapus'); 
-      queryClient.invalidateQueries({ queryKey: ['users'] }); 
+      message.error(`Error: ${err.response?.data?.error || err.message || 'Gagal menghapus'}`);
     },
-    onError: (err) => message.error('Gagal menghapus user')
   });
 
-  // Handlers Modal
-  const showModal = (user = null) => {
+  const showAddModal = () => {
+    setEditingUser(null);
+    form.resetFields();
+    setIsModalOpen(true);
+  };
+
+  const showEditModal = (user) => {
     setEditingUser(user);
-    if (user) {
-      // Isi form saat edit
-      form.setFieldsValue({
-        username: user.username, 
-        email: user.email, 
-        first_name: user.first_name, 
-        last_name: user.last_name,
-        role_id: user.role?.id, // Backend mengirim role sebagai object, kita butuh ID untuk form
-        phone: user.profile?.phone, 
-        address: user.profile?.address,
-      });
+    form.setFieldsValue({
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleCancel = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+    form.resetFields();
+  };
+
+  const handleFormSubmit = (values) => {
+    const userData = {
+      username: values.username,
+      email: values.email,
+      role: values.role,
+    };
+
+    if (values.password) {
+      userData.password = values.password;
+    }
+
+    if (editingUser) {
+      updateMutation.mutate({ id: editingUser.id, data: userData });
     } else {
-      form.resetFields();
-    }
-    setIsModalVisible(true);
-  };
-
-  const handleCancel = () => { 
-    setIsModalVisible(false); 
-    setEditingUser(null); 
-    form.resetFields(); 
-  };
-  
-  const handleOk = async () => {
-    try {
-      const values = await form.validateFields();
-      if (editingUser) {
-        updateMutation.mutate({ id: editingUser.id, data: values });
-      } else {
-        createMutation.mutate(values);
+      if (!values.password) {
+        message.error('Password wajib diisi untuk user baru!');
+        return;
       }
-    } catch (error) { 
-      console.log('Validate Failed:', error); 
+      createMutation.mutate(userData);
     }
   };
 
-  // Definisi Kolom Tabel
+  const handleDelete = (id) => {
+    deleteMutation.mutate(id);
+  };
+
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
+    return users.filter(user => {
+      const matchesSearch = user.username?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           user.email?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesRole = selectedRole === 'semua' || user.role === selectedRole;
+      return matchesSearch && matchesRole;
+    });
+  }, [users, searchTerm, selectedRole]);
+
   const columns = [
     {
-      title: 'User Info',
-      key: 'user',
-      render: (_, record) => (
-        <Space direction="vertical" size={0}>
-          <Text strong style={{ fontSize: 16 }}>{record.username}</Text>
-          <Text type="secondary" style={{ fontSize: 12 }}>{record.email}</Text>
+      title: 'Username',
+      dataIndex: 'username',
+      key: 'username',
+      render: (username) => (
+        <Space>
+          <UserOutlined />
+          <Text strong>{username}</Text>
         </Space>
       ),
-      filteredValue: searchText ? [searchText] : null,
-      onFilter: (value, record) => 
-        String(record.username).toLowerCase().includes(value.toLowerCase()) || 
-        String(record.email).toLowerCase().includes(value.toLowerCase()),
+      sorter: (a, b) => a.username.localeCompare(b.username),
+    },
+    {
+      title: 'Email',
+      dataIndex: 'email',
+      key: 'email',
+      ellipsis: true,
     },
     {
       title: 'Role',
-      dataIndex: ['role', 'name'],
+      dataIndex: 'role',
       key: 'role',
-      render: (roleName) => {
-        const colors = { 
-          Superadmin: 'red', 
-          Admin: 'green', 
-          Operator: 'cyan', 
-          Investor: 'gold', 
-          Viewer: 'default' 
-        };
-        return (
-          <Tag color={colors[roleName] || 'default'} style={{ fontWeight: 500 }}>
-            {roleName || 'No Role'}
-          </Tag>
-        );
-      }
-    },
-    {
-      title: 'Kontak',
-      key: 'contact',
-      render: (_, record) => (
-        <Space direction="vertical" size={2}>
-          {record.profile?.phone && (
-            <Space><PhoneOutlined style={{color: '#237804'}}/><Text>{record.profile.phone}</Text></Space>
-          )}
-          {record.profile?.address && (
-            <Space><HomeOutlined style={{color: '#237804'}}/><Text style={{maxWidth: 200}} ellipsis>{record.profile.address}</Text></Space>
-          )}
-          {!record.profile?.phone && !record.profile?.address && <Text type="secondary">-</Text>}
-        </Space>
-      )
+      render: (role) => {
+        const roleProps = ROLE_CHOICES[role] || { text: role, color: 'default' };
+        return <Tag color={roleProps.color}>{roleProps.text}</Tag>;
+      },
+      filters: Object.entries(ROLE_CHOICES).map(([value, { text }]) => ({ text, value })),
+      onFilter: (value, record) => record.role === value,
     },
     {
       title: 'Aksi',
       key: 'action',
+      width: 120,
       align: 'center',
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="Edit User">
+      fixed: 'right',
+      render: (_, record) => {
+        const isSelf = record.id === currentUser?.id;
+        return (
+          <Space size="small">
             <Button 
-              type="default" 
+              size="small" 
               icon={<EditOutlined />} 
-              onClick={() => showModal(record)}
-              style={{ color: '#237804', borderColor: '#237804' }}
+              onClick={() => showEditModal(record)}
+              disabled={isSelf}
             />
-          </Tooltip>
-          <Popconfirm 
-            title="Hapus user?" 
-            description="Tindakan ini tidak dapat dibatalkan"
-            onConfirm={() => deleteMutation.mutate(record.id)} 
-            okText="Ya" 
-            cancelText="Batal"
-          >
-            <Tooltip title="Hapus User">
-              <Button danger icon={<DeleteOutlined />} />
-            </Tooltip>
-          </Popconfirm>
-        </Space>
-      ),
+            <Popconfirm
+              title="Hapus User?"
+              description={isSelf ? "Tidak dapat menghapus akun sendiri!" : "Yakin hapus user ini?"}
+              onConfirm={() => handleDelete(record.id)}
+              okText="Ya"
+              cancelText="Tidak"
+              okButtonProps={{ danger: true, loading: deleteMutation.isPending, disabled: isSelf }}
+              disabled={isSelf}
+            >
+              <Button size="small" danger icon={<DeleteOutlined />} disabled={isSelf} />
+            </Popconfirm>
+          </Space>
+        );
+      },
     },
   ];
 
   return (
-    <div style={{ padding: '24px' }}>
-      {/* Header Halaman */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24, alignItems: 'center' }}>
+    <>
+      <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
-          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700 }}>User Management</Title>
-          <Text type="secondary" style={{ fontSize: 16 }}>Kelola pengguna dan hak akses aplikasi</Text>
+          <Title level={2} style={{ margin: 0, color: '#111928' }}>
+            <HiUsers style={{ marginRight: '8px', verticalAlign: 'middle', fontSize: '24px' }} />
+            Manajemen User
+          </Title>
+          <Text type="secondary" style={{ fontSize: '16px' }}>
+            Kelola semua user dan role mereka (Superadmin only).
+          </Text>
         </div>
-        <Button 
-          type="primary" 
-          icon={<UserAddOutlined />} 
-          size="large" 
-          style={{ backgroundColor: '#237804', borderColor: '#237804', borderRadius: 24, padding: '0 24px' }} 
-          onClick={() => showModal(null)}
+        <Button
+          type="primary"
+          icon={<PlusOutlined />}
+          size="large"
+          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+          onClick={showAddModal}
+          loading={createMutation.isPending || updateMutation.isPending}
         >
           Tambah User
         </Button>
-      </div>
+      </Flex>
 
-      {/* Konten Tabel */}
-      <Card bodyStyle={{ padding: 0 }} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #E5E7EB', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'flex-end' }}>
-          <Input 
-            placeholder="Cari username atau email..." 
-            prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />} 
-            onChange={e => setSearchText(e.target.value)} 
-            style={{ width: 300, borderRadius: 6 }} 
+      <Card style={{ marginBottom: 24 }}>
+        <Flex gap="middle" wrap="wrap">
+          <Search
+            placeholder="Cari username atau email..."
             allowClear
+            enterButton={<Button type="primary" icon={<SearchOutlined />} style={{ backgroundColor: '#237804' }} />}
+            size="large"
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ flexGrow: 1, minWidth: 250 }}
           />
-        </div>
-        
-        {isError && <Alert message="Gagal memuat data user" description={error?.message} type="error" banner />}
-        
-        <Table 
-          columns={columns} 
-          dataSource={users} 
-          rowKey="id" 
-          loading={loadingUsers} 
-          pagination={{ pageSize: 5 }} 
-        />
+          <Select
+            defaultValue="semua"
+            size="large"
+            style={{ minWidth: 200 }}
+            onChange={(value) => setSelectedRole(value)}
+          >
+            <Option value="semua">Semua Role</Option>
+            {Object.entries(ROLE_CHOICES).map(([value, { text }]) => (
+              <Option key={value} value={value}>{text}</Option>
+            ))}
+          </Select>
+        </Flex>
       </Card>
 
-      {/* Modal Form Tambah/Edit */}
+      {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
+      {isError && <Alert message="Error" description={error?.message} type="error" showIcon />}
+
+      {!isLoading && !isError && (
+        <Card bodyStyle={{ padding: 0 }}>
+          <Table
+            columns={columns}
+            dataSource={filteredUsers}
+            rowKey="id"
+            loading={isLoading || deleteMutation.isPending}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            scroll={{ x: 900 }}
+          />
+        </Card>
+      )}
+
       <Modal
-        title={
-          <Space>
-            {editingUser ? <EditOutlined style={{ color: '#237804' }} /> : <UserAddOutlined style={{ color: '#237804' }} />}
-            <span>{editingUser ? "Edit User" : "Tambah User Baru"}</span>
-          </Space>
-        }
-        open={isModalVisible}
-        onOk={handleOk}
+        title={editingUser ? 'Edit User' : 'Tambah User Baru'}
+        open={isModalOpen}
         onCancel={handleCancel}
-        confirmLoading={createMutation.isPending || updateMutation.isPending}
-        okText="Simpan"
-        cancelText="Batal"
-        okButtonProps={{ style: { backgroundColor: '#237804', borderColor: '#237804' } }}
-        centered
+        footer={null}
+        destroyOnClose
         width={600}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 20 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="username" label="Username" rules={[{ required: true, message: 'Username wajib diisi' }]}>
-                <Input placeholder="cth: budi_santoso" disabled={!!editingUser} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="role_id" label="Role / Jabatan" rules={[{ required: true, message: 'Role wajib dipilih' }]}>
-                <Select placeholder="Pilih Role" loading={loadingRoles}>
-                  {roles?.map(role => (
-                    <Option key={role.id} value={role.id}>
-                      <Space>
-                        <SafetyCertificateOutlined />
-                        {role.name}
-                      </Space>
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email', message: 'Email tidak valid' }]}>
-            <Input placeholder="cth: budi@example.com" />
+        <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+          <Form.Item
+            name="username"
+            label="Username"
+            rules={[{ required: true, message: 'Username wajib diisi!' }]}
+          >
+            <Input prefix={<UserOutlined />} placeholder="Masukkan username" />
           </Form.Item>
 
-          {!editingUser && (
-            <Form.Item name="password" label="Password" rules={[{ required: true, message: 'Password wajib diisi' }]}>
-              <Input.Password placeholder="Minimal 8 karakter" />
-            </Form.Item>
-          )}
-          
-          {editingUser && (
-             <Form.Item name="password" label="Password Baru (Opsional)" help="Kosongkan jika tidak ingin mengubah password">
-              <Input.Password placeholder="Masukkan password baru" />
-            </Form.Item>
-          )}
+          <Form.Item
+            name="email"
+            label="Email"
+            rules={[
+              { required: true, message: 'Email wajib diisi!' },
+              { type: 'email', message: 'Format email tidak valid!' }
+            ]}
+          >
+            <Input prefix={<MailOutlined />} placeholder="Masukkan email" />
+          </Form.Item>
 
-          <Row gutter={16}>
-            <Col span={12}><Form.Item name="first_name" label="Nama Depan"><Input placeholder="Budi" /></Form.Item></Col>
-            <Col span={12}><Form.Item name="last_name" label="Nama Belakang"><Input placeholder="Santoso" /></Form.Item></Col>
-          </Row>
+          <Form.Item
+            name="role"
+            label="Role"
+            rules={[{ required: true, message: 'Role wajib dipilih!' }]}
+          >
+            <Select placeholder="Pilih role user">
+              {Object.entries(ROLE_CHOICES).map(([value, { text }]) => (
+                <Option key={value} value={value}>{text}</Option>
+              ))}
+            </Select>
+          </Form.Item>
 
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item name="phone" label="No. Telepon">
-                <Input prefix={<PhoneOutlined style={{color:'#bfbfbf'}}/>} placeholder="0812..." />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="address" label="Alamat">
-                <Input prefix={<HomeOutlined style={{color:'#bfbfbf'}}/>} placeholder="Jl. Sudirman No..." />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item
+            name="password"
+            label={editingUser ? "Password Baru (Opsional)" : "Password"}
+            rules={editingUser ? [] : [
+              { required: true, message: 'Password wajib diisi!' },
+              { min: 8, message: 'Password minimal 8 karakter!' }
+            ]}
+          >
+            <Input.Password prefix={<LockOutlined />} placeholder="Masukkan password" />
+          </Form.Item>
+
+          <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
+            <Space>
+              <Button onClick={handleCancel}>Batal</Button>
+              <Button
+                type="primary"
+                htmlType="submit"
+                loading={createMutation.isPending || updateMutation.isPending}
+                style={{ backgroundColor: '#237804' }}
+              >
+                {editingUser ? 'Simpan Perubahan' : 'Tambah User'}
+              </Button>
+            </Space>
+          </Form.Item>
         </Form>
       </Modal>
-    </div>
+    </>
   );
-};
+}
 
 export default function UserManagementPage() {
   return (

@@ -8,6 +8,9 @@ import moment from 'moment';
 // Icons
 import {
   TrendingUp,
+  TrendingDown,
+  DollarSign,
+  PieChart as PieChartIcon,
   ArrowUpRight,
   ArrowDownRight,
   ChevronLeft,
@@ -17,10 +20,9 @@ import {
 import { GiMoneyStack, GiPayMoney, GiReceiveMoney } from 'react-icons/gi';
 import { FaArrowTrendUp, FaMoneyBills, FaMoneyBillTransfer } from 'react-icons/fa6';
 import { RiBillLine } from 'react-icons/ri';
-import { AiFillDollarCircle } from 'react-icons/ai';
 
 // UI Libraries
-import { Card, Carousel, Typography } from 'antd'; 
+import { Card, Carousel } from 'antd'; 
 import {
   ResponsiveContainer,
   BarChart,
@@ -29,6 +31,7 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
+  Legend,
   PieChart,
   Pie,
   Cell,
@@ -36,10 +39,10 @@ import {
 
 // Internal Components & API
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
 import * as reportingAPI from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
+import { AiFillDollarCircle } from 'react-icons/ai';
 
 // --- HELPERS ---
 const formatRupiah = (value) =>
@@ -144,6 +147,7 @@ const RincianDanaProyek = ({ data, isLoading }) => {
         nextArrow={<CustomNextArrow />}
       >
         {data.map((projectData) => {
+          // Kalkulasi data untuk slide ini
           const {
             project_id,
             project_name,
@@ -182,6 +186,7 @@ const RincianDanaProyek = ({ data, isLoading }) => {
 
           return (
             <div key={project_id}>
+              {/* Konten slide (logika render dari komponen asli) */}
               <div className="flex flex-col gap-1">
                 <h3 className="text-[16px] font-medium text-gray-900">
                   {project_name}
@@ -324,17 +329,20 @@ const Statistic = ({
   </div>
 );
 
+// --- PERBAIKAN PADA KOMPONEN TABLE ---
 const Table = ({ columns, dataSource, rowKey, isLoading }) => (
   <div className="overflow-x-auto">
+    {/* Menggunakan div agar lebih fleksibel dari <table> */}
     <div className="w-full min-w-full" style={{ borderCollapse: 'collapse' }}>
+      {/* Header */}
       <div className="bg-gray-50 flex">
         {columns.map((col, idx) => (
           <div
             key={idx}
             className="px-4 py-3.5 text-sm font-medium text-gray-900"
             style={{
-              flex: col.width || 1,
-              minWidth: col.width || 120,
+              flex: col.width || 1, // Beri flex-grow
+              minWidth: col.width || 120, // Beri min-width
               textAlign: col.align || 'left',
             }}
           >
@@ -342,6 +350,7 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
           </div>
         ))}
       </div>
+      {/* Body */}
       <div>
         {isLoading && (
           <div className="text-center p-8">
@@ -360,11 +369,12 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
               {columns.map((col, colIdx) => (
                 <div
                   key={colIdx}
-                  className="px-4 py-3 text-sm text-gray-700"
+                  className="px-4 py-3 text-sm text-gray-700" // Perbesar font ke text-sm
                   style={{
                     flex: col.width || 1,
                     minWidth: col.width || 120,
                     textAlign: col.align || 'left',
+                    // Memaksa pemotongan teks jika terlalu panjang
                     wordBreak: 'break-word',
                     overflowWrap: 'break-word',
                   }}
@@ -380,6 +390,7 @@ const Table = ({ columns, dataSource, rowKey, isLoading }) => (
     </div>
   </div>
 );
+// --- BATAS PERBAIKAN ---
 
 const Tag = ({ children, color = 'default' }) => {
   const colorMap = {
@@ -400,6 +411,7 @@ const Tag = ({ children, color = 'default' }) => {
   );
 };
 
+// --- PERBAIKAN PADA KOMPONEN SimpleBarChart ---
 const SimpleBarChart = ({
   data,
   dataKey,
@@ -438,13 +450,13 @@ const SimpleBarChart = ({
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey={xKey}
-            tick={{ fontSize: 12, fill: '#6B7280' }}
+            tick={{ fontSize: 12, fill: '#6B7280' }} // Style Sumbu X
             axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tickFormatter={formatJuta}
-            tick={{ fontSize: 10, fill: '#6B7280' }}
+            tickFormatter={formatJuta} // Format Sumbu Y
+            tick={{ fontSize: 10, fill: '#6B7280' }} // Style Sumbu Y
             axisLine={false}
             tickLine={false}
           />
@@ -459,6 +471,7 @@ const SimpleBarChart = ({
     </div>
   );
 };
+// --- BATAS PERBAIKAN ---
 
 const GroupedBarChart = ({ data, height = 300, isLoading }) => {
   if (isLoading)
@@ -500,6 +513,7 @@ const GroupedBarChart = ({ data, height = 300, isLoading }) => {
             tickLine={false}
           />
           <Tooltip content={<CustomTooltip />} />
+          {/* <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} /> */}
           <Bar
             dataKey="income"
             name="Pendapatan"
@@ -719,11 +733,6 @@ function ReportingContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // [RBAC] Cek Role untuk Filter Tampilan
-  const user = useAuthStore((state) => state.user);
-  const userRole = user?.role?.name || user?.role;
-  const isOperator = userRole === 'Operator';
-
   const filterParams = useMemo(
     () => ({
       asset: selectedAsset === 'all' ? undefined : selectedAsset,
@@ -812,6 +821,12 @@ function ReportingContent() {
       : labaRugiStatus === 'Rugi'
       ? '#CF1322'
       : '#8c8c8c';
+  const labaRugiTagColor =
+    labaRugiStatus === 'Laba'
+      ? 'success'
+      : labaRugiStatus === 'Rugi'
+      ? 'error'
+      : 'default';
 
   const donutChartData = [
     { name: 'Total Pengeluaran', value: ringkasanDana.total_pengeluaran || 0 },
@@ -1090,8 +1105,6 @@ function ReportingContent() {
 
         {!isLoading && !isErrorReport && reportData && (
           <>
-            {/* [RBAC] Section "Ringkasan Dana" DISEMBUNYIKAN untuk Operator */}
-            {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Ringkasan Dana
@@ -1101,7 +1114,7 @@ function ReportingContent() {
               ) : (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
-                    <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                    <Card className="border-gray-200 shadow-md rounded-lg">
                       <Statistic
                         title="Total Dana Masuk"
                         value={formatRupiah(ringkasanDana.total_dana_masuk)}
@@ -1109,7 +1122,7 @@ function ReportingContent() {
                         iconColor="#7CB305"
                       />
                     </Card>
-                    <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                    <Card className="border-gray-200 shadow-md rounded-lg">
                       <Statistic
                         title="Total Pengeluaran"
                         value={formatRupiah(ringkasanDana.total_pengeluaran)}
@@ -1118,7 +1131,7 @@ function ReportingContent() {
                       />
                     </Card>
                   </div>
-                  <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                  <Card className="border-gray-200 shadow-md rounded-lg">
                     <Statistic
                       title="Cash on Hand"
                       value={formatRupiah(ringkasanDana.sisa_dana)}
@@ -1129,12 +1142,11 @@ function ReportingContent() {
                 </>
               )}
             </section>
-            )}
 
-            {/* [RBAC] Section Chart Dana & Proyek juga DISEMBUNYIKAN untuk Operator */}
-            {!isOperator && (
+            {/* --- PERUBAHAN PADA GRID INI --- */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
+                {/* Tambahkan h-full agar tingginya sama */}
                 <Card className="h-full border-gray-200 shadow-md rounded-lg">
                   <h2 className="text-[22px]">Persentase Penggunaan Dana</h2>
                   <DonutChart
@@ -1145,6 +1157,7 @@ function ReportingContent() {
                 </Card>
               </div>
 
+              {/* Komponen RincianDanaProyek (Sekarang dengan Carousel) */}
               <div className="lg:col-span-2">
                 <RincianDanaProyek
                   data={rincianProyek}
@@ -1152,9 +1165,8 @@ function ReportingContent() {
                 />
               </div>
             </div>
-            )}
+            {/* --- BATAS PERUBAHAN --- */}
 
-            {/* [RBAC] Section Pengeluaran: OPERATOR BOLEH LIHAT */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Pengeluaran
@@ -1162,12 +1174,10 @@ function ReportingContent() {
 
               <Card
                 className="mb-6 border-gray-200 shadow-md rounded-lg w-full max-w-[453px]"
-                styles={{
-                  body: {
-                    padding: '16px',
-                    height: '118px',
-                    boxSizing: 'border-box',
-                  }
+                bodyStyle={{
+                  padding: '16px',
+                  height: '118px',
+                  boxSizing: 'border-box',
                 }}
                 loading={isLoadingReport}
               >
@@ -1178,6 +1188,7 @@ function ReportingContent() {
                   <div className="flex-1 flex flex-col justify-center">
                     <div
                       className="font-bold text-[31px] text-[#CF1322] leading-tight"
+                      // style={{ // fontFamily: 'Inter, sans-serif' }}
                     >
                       {formatRupiah(ringkasanDana.total_pengeluaran)}
                     </div>
@@ -1185,9 +1196,12 @@ function ReportingContent() {
                 </div>
               </Card>
 
+              {/* --- PERUBAHAN PADA GRID INI --- */}
+              {/* Ganti grid-rows-2 menjadi grid-cols-2 */}
               <div className="grid mt-5 grid-cols-1 lg:grid-rows-2 gap-6">
+                {/* Bungkus Card dengan div abu-abu */}
                 <div className="bg-gray-50 rounded-lg">
-                  <Card className="h-full border-gray-200 shadow-md rounded-lg">
+                  <Card className="h-full border-gray-200 shadow-md rounded-lg p-">
                     <h2 className="text-[22px] pt-0 text-black-700 mb-8">
                       Pengeluaran Per Kategori
                     </h2>
@@ -1200,6 +1214,7 @@ function ReportingContent() {
                     />
                   </Card>
                 </div>
+                {/* Bungkus Card dengan div abu-abu */}
                 <div className="bg-gray-50 rounded-lg">
                   <Card className="h-full border-gray-200 shadow-md rounded-lg">
                     <h2 className="text-[22px] mb-5">
@@ -1214,16 +1229,15 @@ function ReportingContent() {
                   </Card>
                 </div>
               </div>
+              {/* --- BATAS PERUBAHAN --- */}
             </section>
 
-            {/* [RBAC] Section Laba Rugi: OPERATOR TIDAK BOLEH LIHAT */}
-            {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Laba Rugi
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-rows-2 gap-6 mb-6">
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Pendapatan"
                     value={formatRupiah(totalYield)}
@@ -1231,7 +1245,7 @@ function ReportingContent() {
                     iconColor="#7CB305"
                   />
                 </Card>
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Pengeluaran"
                     value={formatRupiah(ringkasanDana.total_pengeluaran)}
@@ -1240,7 +1254,7 @@ function ReportingContent() {
                     valueStyle={{ color: '#F5222D' }}
                   />
                 </Card>
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Net Profit"
                     value={formatRupiah(yieldData?.hasil_bersih)}
@@ -1249,7 +1263,7 @@ function ReportingContent() {
                     valueStyle={{ color: '#111928' }}
                   />
                 </Card>
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Margin Laba (%)"
                     value={`${yieldData?.margin_laba || 0}%`}
@@ -1272,11 +1286,10 @@ function ReportingContent() {
                 </Card>
               </div>
             </section>
-            )}
 
-            {/* [RBAC] Section Ringkasan Bulanan: OPERATOR TIDAK BOLEH LIHAT */}
-            {!isOperator && (
+            {/* --- PERUBAHAN PADA SECTION INI --- */}
             <section>
+              {/* Bungkus Card dengan div abu-abu */}
               <div className="bg-gray-50 rounded-lg">
                 <Card className="border-gray-200 shadow-md rounded-lg">
                   <h2 className="text-2xl font-bold text-gray-900 mb-5">
@@ -1291,15 +1304,13 @@ function ReportingContent() {
                 </Card>
               </div>
             </section>
-            )}
+            {/* --- BATAS PERUBAHAN --- */}
 
-            {/* [RBAC] Section Yield & Investor: OPERATOR TIDAK BOLEH LIHAT */}
-            {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                 <div className="md:col-span-2">
-                  <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                  <Card className="border-gray-200 shadow-md rounded-lg">
                     <Statistic
                       title="Total Investasi Investor"
                       value={formatRupiah(yieldData?.total_investasi)}
@@ -1308,7 +1319,7 @@ function ReportingContent() {
                     />
                   </Card>
                 </div>
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Total Bagi Hasil Investor"
                     value={formatRupiah(yieldData?.total_hasil_produksi)}
@@ -1316,7 +1327,7 @@ function ReportingContent() {
                     iconColor="#1C64F2"
                   />
                 </Card>
-                <Card styles={{ body: { padding: '24px' } }} className="border-gray-200 shadow-md rounded-lg">
+                <Card className="border-gray-200 shadow-md rounded-lg">
                   <Statistic
                     title="Yield (%)"
                     value={formatRupiah(yieldData?.hasil_bersih)}
@@ -1325,6 +1336,8 @@ function ReportingContent() {
                   />
                 </Card>
               </div>
+              {/* --- PERUBAHAN PADA SECTION INI --- */}
+              {/* Bungkus Card dengan div abu-abu */}
               <div className="bg-gray-50 rounded-lg">
                 <Card className="border-gray-200 shadow-md rounded-lg">
                   <h2 className="text-2xl font-bold text-gray-900 mb-5">
@@ -1345,8 +1358,8 @@ function ReportingContent() {
                   )}
                 </Card>
               </div>
+              {/* --- BATAS PERUBAHAN --- */}
             </section>
-            )}
           </>
         )}
       </div>
@@ -1358,7 +1371,7 @@ function ReportingContent() {
 
 export default function LaporanPage() {
   return (
-    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Operator', 'Viewer']}>
+    <ProtectedRoute>
       <ReportingContent />
     </ProtectedRoute>
   );
