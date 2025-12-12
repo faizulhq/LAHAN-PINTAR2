@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Table, Button, Modal, Form, Input, DatePicker, InputNumber, Select,
-  Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card, Tag
+  Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, UserOutlined
@@ -15,7 +15,8 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import {
   getInvestors, createInvestor, updateInvestor, deleteInvestor
 } from '@/lib/api/investor';
-import { getAvailableUsersForInvestor } from '@/lib/api/user'; // NEW IMPORT
+import { getAvailableUsersForInvestor } from '@/lib/api/user';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC]
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -32,24 +33,28 @@ function InvestorManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [form] = Form.useForm();
 
+  // [RBAC]
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
   // --- Fetch Data ---
   const { data: investors, isLoading, isError, error } = useQuery({
     queryKey: ['investors'],
     queryFn: getInvestors,
   });
 
-  // NEW: Fetch available users untuk dropdown (hanya saat create)
   const { data: availableUsers, isLoading: isLoadingUsers } = useQuery({
     queryKey: ['availableUsersForInvestor'],
     queryFn: getAvailableUsersForInvestor,
-    enabled: isModalOpen && !editingInvestor, // Hanya fetch saat modal create dibuka
+    enabled: isModalOpen && !editingInvestor, 
   });
 
   // --- Mutasi ---
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investors'] });
-      queryClient.invalidateQueries({ queryKey: ['availableUsersForInvestor'] }); // Refresh available users
+      queryClient.invalidateQueries({ queryKey: ['availableUsersForInvestor'] });
       setIsModalOpen(false);
       setEditingInvestor(null);
       form.resetFields();
@@ -121,14 +126,12 @@ function InvestorManagementContent() {
     const investorData = {
       contact: values.contact,
       join_date: values.join_date.format('YYYY-MM-DD'),
-      total_investment: values.total_investment,
+      total_investment: Number(values.total_investment), // Pastikan Number
     };
 
     if (editingInvestor) {
-      // Mode Edit: JANGAN kirim field 'user'
       updateMutation.mutate({ id: editingInvestor.id, data: investorData });
     } else {
-      // Mode Create: WAJIB kirim field 'user'
       investorData.user = values.user;
       createMutation.mutate(investorData);
     }
@@ -138,7 +141,6 @@ function InvestorManagementContent() {
     deleteMutation.mutate(id);
   };
 
-  // --- Filter Data ---
   const filteredInvestors = useMemo(() => {
     if (!investors) return [];
     return investors.filter(inv => {
@@ -148,7 +150,6 @@ function InvestorManagementContent() {
     });
   }, [investors, searchTerm]);
 
-  // --- Kolom Tabel ---
   const columns = [
     {
       title: 'Username',
@@ -191,7 +192,8 @@ function InvestorManagementContent() {
       align: 'right',
       width: 180,
     },
-    {
+    // [RBAC] Kolom Aksi hanya untuk Admin/Superadmin
+    ...(canEdit ? [{
       title: 'Aksi',
       key: 'action',
       width: 120,
@@ -212,12 +214,11 @@ function InvestorManagementContent() {
           </Popconfirm>
         </Space>
       ),
-    },
+    }] : []),
   ];
 
   return (
-    <>
-      {/* Header Halaman */}
+    <div style={{ padding: '24px' }}>
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}>
@@ -228,19 +229,21 @@ function InvestorManagementContent() {
             Kelola data profil investor yang terdaftar.
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          size="large"
-          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
-          onClick={showAddModal}
-          loading={createMutation.isPending || updateMutation.isPending}
-        >
-          Tambah Investor
-        </Button>
+        
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+            onClick={showAddModal}
+            loading={createMutation.isPending || updateMutation.isPending}
+          >
+            Tambah Investor
+          </Button>
+        )}
       </Flex>
 
-      {/* Filter & Search */}
       <Card style={{ marginBottom: 24 }}>
         <Search
           placeholder="Cari username, email, atau kontak..."
@@ -252,7 +255,6 @@ function InvestorManagementContent() {
         />
       </Card>
 
-      {/* Tabel Data */}
       {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
       {isError && !isLoading && (
         <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />
@@ -271,98 +273,97 @@ function InvestorManagementContent() {
         </Card>
       )}
 
-      {/* Modal Tambah/Edit */}
-      <Modal
-        title={editingInvestor ? 'Edit Investor' : 'Tambah Investor Baru'}
-        open={isModalOpen}
-        onCancel={handleCancel}
-        footer={null}
-        destroyOnClose
-        width={600}
-      >
-        <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
-          
-          {/* FIELD USER - Hanya muncul saat CREATE */}
-          {!editingInvestor && (
+      {canEdit && (
+        <Modal
+          title={editingInvestor ? 'Edit Investor' : 'Tambah Investor Baru'}
+          open={isModalOpen}
+          onCancel={handleCancel}
+          footer={null}
+          destroyOnClose
+          width={600}
+        >
+          <Form form={form} layout="vertical" onFinish={handleFormSubmit} style={{ marginTop: 24 }}>
+            {!editingInvestor && (
+              <Form.Item
+                name="user"
+                label="Pilih User Account"
+                rules={[{ required: true, message: 'User harus dipilih!' }]}
+                tooltip="Pilih user yang akan dijadikan investor."
+              >
+                <Select
+                  placeholder="Pilih user"
+                  loading={isLoadingUsers}
+                  showSearch
+                  optionFilterProp="children"
+                  filterOption={(input, option) =>
+                    String(option.children).toLowerCase().includes(input.toLowerCase())
+                  }
+                >
+                  {availableUsers?.map(user => {
+                      const roleName = user.role?.name || user.role || 'No Role';
+                      return (
+                          <Option key={user.id} value={user.id}>
+                            {`${user.username} (${user.email}) - ${roleName}`}
+                          </Option>
+                      );
+                  })}
+                </Select>
+              </Form.Item>
+            )}
+
             <Form.Item
-              name="user"
-              label="Pilih User Account"
-              rules={[{ required: true, message: 'User harus dipilih!' }]}
-              tooltip="Pilih user yang akan dijadikan investor. Hanya user dengan role Viewer/Investor yang tersedia."
+              name="contact"
+              label="Kontak"
+              rules={[{ required: true, message: 'Kontak tidak boleh kosong!' }]}
             >
-              <Select
-                placeholder="Pilih user"
-                loading={isLoadingUsers}
-                showSearch
-                optionFilterProp="children"
-                filterOption={(input, option) =>
-                  option.children.toLowerCase().includes(input.toLowerCase())
-                }
-              >
-                {availableUsers?.map(user => (
-                  <Option key={user.id} value={user.id}>
-                    {user.username} ({user.email}) - {user.role}
-                  </Option>
-                ))}
-              </Select>
+              <Input.TextArea rows={3} placeholder="Email, telepon, atau info kontak lainnya" />
             </Form.Item>
-          )}
 
-          {/* FIELD CONTACT */}
-          <Form.Item
-            name="contact"
-            label="Kontak"
-            rules={[{ required: true, message: 'Kontak tidak boleh kosong!' }]}
-          >
-            <Input.TextArea rows={3} placeholder="Email, telepon, atau info kontak lainnya" />
-          </Form.Item>
+            <Form.Item
+              name="join_date"
+              label="Tanggal Bergabung"
+              rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
+            >
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
 
-          {/* FIELD JOIN DATE */}
-          <Form.Item
-            name="join_date"
-            label="Tanggal Bergabung"
-            rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
-          >
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-          </Form.Item>
+            <Form.Item
+              name="total_investment"
+              label="Total Investasi (Rp)"
+              rules={[{ required: true, message: 'Total investasi tidak boleh kosong!' }]}
+            >
+              <InputNumber
+                style={{ width: '100%' }}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                min={0}
+                placeholder="Masukkan total investasi"
+              />
+            </Form.Item>
 
-          {/* FIELD TOTAL INVESTMENT */}
-          <Form.Item
-            name="total_investment"
-            label="Total Investasi (Rp)"
-            rules={[{ required: true, message: 'Total investasi tidak boleh kosong!' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-              min={0}
-              placeholder="Masukkan total investasi"
-            />
-          </Form.Item>
-
-          <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
-            <Space>
-              <Button onClick={handleCancel}>Batal</Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={createMutation.isPending || updateMutation.isPending}
-                style={{ backgroundColor: '#237804' }}
-              >
-                {editingInvestor ? 'Simpan Perubahan' : 'Tambah Investor'}
-              </Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-    </>
+            <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
+              <Space>
+                <Button onClick={handleCancel}>Batal</Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={createMutation.isPending || updateMutation.isPending}
+                  style={{ backgroundColor: '#237804' }}
+                >
+                  {editingInvestor ? 'Simpan Perubahan' : 'Tambah Investor'}
+                </Button>
+              </Space>
+            </Form.Item>
+          </Form>
+        </Modal>
+      )}
+    </div>
   );
 }
 
 export default function InvestorPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <InvestorManagementContent />
     </ProtectedRoute>
   );

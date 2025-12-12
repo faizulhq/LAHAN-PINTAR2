@@ -1,27 +1,29 @@
-// Di app/admin/pengaturan/page.jsx
 'use client';
 
 import React from 'react';
 import {
-  Card, Typography, Spin, Alert, Row, Col, Descriptions, Button, Flex, Space // Descriptions untuk menampilkan info
+  Card, Typography, Spin, Alert, Row, Col, Descriptions, Button, Flex, Space
 } from 'antd';
-// Impor ikon react-icons yang sesuai
 import { AiFillSetting } from 'react-icons/ai';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // Untuk mengambil data user
-import { UserOutlined, MailOutlined, UserSwitchOutlined } from '@ant-design/icons'; // Ikon untuk detail
+import useAuthStore from '@/lib/store/authStore';
+import { UserOutlined, MailOutlined, UserSwitchOutlined } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
 
-// Komponen Utama Halaman Pengaturan
 function SettingsContent() {
-  // Ambil data pengguna dari Zustand store
   const user = useAuthStore((state) => state.user);
-  const isLoading = !user; // Anggap loading jika user belum ada di store
+  const isLoading = !user;
+
+  // Helper untuk mengambil nama role dengan aman
+  const getRoleName = (roleData) => {
+    if (!roleData) return '-';
+    // Jika object, ambil .name. Jika string, return langsung.
+    return typeof roleData === 'object' ? roleData.name : roleData;
+  };
 
   return (
     <>
-      {/* Header Halaman */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' }}>
@@ -29,13 +31,10 @@ function SettingsContent() {
           </Title>
           <Text type="secondary" style={{ fontSize: '16px' }}>Lihat informasi akun Anda.</Text>
         </div>
-        {/* Tidak ada tombol aksi utama di sini untuk saat ini */}
       </Flex>
 
-      {/* Tampilan Loading */}
       {isLoading && <Spin size="large"><div style={{ padding: 50 }} /></Spin>}
 
-      {/* Tampilan Data Pengguna */}
       {!isLoading && user && (
         <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
@@ -48,7 +47,8 @@ function SettingsContent() {
                   {user.email}
                 </Descriptions.Item>
                 <Descriptions.Item label={<Space><UserSwitchOutlined /> Role</Space>}>
-                  {user.role}
+                  {/* [PERBAIKAN] Render nama role, bukan objectnya */}
+                  {getRoleName(user.role)}
                 </Descriptions.Item>
               </Descriptions>
             </Card>
@@ -68,7 +68,6 @@ function SettingsContent() {
         </Row>
       )}
 
-      {/* Tampilan Error jika user tidak ada (seharusnya tidak terjadi jika ProtectedRoute bekerja) */}
       {!isLoading && !user && (
          <Alert message="Error" description="Gagal memuat informasi pengguna." type="error" showIcon />
       )}
@@ -76,7 +75,6 @@ function SettingsContent() {
   );
 }
 
-// Bungkus dengan ProtectedRoute
 export default function SettingsPage() {
   return (
     <ProtectedRoute>

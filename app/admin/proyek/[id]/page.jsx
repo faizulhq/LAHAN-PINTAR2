@@ -1,4 +1,3 @@
-// app/admin/proyek/[id]/page.jsx
 'use client';
 import React, { useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
@@ -42,11 +41,14 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { MdLocationPin } from 'react-icons/md';
 import { BsCalculatorFill } from 'react-icons/bs';
 import { FaBuilding, FaMapMarkerAlt } from 'react-icons/fa';
+// [RBAC] Import Auth
+import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
+// ... (Helper functions tetap sama, tidak saya ubah)
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
   return `Rp ${Number(value).toLocaleString('id-ID')}`;
@@ -128,6 +130,12 @@ function ProjectDetailContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [form] = Form.useForm();
+
+  // [RBAC] Logic Hak Akses
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  // Hanya Admin dan Superadmin yang boleh Edit/Hapus Proyek
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
   // Fetch Projects
   const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
@@ -264,38 +272,42 @@ function ProjectDetailContent() {
             Informasi lengkap tentang proyek ini
           </Text>
         </Space>
-        <Space size="middle">
-          <Button
-            icon={<EditOutlined />}
-            size="large"
-            style={{
-              borderRadius: '8px',
-              height: '40px',
-              fontSize: '16px',
-              borderColor: '#237804',
-              color: '#237804',
-            }}
-            onClick={showEditModal}
-          >
-            Edit Proyek
-          </Button>
-          <Button
-            danger
-            icon={<DeleteOutlined />}
-            size="large"
-            style={{
-              borderRadius: '8px',
-              height: '40px',
-              fontSize: '16px',
-            }}
-            onClick={() => setIsDeleteModalOpen(true)}
-          >
-            Hapus
-          </Button>
-        </Space>
+        
+        {/* [RBAC] Tombol Aksi - Hanya muncul jika canEdit */}
+        {canEdit && (
+            <Space size="middle">
+            <Button
+                icon={<EditOutlined />}
+                size="large"
+                style={{
+                borderRadius: '8px',
+                height: '40px',
+                fontSize: '16px',
+                borderColor: '#237804',
+                color: '#237804',
+                }}
+                onClick={showEditModal}
+            >
+                Edit Proyek
+            </Button>
+            <Button
+                danger
+                icon={<DeleteOutlined />}
+                size="large"
+                style={{
+                borderRadius: '8px',
+                height: '40px',
+                fontSize: '16px',
+                }}
+                onClick={() => setIsDeleteModalOpen(true)}
+            >
+                Hapus
+            </Button>
+            </Space>
+        )}
       </Flex>
 
-      {/* Info Card Utama */}
+      {/* --- BAGIAN BAWAH INI TIDAK DISENTUH SAMA SEKALI (Sesuai kode asli) --- */}
       <Card
         style={{
           marginBottom: 24,
@@ -479,6 +491,7 @@ function ProjectDetailContent() {
           </Col>
         </Row>
       </Card>
+      {/* ------------------------------------------------------------- */}
 
       {/* Modal Edit */}
       <Modal

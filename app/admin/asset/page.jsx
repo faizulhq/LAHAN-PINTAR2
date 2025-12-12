@@ -1,8 +1,9 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Row, Col, Card, Input, Select, Button, Typography, Space, Tag, Flex,
-  Modal, Form, DatePicker, InputNumber, Upload, message, Spin, Alert, Popconfirm, Descriptions, Skeleton
+  Modal, Form, DatePicker, InputNumber, message, Spin, Alert, Popconfirm, Descriptions, Skeleton
 } from 'antd';
 import {
   PlusOutlined, SearchOutlined,
@@ -19,6 +20,7 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
 import { getAssets, createAsset, updateAsset, deleteAsset, getOwners, createOwner } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
@@ -65,7 +67,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
         border: '1px solid #F0F0F0',
         borderRadius: '12px',
         boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
-        // height: '118px',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
@@ -90,7 +91,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
               fontWeight: 600, 
               color: '#585858',
               lineHeight: '150%',
-              // // fontFamily: 'Inter, sans-serif',
             }}
           >
             {title}
@@ -101,7 +101,6 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
               fontWeight: 700, 
               color: '#111928',
               lineHeight: '125%',
-              // // fontFamily: 'Inter, sans-serif',
             }}
           >
             {displayValue()}
@@ -146,42 +145,141 @@ const StatisticsCards = ({ stats, isLoading }) => (
   </Row>
 );
 
-// Asset Card Component
-const AssetCard = ({ asset, onDetail, onEdit, onDelete }) => {
+// Asset Card Component (Modified with RBAC)
+const AssetCard = ({ asset, onDetail, onEdit, onDelete, canEdit }) => { // [RBAC] Terima prop canEdit
   const typeProps = getAssetTypeProps(asset.type);
   const isDeleting = onDelete.isPending && onDelete.variables === asset.id;
 
   return (
-    <Card hoverable>
-      <Flex justify="space-between" align="start" gap="middle">
-        <Space direction="vertical" align="start">
-          <Title level={5} style={{ margin: 0 }}>{asset.name}</Title>
-          <Tag color={typeProps.color}>{typeProps.text}</Tag>
-        </Space>
-        <Text style={{ color: '#7CB305', fontSize: '16px', fontWeight: 500, whiteSpace: 'nowrap' }}>
+    <Card 
+      hoverable
+      style={{
+        border: '1px solid #E5E7EB',
+        borderRadius: '12px',
+        boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
+      }}
+    >
+      <Flex justify="space-between" align="center" style={{ marginBottom: '12px' }}>
+        <Title 
+          level={5} 
+          style={{ 
+            margin: 0,
+            fontWeight: 500,
+            fontSize: '18px',
+            lineHeight: '22px',
+            color: '#111928',
+          }}
+        >
+          {asset.name}
+        </Title>
+      </Flex>
+
+      <Flex justify="space-between" align="center" style={{ marginBottom: '12px' }}>
+        <Tag 
+          color={typeProps.color}
+          style={{
+            padding: '4px 10px',
+            borderRadius: '6px',
+            fontWeight: 600,
+            fontSize: '14px',
+            lineHeight: '17px',
+          }}
+        >
+          {typeProps.text}
+        </Tag>
+        <Text 
+          style={{ 
+            fontWeight: 500,
+            fontSize: '16px',
+            lineHeight: '19px',
+            color: '#7CB305',
+          }}
+        >
           {formatRupiah(asset.value)}
         </Text>
       </Flex>
 
-      <Space direction="vertical" style={{ marginTop: 24, marginBottom: 24, width: '100%' }} size="middle">
-        <Space><MdLocationPin style={{ color: '#CF1322', fontSize: '20px' }} /><Text type="secondary">{asset.location}</Text></Space>
-        <Space><TbArrowsMaximize style={{ color: '#D46B08', fontSize: '20px' }} /><Text type="secondary">{asset.size} m²</Text></Space>
-        <Space><BiSolidCalendar style={{ color: '#531DAB', fontSize: '20px' }} /><Text type="secondary">{formatDate(asset.acquisition_date)}</Text></Space>
+      <Space 
+        direction="vertical" 
+        style={{ width: '100%', marginTop: '12px' }} 
+        size={12}
+      >
+        <Flex align="center" gap={4}>
+          <MdLocationPin style={{ color: '#CF1322', fontSize: '24px', flexShrink: 0 }} />
+          <Text 
+            style={{ 
+              fontWeight: 500,
+              fontSize: '14px',
+              lineHeight: '150%',
+              color: '#6B7280',
+            }}
+          >
+            {asset.location}
+          </Text>
+        </Flex>
+        <Flex align="center" gap={4}>
+          <TbArrowsMaximize style={{ color: '#D46B08', fontSize: '24px', flexShrink: 0 }} />
+          <Text 
+            style={{ 
+              fontWeight: 500,
+              fontSize: '14px',
+              lineHeight: '150%',
+              color: '#6B7280',
+            }}
+          >
+            {asset.size}m²
+          </Text>
+        </Flex>
+        <Flex align="center" gap={4}>
+          <BiSolidCalendar style={{ color: '#531DAB', fontSize: '24px', flexShrink: 0 }} />
+          <Text 
+            style={{ 
+              fontWeight: 500,
+              fontSize: '14px',
+              lineHeight: '150%',
+              color: '#6B7280',
+            }}
+          >
+            {formatDate(asset.acquisition_date)}
+          </Text>
+        </Flex>
       </Space>
 
-      <Flex gap="small" justify="space-between">
-        <Button icon={<EyeOutlined />} onClick={() => onDetail(asset)} style={{ flexGrow: 1 }}>Detail</Button>
-        <Button icon={<EditOutlined />} onClick={() => onEdit(asset)} style={{ flexGrow: 1 }}>Edit</Button>
-        <Popconfirm
-          title="Hapus Aset"
-          description={`Yakin ingin menghapus "${asset.name}"?`}
-          onConfirm={() => onDelete.mutate(asset.id)}
-          okText="Ya"
-          cancelText="Batal"
-          okButtonProps={{ danger: true, loading: isDeleting }}
+      <Flex gap={20} style={{ paddingTop: '24px' }}>
+        <Button 
+          onClick={() => onDetail(asset)}
+          style={{ 
+            flex: 1,
+            height: '40px',
+            border: '1px solid #237804',
+            borderRadius: '8px',
+            fontWeight: 500,
+            fontSize: '14px',
+            color: '#237804',
+            background: 'transparent',
+          }}
         >
-          <Button danger icon={<DeleteOutlined />} style={{ flexGrow: 1 }} loading={isDeleting} />
-        </Popconfirm>
+          Detail
+        </Button>
+        
+        {/* [RBAC] Tombol Edit disembunyikan jika user tidak punya akses edit */}
+        {canEdit && (
+          <Button 
+            onClick={() => onEdit(asset)}
+            style={{ 
+              flex: 1,
+              height: '40px',
+              background: '#237804',
+              borderRadius: '8px',
+              fontWeight: 500,
+              fontSize: '14px',
+              color: '#FFFFFF',
+              border: 'none',
+            }}
+          >
+            Edit
+          </Button>
+        )}
       </Flex>
     </Card>
   );
@@ -255,8 +353,8 @@ const OwnerFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
 
 // Asset Form Modal
 const AssetFormModal = ({ 
-  open, editingAsset, form, fileList, owners, isLoadingOwners, 
-  onCancel, onSubmit, isSubmitting, onFileChange, onAddOwner 
+  open, editingAsset, form, owners, isLoadingOwners, 
+  onCancel, onSubmit, isSubmitting, onAddOwner 
 }) => (
   <Modal
     title={editingAsset ? 'Edit Aset' : 'Tambah Aset Baru'}
@@ -354,18 +452,15 @@ const AssetFormModal = ({
         />
       </Form.Item>
 
-      <Form.Item label="Dokumen">
-        <Upload 
-          fileList={fileList}
-          beforeUpload={(file) => {
-            onFileChange([file]);
-            return false;
-          }}
-          onRemove={() => onFileChange([])}
-          maxCount={1}
-        >
-          <Button icon={<UploadOutlined />}>Upload Dokumen</Button>
-        </Upload>
+      <Form.Item 
+        label="URL Dokumen" 
+        name="document_url"
+        tooltip="Link Google Drive, Dropbox, atau URL dokumen lainnya"
+      >
+        <Input 
+          placeholder="https://drive.google.com/file/d/..." 
+          prefix={<UploadOutlined />}
+        />
       </Form.Item>
 
       <Form.Item>
@@ -380,54 +475,29 @@ const AssetFormModal = ({
   </Modal>
 );
 
-// Asset Detail Modal
-const AssetDetailModal = ({ open, asset, onCancel }) => (
-  <Modal
-    title="Detail Aset"
-    open={open}
-    onCancel={onCancel}
-    footer={<Button onClick={onCancel}>Tutup</Button>}
-    width={600}
-  >
-    {asset && (
-      <Descriptions bordered column={1} size="small" style={{ marginTop: 24 }}>
-        <Descriptions.Item label="Nama">{asset.name}</Descriptions.Item>
-        <Descriptions.Item label="Tipe">{getAssetTypeProps(asset.type).text}</Descriptions.Item>
-        <Descriptions.Item label="Lokasi">{asset.location}</Descriptions.Item>
-        <Descriptions.Item label="Ukuran">{asset.size} m²</Descriptions.Item>
-        <Descriptions.Item label="Nilai">{formatRupiah(asset.value)}</Descriptions.Item>
-        <Descriptions.Item label="Tanggal Akuisisi">{formatDate(asset.acquisition_date)}</Descriptions.Item>
-        <Descriptions.Item label="Status Kepemilikan">
-          {OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}
-        </Descriptions.Item>
-        <Descriptions.Item label="Pemilik Lahan">
-          {asset.landowner_name || '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="% Bagi Hasil Pemilik">
-          {asset.landowner_share_percentage ? `${asset.landowner_share_percentage}%` : '-'}
-        </Descriptions.Item>
-        <Descriptions.Item label="Total Investasi">
-          {formatRupiah(asset.total_investment || 0)}
-        </Descriptions.Item>
-        <Descriptions.Item label="Dokumen">{asset.document_url || '-'}</Descriptions.Item>
-      </Descriptions>
-    )}
-  </Modal>
-);
-
 // ==================== MAIN COMPONENT ====================
 function AssetManagementContent() {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingAsset, setEditingAsset] = useState(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-  const [detailAsset, setDetailAsset] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedType, setSelectedType] = useState('semua');
   const [form] = Form.useForm();
-  const [fileList, setFileList] = useState([]);
   const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
   const [ownerForm] = Form.useForm();
+
+  // [RBAC] Ambil data user dari store
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role; 
+  // Definisikan siapa yang boleh edit/tambah/hapus
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
+  // [LOGIKA JUDUL DINAMIS]
+  const pageTitle = canEdit ? "Manajemen Aset" : "Daftar Aset";
+  const pageDesc = canEdit 
+    ? "Kelola semua aset fisik yang dimiliki"
+    : "Lihat daftar aset fisik dan status operasionalnya.";
 
   // Data Fetching
   const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
@@ -437,7 +507,8 @@ function AssetManagementContent() {
 
   const { data: owners, isLoading: isLoadingOwners } = useQuery({
     queryKey: ['owners'],
-    queryFn: getOwners
+    queryFn: getOwners,
+    enabled: canEdit // Hanya fetch owner jika user berhak edit (optimasi)
   });
 
   // Mutations
@@ -446,7 +517,6 @@ function AssetManagementContent() {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       setIsModalOpen(false);
       form.resetFields();
-      setFileList([]);
       setEditingAsset(null);
     },
     onError: (err) => {
@@ -513,7 +583,6 @@ function AssetManagementContent() {
   const handleAddAsset = () => {
     setEditingAsset(null);
     form.resetFields();
-    setFileList([]);
     setIsModalOpen(true);
   };
 
@@ -529,8 +598,8 @@ function AssetManagementContent() {
       ownership_status: asset.ownership_status,
       landowner: asset.landowner,
       landowner_share_percentage: asset.landowner_share_percentage || 10,
+      document_url: asset.document_url || '',
     });
-    setFileList(asset.document_url ? [{ uid: '-1', name: asset.document_url, status: 'done' }] : []);
     setIsModalOpen(true);
   };
 
@@ -538,14 +607,12 @@ function AssetManagementContent() {
     setIsModalOpen(false);
     setEditingAsset(null);
     form.resetFields();
-    setFileList([]);
   };
 
   const handleFormSubmit = async (values) => {
     const formData = {
       ...values,
       acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
-      document_url: fileList.length > 0 ? (fileList[0].originFileObj ? fileList[0].name : editingAsset?.document_url) : null,
     };
     
     if (!formData.landowner) {
@@ -560,9 +627,7 @@ function AssetManagementContent() {
   };
 
   const handleViewDetail = (asset) => {
-    const landownerName = owners?.find(o => o.id === asset.landowner)?.nama;
-    setDetailAsset({ ...asset, landowner_name: landownerName });
-    setIsDetailModalOpen(true);
+    router.push(`/admin/asset/${asset.id}`);
   };
 
   const handleShowOwnerModal = () => {
@@ -603,36 +668,28 @@ function AssetManagementContent() {
     <>
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div className='gap-[6px]'>
-          <Title level={2} style={{ 
-            margin: 0, 
-            color: '#111928',
-            // // fontFamily: 'Inter, sans-serif',
-            fontWeight: 700,
-            fontSize: '30px',
-            lineHeight: '125%',
-          }}>
-            Manajemen Aset
+          {/* [UBAH DI SINI] Gunakan variabel pageTitle & pageDesc */}
+          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>
+            {pageTitle}
           </Title>
-          <Text style={{ 
-            fontSize: '16px',
-            fontWeight: 500,
-            color: '#727272',
-            // // fontFamily: 'Inter, sans-serif',
-            lineHeight: '19px', 
-          }}>
-            Kelola semua aset fisik yang dimiliki
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+            {pageDesc}
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          size="large"
-          style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
-          onClick={handleAddAsset}
-          loading={isSubmitting}
-        >
-          Tambah Aset
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah Aset HANYA muncul jika canEdit (Admin/Superadmin) */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            size="large"
+            style={{ backgroundColor: '#237804', borderRadius: '24px', height: 'auto', padding: '8px 16px', fontSize: '16px' }}
+            onClick={handleAddAsset}
+            loading={isSubmitting}
+          >
+            Tambah Aset
+          </Button>
+        )}
       </Flex>
 
       <StatisticsCards stats={stats} isLoading={isLoadingAssets} />
@@ -660,6 +717,7 @@ function AssetManagementContent() {
                   onDetail={handleViewDetail}
                   onEdit={handleEditAsset}
                   onDelete={deleteMutation}
+                  canEdit={canEdit} // [RBAC] Pass permission ke AssetCard
                 />
               </Col>
             ))
@@ -673,20 +731,12 @@ function AssetManagementContent() {
         open={isModalOpen}
         editingAsset={editingAsset}
         form={form}
-        fileList={fileList}
         owners={owners}
         isLoadingOwners={isLoadingOwners}
         onCancel={handleModalCancel}
         onSubmit={handleFormSubmit}
         isSubmitting={isSubmitting}
-        onFileChange={setFileList}
         onAddOwner={handleShowOwnerModal}
-      />
-
-      <AssetDetailModal
-        open={isDetailModalOpen}
-        asset={detailAsset}
-        onCancel={() => setIsDetailModalOpen(false)}
       />
 
       <OwnerFormModal
@@ -702,7 +752,8 @@ function AssetManagementContent() {
 
 export default function AssetPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Operator tidak boleh masuk sini, Investor & Viewer BOLEH (Read Only)
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <AssetManagementContent />
     </ProtectedRoute>
   );

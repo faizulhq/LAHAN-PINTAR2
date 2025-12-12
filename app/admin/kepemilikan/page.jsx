@@ -5,7 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table, Button, Modal, Form, Select, InputNumber, DatePicker,
-  Typography, Flex, Space, message, Spin, Alert, Card, Row, Col,
+  Typography, Flex, Space, message, Spin, Alert, Card, Row, Col, Tag
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, EyeOutlined, TeamOutlined,
@@ -24,7 +24,8 @@ import { getFundings } from '@/lib/api/funding';
 import { getFundingSources } from '@/lib/api/funding_source';
 import { HiUserGroup } from 'react-icons/hi';
 import { BiSolidBox } from 'react-icons/bi';
-import { FaMoneyBill1, FaMoneyBillTransfer } from 'react-icons/fa6';
+import { FaMoneyBillTransfer, FaMoneyBill1 } from 'react-icons/fa6';
+import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -44,6 +45,23 @@ function OwnershipManagementContent() {
   const [editingOwnership, setEditingOwnership] = useState(null);
   const [selectedAsset, setSelectedAsset] = useState('semua');
   const [form] = Form.useForm();
+
+  // [RBAC] Logic Hak Akses & Judul Dinamis
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+  const isInvestor = userRole === 'Investor';
+
+  let titleText = "Data Kepemilikan";
+  let subText = "Informasi kepemilikan aset dan saham.";
+
+  if (canEdit) {
+    titleText = "Manajemen Kepemilikan";
+    subText = "Kelola unit kepemilikan dan porsi investor.";
+  } else if (isInvestor) {
+    titleText = "Portofolio Saya";
+    subText = "Ringkasan aset dan saham yang Anda miliki.";
+  }
 
   // --- Fetch Data ---
   const { data: ownerships, isLoading: isLoadingOwnerships, isError: isErrorOwnerships, error: errorOwnerships } = useQuery({
@@ -228,32 +246,34 @@ function OwnershipManagementContent() {
   const isErrorInitialData = isErrorOwnerships || !investors || !assets || !fundings || !fundingSources;
 
   return (
-    <>
+    <div style={{ padding: '24px' }}>
       {/* Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap">
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928' ,fontWeight: 700, fontSize: '30px'}}>
-            Manajemen Kepemilikan
+            {titleText}
           </Title>
           <Text type="secondary" style={{ fontSize: '14px' }}>
-            Kelola unit kepemilikan dan porsi investor
+            {subText}
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          size="large"
-          onClick={showAddModal}
-          loading={createMutation.isPending || updateMutation.isPending}
-          style={{
-            backgroundColor: '#237804',
-            borderColor: '#237804',
-            borderRadius: '6px',
-            fontWeight: 500
-          }}
-        >
-          Tambah Investor
-        </Button>
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={showAddModal}
+            loading={createMutation.isPending || updateMutation.isPending}
+            style={{
+              backgroundColor: '#237804',
+              borderColor: '#237804',
+              borderRadius: '6px',
+              fontWeight: 500
+            }}
+          >
+            Tambah Investor
+          </Button>
+        )}
       </Flex>
 
       {/* Filter */}
@@ -609,21 +629,25 @@ function OwnershipManagementContent() {
                         >
                           Detail
                         </Button>
-                        <Button 
-                          size="middle"
-                          type="primary"
-                          onClick={() => showEditModal(ownership)}
-                          style={{ 
-                            backgroundColor: '#237804', 
-                            borderColor: '#237804',
-                            minWidth: '100px',
-                            height: '36px',
-                            borderRadius: '6px',
-                            fontWeight: 400
-                          }}
-                        >
-                          Edit
-                        </Button>
+                        
+                        {/* [RBAC] Tombol Edit - Hanya muncul jika canEdit */}
+                        {canEdit && (
+                          <Button 
+                            size="middle"
+                            type="primary"
+                            onClick={() => showEditModal(ownership)}
+                            style={{ 
+                              backgroundColor: '#237804', 
+                              borderColor: '#237804',
+                              minWidth: '100px',
+                              height: '36px',
+                              borderRadius: '6px',
+                              fontWeight: 400
+                            }}
+                          >
+                            Edit
+                          </Button>
+                        )}
                       </Space>
                     </div>
                   </Card>
@@ -640,7 +664,7 @@ function OwnershipManagementContent() {
 
       {/* Modal Tambah/Edit */}
       <Modal
-        title={editingOwnership ? 'Edit Kepemilikan' : 'Tambah Kepemilikan Baru'}
+        title={editingOwnership ? 'Edit Kepemilikan' : 'Tambah Kepemilikan'}
         open={isModalOpen}
         onCancel={handleCancel}
         footer={null}
@@ -653,58 +677,22 @@ function OwnershipManagementContent() {
           onFinish={handleFormSubmit}
           style={{ marginTop: 24 }}
         >
-          <Form.Item
-            name="investor"
-            label="Investor"
-            rules={[{ required: true, message: 'Investor harus dipilih!' }]}
-          >
-            <Select
-              placeholder="Pilih investor"
-              loading={isLoadingInvestors}
-              showSearch
-              optionFilterProp="children"
-              size="large"
-            >
+          <Form.Item name="investor" label="Investor" rules={[{ required: true, message: 'Investor harus dipilih!' }]}>
+            <Select placeholder="Pilih investor" showSearch size="large">
               {investors?.map(inv => (
-                <Option key={inv.id} value={inv.id}>
-                  {inv.username || `Investor ${inv.id}`}
-                </Option>
+                <Option key={inv.id} value={inv.id}>{inv.username || `Investor ${inv.id}`}</Option>
               ))}
             </Select>
           </Form.Item>
-
-          <Form.Item
-            name="asset"
-            label="Aset"
-            rules={[{ required: true, message: 'Aset harus dipilih!' }]}
-          >
-            <Select
-              placeholder="Pilih aset"
-              loading={isLoadingAssets}
-              showSearch
-              optionFilterProp="children"
-              size="large"
-            >
+          <Form.Item name="asset" label="Aset" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
+            <Select placeholder="Pilih aset" showSearch size="large">
               {assets?.map(a => (
-                <Option key={a.id} value={a.id}>
-                  {a.name}
-                </Option>
+                <Option key={a.id} value={a.id}>{a.name}</Option>
               ))}
             </Select>
           </Form.Item>
-
-          <Form.Item
-            name="funding"
-            label="Pendanaan Terkait"
-            rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}
-          >
-            <Select
-              placeholder="Pilih pendanaan terkait"
-              loading={isLoadingFundings || isLoadingSources}
-              showSearch
-              optionFilterProp="children"
-              size="large"
-            >
+          <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}>
+            <Select placeholder="Pilih pendanaan" showSearch size="large">
               {fundings?.map(f => (
                 <Option key={f.id} value={f.id}>
                   {sourceMap[f.source] || `Sumber ID ${f.source}`} - {formatRupiah(f.amount)} ({formatDate(f.date_received)})
@@ -712,57 +700,30 @@ function OwnershipManagementContent() {
               ))}
             </Select>
           </Form.Item>
-
-          <Form.Item
-            name="units"
-            label="Jumlah Unit"
-            rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]}
-          >
-            <InputNumber
-              style={{ width: '100%' }}
-              min={1}
-              placeholder="Masukkan jumlah unit"
-              size="large"
-            />
+          <Form.Item name="units" label="Jumlah Unit" rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]}>
+            <InputNumber style={{ width: '100%' }} min={1} placeholder="Masukkan jumlah unit" size="large" />
           </Form.Item>
-
-          <Form.Item
-            name="investment_date"
-            label="Tanggal Investasi"
-            rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
-          >
-            <DatePicker
-              style={{ width: '100%' }}
-              format="DD/MM/YYYY"
-              size="large"
-            />
+          <Form.Item name="investment_date" label="Tanggal Investasi" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}>
+            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
           </Form.Item>
-
           <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
             <Space>
-              <Button onClick={handleCancel} size="large">
-                Batal
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={createMutation.isPending || updateMutation.isPending}
-                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                size="large"
-              >
-                {editingOwnership ? 'Simpan Perubahan' : 'Tambah Kepemilikan'}
+              <Button onClick={handleCancel} size="large">Batal</Button>
+              <Button type="primary" htmlType="submit" loading={createMutation.isPending || updateMutation.isPending} 
+                style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }} size="large">
+                Simpan Perubahan
               </Button>
             </Space>
           </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
 }
 
 export default function OwnershipPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <OwnershipManagementContent />
     </ProtectedRoute>
   );

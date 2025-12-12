@@ -2,6 +2,7 @@
 
 // --- IMPORTS ---
 import React, { useState, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   useQuery,
   useMutation,
@@ -45,6 +46,7 @@ import { ChevronDown } from 'lucide-react';
 
 // API IMPORTS
 import ProtectedRoute from '@/components/ProtectedRoute';
+import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
 import { getFinancialReport } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
@@ -57,8 +59,7 @@ import {
   getFundings,
   createFunding,
   updateFunding,
-  getFunding, // <-- 1. ASUMSI ADA FUNGSI INI (sesuai backend)
-} from '@/lib/api/funding'; // <-- Jika getFunding belum ada di file ini, tambahkan
+} from '@/lib/api/funding';
 
 // --- HELPERS ---
 const { Title, Text } = Typography;
@@ -93,7 +94,6 @@ const getStatusProps = (status) => {
     padding: '4px 10px', 
     borderRadius: '6px',
     lineHeight: '17px',
-    // // fontFamily: 'Inter, sans-serif'
   };
   return { text, style }; 
 };
@@ -115,7 +115,6 @@ const getSourceTypeProps = (type) => {
     padding: '4px 10px', 
     borderRadius: '6px',
     lineHeight: '17px',
-    // fontFamily: 'Inter, sans-serif'
   };
   
   text = SOURCE_TYPE_MAP[type] || type || 'Lainnya';
@@ -264,14 +263,16 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
       >
         <Row gutter={16}>
           <Col span={12}>
+            {/* [PERUBAHAN VALIDASI] required: false agar pendanaan bisa masuk tanpa proyek */}
             <Form.Item
               name="project"
-              label="Proyek Terkait"
-              rules={[{ required: true, message: 'Proyek harus diisi' }]}
+              label="Proyek Terkait (Opsional)"
+              rules={[{ required: false }]}
             >
               <Select
                 showSearch
-                placeholder="Pilih proyek"
+                allowClear
+                placeholder="Pilih proyek (bisa dikosongkan)"
                 loading={isLoadingProjects}
                 optionFilterProp="children"
                 options={projects?.map(p => ({ value: p.id, label: p.name }))}
@@ -418,102 +419,6 @@ const FundingSourceDetailModal = ({ visible, onClose, sourceId }) => {
             </div>
           </Descriptions.Item>
         </Descriptions>
-      )}
-    </Modal>
-  );
-};
-
-// =================================================================
-// === KOMPONEN BARU: MODAL DETAIL PENDANAAN ===
-// =================================================================
-const FundingDetailModal = ({ visible, onClose, fundingId }) => {
-  // Panggil API getFunding (yang diasumsikan ada)
-  const { data: funding, isLoading, isError, error } = useQuery({
-    queryKey: ['funding', fundingId], // Kunci query unik
-    queryFn: () => getFunding(fundingId), // Panggil API
-    enabled: !!fundingId, // Hanya jalankan jika fundingId ada
-    staleTime: 1000 * 60 * 5,
-  });
-
-  return (
-    <Modal
-      title="Detail Pendanaan"
-      open={visible}
-      onCancel={onClose}
-      footer={[<Button key="close" onClick={onClose}>Tutup</Button>]}
-      width={700}
-      destroyOnClose
-    >
-      {isLoading && (
-        <div style={{ textAlign: 'center', padding: '48px' }}>
-          <Spin size="large" />
-        </div>
-      )}
-      {isError && (
-        <Alert
-          message="Gagal Mengambil Data"
-          description={error?.message || 'Terjadi kesalahan saat mengambil detail pendanaan.'}
-          type="error"
-          showIcon
-        />
-      )}
-      {funding && !isLoading && !isError && (
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <Descriptions bordered layout="vertical" column={2}>
-            <Descriptions.Item label="Proyek Terkait" span={2}>
-              <Text strong style={{ fontSize: '16px' }}>{funding.project_name}</Text>
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="Sumber Dana">
-              {funding.source_name}
-              <Tag style={{...getSourceTypeProps(funding.source_type).style, marginLeft: 8}}>
-                {getSourceTypeProps(funding.source_type).text}
-              </Tag>
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Status">
-              <Tag style={getStatusProps(funding.status).style}>
-                {getStatusProps(funding.status).text}
-              </Tag>
-            </Descriptions.Item>
-
-            <Descriptions.Item label="Tanggal Diterima">
-              {formatTanggal(funding.date_received)}
-            </Descriptions.Item>
-            
-            <Descriptions.Item label="Tujuan / Deskripsi">
-              <div style={{ whiteSpace: 'pre-wrap' }}>
-                {funding.purpose}
-              </div>
-            </Descriptions.Item>
-          </Descriptions>
-
-          <Card title="Alokasi Dana">
-            <Row gutter={16}>
-              <Col span={12}>
-                <Descriptions column={1} layout="vertical">
-                  <Descriptions.Item label="Total Dana Masuk">
-                    <Text style={{ fontSize: 18, color: '#3f8600' }}>{formatRupiah(funding.amount)}</Text>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Dana Terpakai">
-                    <Text style={{ fontSize: 18, color: '#cf1322' }}>{formatRupiah(funding.total_terpakai)}</Text>
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Sisa Dana">
-                    <Text strong style={{ fontSize: 18, color: '#111928' }}>{formatRupiah(funding.sisa_dana)}</Text>
-                  </Descriptions.Item>
-                </Descriptions>
-              </Col>
-              <Col span={12} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Progress
-                  type="circle"
-                  percent={parseFloat(funding.persen_terpakai.toFixed(1))}
-                  strokeColor="#1A56DB"
-                  format={(percent) => `${percent}% Terpakai`}
-                />
-              </Col>
-            </Row>
-          </Card>
-        </Space>
       )}
     </Modal>
   );
@@ -689,12 +594,15 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
 );
 
 // =================================================================
-// === KOMPONEN FUNDING CARD (PERBAIKAN TOMBOL DETAIL) ===
+// === KOMPONEN FUNDING CARD (FIXED ERROR) ===
 // =================================================================
-const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => { // <-- Tambah prop onDetailClick
+const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { // [RBAC] Tambah prop canEdit
   const status = getStatusProps(funding.status);
   const sourceType = getSourceTypeProps(funding.source_type);
   
+  // [PERBAIKAN ERROR] Gunakan operator || 0 agar tidak crash jika undefined
+  const persenTerpakai = funding.persen_terpakai || 0;
+
   return (
     <div 
       style={{
@@ -784,7 +692,7 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => 
       </div>
       <div style={{ marginBottom: '14px' }}>
         <Progress
-          percent={parseFloat(funding.persen_terpakai.toFixed(1))}
+          percent={parseFloat(persenTerpakai.toFixed(1))} // [PERBAIKAN] Gunakan variabel aman
           strokeColor="#1A56DB"
           trailColor="#E5E7EB"
           showInfo={true}
@@ -823,23 +731,27 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => 
         >
           Detail
         </Button>
-        <Button 
-          style={{ 
-            width: '128px',
-            height: '40px',
-            background: '#237804',
-            borderColor: '#237804',
-            borderRadius: '8px',
-            color: '#FFFFFF',
-            // fontFamily: 'Inter, sans-serif',
-            fontWeight: 500,
-            fontSize: '14px',
-            lineHeight: '21px'
-          }}
-          onClick={() => onEditClick(funding)}
-        >
-          Edit
-        </Button>
+        
+        {/* [RBAC] Tombol Edit hanya jika canEdit=true */}
+        {canEdit && (
+          <Button 
+            style={{ 
+              width: '128px',
+              height: '40px',
+              background: '#237804',
+              borderColor: '#237804',
+              borderRadius: '8px',
+              color: '#FFFFFF',
+              // fontFamily: 'Inter, sans-serif',
+              fontWeight: 500,
+              fontSize: '14px',
+              lineHeight: '21px'
+            }}
+            onClick={() => onEditClick(funding)}
+          >
+            Edit
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -851,6 +763,7 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick }) => 
 // =================================================================
 function PendanaanContent() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [modalVisible, setModalVisible] = useState(false);
@@ -862,8 +775,22 @@ function PendanaanContent() {
   
   const [detailSourceId, setDetailSourceId] = useState(null);
   
-  // --- STATE BARU: Untuk Modal Detail PENDANAAN ---
-  const [detailFundingId, setDetailFundingId] = useState(null);
+  // [RBAC] Cek Role
+  const user = useAuthStore((state) => state.user);
+  const userRole = user?.role?.name || user?.role;
+  const canEdit = ['Admin', 'Superadmin'].includes(userRole);
+
+  // [LOGIKA JUDUL DINAMIS]
+  let pageTitle = "Laporan Pendanaan";
+  let pageDesc = "Ringkasan aliran dana masuk dan penggunaannya.";
+
+  if (canEdit) {
+    pageTitle = "Manajemen Pendanaan";
+    pageDesc = "Kelola semua sumber pendanaan dan alokasi dana";
+  } else if (userRole === 'Investor') {
+    pageTitle = "Portofolio Pendanaan";
+    pageDesc = "Pantau status dan penggunaan dana investasi Anda.";
+  }
 
   // Data Fetching
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
@@ -904,7 +831,6 @@ function PendanaanContent() {
   });
 
   // Data Processing
-  // === PERUBAHAN DI SINI (1) ===
   const ringkasanData = useMemo(() => {
     if (!fundings) return [];
     
@@ -971,8 +897,9 @@ function PendanaanContent() {
   const handleCloseSourceDetail = () => { setDetailSourceId(null); };
 
   // --- HANDLER BARU: Untuk Detail PENDANAAN (dari tombol "Detail") ---
-  const handleOpenFundingDetail = (id) => { setDetailFundingId(id); };
-  const handleCloseFundingDetail = () => { setDetailFundingId(null); };
+  const handleOpenFundingDetail = (id) => {
+    router.push(`/admin/pendanaan/${id}`);
+  };
 
   // Render
   return (
@@ -986,54 +913,39 @@ function PendanaanContent() {
         gap: '16px'
       }}>
         <div>
-          <Title 
-            level={2} 
-            style={{ 
-              // fontFamily: 'Inter, sans-serif',
-              fontSize: '30px', 
-              fontWeight: 700, 
-              color: '#111928',
-              lineHeight: '38px',
-              margin: 0,
-              marginBottom: '6px'
-            }}
-          >
-            Manajemen Pendanaan
+          <Title level={2} style={{ fontSize: '30px', fontWeight: 700, color: '#111928', lineHeight: '38px', margin: 0, marginBottom: '6px' }}>
+            {pageTitle}
           </Title>
-          <Text 
-            style={{ 
-              // fontFamily: 'Inter, sans-serif',
-              fontSize: '16px', 
-              fontWeight: 500, 
-              color: '#727272',
-              lineHeight: '19px'
-            }}
-          >
-            Kelola semua sumber pendanaan dan alokasi dana
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+            {pageDesc}
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusCircleOutlined />}
-          style={{ 
-            background: '#237804',
-            borderColor: '#237804',
-            borderRadius: '24px',
-            height: '40px',
-            padding: '8px 16px',
-            // fontFamily: 'Roboto, sans-serif',
-            fontWeight: 400,
-            fontSize: '16px',
-            boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-            lineHeight: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px'
-          }}
-          onClick={() => handleOpenModal(null)}
-        >
-          Tambah Pendanaan
-        </Button>
+        
+        {/* [RBAC] Tombol Tambah hanya untuk Admin/Superadmin */}
+        {canEdit && (
+          <Button
+            type="primary"
+            icon={<PlusCircleOutlined />}
+            style={{ 
+              background: '#237804',
+              borderColor: '#237804',
+              borderRadius: '24px',
+              height: '40px',
+              padding: '8px 16px',
+              // fontFamily: 'Roboto, sans-serif',
+              fontWeight: 400,
+              fontSize: '16px',
+              boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
+              lineHeight: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
+            onClick={() => handleOpenModal(null)}
+          >
+            Tambah Pendanaan
+          </Button>
+        )}
       </div>
 
       {/* Filter */}
@@ -1099,7 +1011,6 @@ function PendanaanContent() {
         </Row>
       </div>
 
-      {/* === PERUBAHAN DI SINI (3) === */}
       {/* Main Content */}
     <Row gutter={[0, 24]}>
     {/* Ringkasan - Atas */}
@@ -1144,6 +1055,7 @@ function PendanaanContent() {
                 <FundingCard 
                     key={funding.id} 
                     funding={funding} 
+                    canEdit={canEdit} // [RBAC] Pass canEdit
                     onEditClick={handleOpenModal}
                     onSourceClick={handleOpenSourceDetail} // <-- handler u/ detail SUMBER (dari Tag)
                     onDetailClick={handleOpenFundingDetail} // <-- handler u/ detail PENDANAAN (dari Tombol)
@@ -1194,20 +1106,14 @@ function PendanaanContent() {
         onClose={handleCloseSourceDetail}
         sourceId={detailSourceId}
       />
-
-      {/* --- RENDER MODAL BARU: Detail PENDANAAN (dari tombol "Detail") --- */}
-      <FundingDetailModal
-        visible={!!detailFundingId}
-        onClose={handleCloseFundingDetail}
-        fundingId={detailFundingId}
-      />
     </div>
   );
 }
 
 export default function PendanaanPage() {
   return (
-    <ProtectedRoute>
+    // [RBAC] Operator tidak boleh akses
+    <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <PendanaanContent />
     </ProtectedRoute>
   );
