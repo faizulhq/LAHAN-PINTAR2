@@ -39,6 +39,7 @@ import {
   PlusOutlined,
   BankOutlined,
   InfoCircleOutlined,
+  FilterOutlined // Tambahan icon untuk filter status
 } from '@ant-design/icons';
 import { FaMoneyBillTransfer, FaMoneyBills } from 'react-icons/fa6';
 import { GiPayMoney } from 'react-icons/gi';
@@ -81,9 +82,9 @@ const formatTanggal = (dateStr) => {
 const getStatusProps = (status) => {
   let text = status;
   switch (status) {
-    case 'available': text = 'tersedia'; break;
-    case 'allocated': text = 'dialokasikan'; break;
-    case 'used': text = 'digunakan'; break;
+    case 'available': text = 'Tersedia'; break;
+    case 'allocated': text = 'Dialokasikan'; break;
+    case 'used': text = 'Digunakan'; break;
   }
   const style = {
     background: '#E1EFFE', 
@@ -594,7 +595,7 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
 );
 
 // =================================================================
-// === KOMPONEN FUNDING CARD (FIXED ERROR) ===
+// === KOMPONEN FUNDING CARD (FIXED & IMPROVED) ===
 // =================================================================
 const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { // [RBAC] Tambah prop canEdit
   const status = getStatusProps(funding.status);
@@ -602,6 +603,10 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
   
   // [PERBAIKAN ERROR] Gunakan operator || 0 agar tidak crash jika undefined
   const persenTerpakai = funding.persen_terpakai || 0;
+
+  // [LOGIKA UI] Cek apakah pendanaan sudah dialokasikan ke proyek atau belum
+  const isUnallocated = !funding.project && !funding.project_name;
+  const projectTitle = isUnallocated ? "Dana Belum Dialokasikan" : (funding.project_name || "Proyek Tidak Diketahui");
 
   return (
     <div 
@@ -633,6 +638,13 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
             <Tag style={status.style}>
               {status.text}
             </Tag>
+
+            {/* BADGE TAMBAHAN JIKA UNALLOCATED */}
+            {isUnallocated && (
+               <Tag color="green" style={{ borderRadius: '6px', fontWeight: 600 }}>
+                 Dana Tersedia
+               </Tag>
+            )}
           </div>
           <Title 
             level={5} 
@@ -645,7 +657,7 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
               margin: 0
             }}
           >
-            {funding.project_name || "Model Awal Pembangunan"}
+            {projectTitle}
           </Title>
           <Text 
             style={{ 
@@ -765,7 +777,10 @@ function PendanaanContent() {
   const queryClient = useQueryClient();
   const router = useRouter();
   
+  // STATE FILTER GANDA
   const [selectedAsset, setSelectedAsset] = useState('all');
+  const [selectedStatus, setSelectedStatus] = useState('all'); // <-- NEW FILTER STATE
+
   const [modalVisible, setModalVisible] = useState(false);
   const [editingFunding, setEditingFunding] = useState(null);
   
@@ -795,7 +810,7 @@ function PendanaanContent() {
   // Data Fetching
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
-    queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' ? undefined : selectedAsset }),
+    queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' || selectedAsset === 'unallocated' ? undefined : selectedAsset }),
     staleTime: 1000 * 60,
   });
 
@@ -805,9 +820,13 @@ function PendanaanContent() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const { data: fundings, isLoading: isLoadingFundings } = useQuery({
-    queryKey: ['fundings', selectedAsset],
-    queryFn: () => getFundings({ asset_id: selectedAsset === 'all' ? undefined : selectedAsset }),
+  // [LOGIKA FETCHING BARU] 
+  // Jika 'unallocated', kita fetch semua (undefined asset_id) lalu filter di client-side.
+  const queryAssetId = (selectedAsset === 'all' || selectedAsset === 'unallocated') ? undefined : selectedAsset;
+
+  const { data: rawFundings, isLoading: isLoadingFundings } = useQuery({
+    queryKey: ['fundings', queryAssetId],
+    queryFn: () => getFundings({ asset_id: queryAssetId }),
   });
   
   const createSourceMutation = useMutation({
@@ -830,7 +849,26 @@ function PendanaanContent() {
     }
   });
 
-  // Data Processing
+  // [FILTERING LOGIC - SMART DUAL FILTER]
+  const fundings = useMemo(() => {
+    if (!rawFundings) return [];
+    
+    let filtered = rawFundings;
+    
+    // 1. Filter Aset
+    if (selectedAsset === 'unallocated') {
+      filtered = filtered.filter(f => !f.project);
+    }
+    
+    // 2. Filter Status (Jika tidak 'all')
+    if (selectedStatus !== 'all') {
+      filtered = filtered.filter(f => f.status === selectedStatus);
+    }
+
+    return filtered;
+  }, [rawFundings, selectedAsset, selectedStatus]);
+
+  // Data Processing untuk Ringkasan Card
   const ringkasanData = useMemo(() => {
     if (!fundings) return [];
     
@@ -863,8 +901,12 @@ function PendanaanContent() {
 
   }, [fundings]);
 
+  // OPTIONS DROPDOWN
   const assetOptions = useMemo(() => {
-    const options = [{ value: 'all', label: 'Semua Asset' }];
+    const options = [
+      { value: 'all', label: 'Tampilkan Semua' }, // <-- Label diubah agar lebih umum
+      { value: 'unallocated', label: 'Belum Dialokasikan (Dana Mengendap)' } // <--- Opsi Baru
+    ];
     if (assets) {
       assets.forEach(asset => {
         options.push({ value: asset.id, label: asset.name });
@@ -872,6 +914,13 @@ function PendanaanContent() {
     }
     return options;
   }, [assets]);
+
+  const statusOptions = [
+    { value: 'all', label: 'Semua Status' },
+    { value: 'available', label: 'Tersedia' },
+    { value: 'allocated', label: 'Dialokasikan' },
+    { value: 'used', label: 'Digunakan' },
+  ];
 
   const stats = reportData?.ringkasan_dana || {};
   const isLoadingStats = isLoadingReport;
@@ -948,35 +997,38 @@ function PendanaanContent() {
         )}
       </div>
 
-      {/* Filter */}
-      <div style={{ marginBottom: '24px' }}>
-        <Text 
-          style={{ 
-            // fontFamily: 'Inter, sans-serif',
-            fontSize: '20px', 
-            fontWeight: 500, 
-            color: '#111928',
-            lineHeight: '24px',
-            marginBottom: '8px',
-            display: 'block'
-          }}
-        >
-          Filter Asset
-        </Text>
-        <Select
-          value={selectedAsset}
-          onChange={setSelectedAsset}
-          loading={isLoadingAssets}
-          options={assetOptions}
-          suffixIcon={<ChevronDown size={12} />}
-          style={{ 
-            width: 200,
-            height: '40px',
-            // fontFamily: 'Roboto, sans-serif'
-          }}
-          size="large"
-        />
-      </div>
+      {/* --- FILTER SECTION (DUAL FILTER) --- */}
+      <Card bodyStyle={{ padding: '20px' }} style={{ marginBottom: '24px', borderRadius: '12px', border: '1px solid #F0F0F0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
+        <Row gutter={[16, 16]} align="middle">
+          <Col xs={24} md={12} lg={8}>
+            <Text style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '8px', display: 'block' }}>
+              Filter Berdasarkan Aset
+            </Text>
+            <Select
+              value={selectedAsset}
+              onChange={setSelectedAsset}
+              loading={isLoadingAssets}
+              options={assetOptions}
+              suffixIcon={<ChevronDown size={16} />}
+              style={{ width: '100%', height: '42px' }}
+              size="large"
+            />
+          </Col>
+          <Col xs={24} md={12} lg={8}>
+            <Text style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '8px', display: 'block' }}>
+              Filter Status Dana
+            </Text>
+            <Select
+              value={selectedStatus}
+              onChange={setSelectedStatus}
+              options={statusOptions}
+              suffixIcon={<FilterOutlined />}
+              style={{ width: '100%', height: '42px' }}
+              size="large"
+            />
+          </Col>
+        </Row>
+      </Card>
 
       {/* Stat Cards */}
       <div style={{ marginBottom: '24px' }}>
@@ -1045,7 +1097,7 @@ function PendanaanContent() {
             marginBottom: '20px'
             }}
         >
-            Pendanaan per Sumber
+            Daftar Pendanaan
         </Title>
         
         <Spin spinning={isLoadingFundings}>
@@ -1071,7 +1123,7 @@ function PendanaanContent() {
                 </div>
             )
             )}
-            {isLoadingFundings && fundings === undefined && (
+            {isLoadingFundings && rawFundings === undefined && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <Skeleton active paragraph={{ rows: 4 }} />
                 <Skeleton active paragraph={{ rows: 4 }} />

@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Row, Col, Card, Statistic, Typography,
-  Divider, Spin, Alert, Flex, Steps, Progress, Tag
+  Divider, Spin, Alert, Flex, Progress, Tag
 } from 'antd';
 import {
   ContainerOutlined, DollarCircleOutlined, RiseOutlined, 
@@ -18,16 +18,19 @@ import { getDashboardData } from '@/lib/api/dashboard';
 import { getFinancialReport } from '@/lib/api/reporting';
 import { useRouter } from 'next/navigation';
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
   return `Rp ${Number(value).toLocaleString('id-ID')}`;
 };
 
-// ==========================================================================
-// 1. DASHBOARD OPERATOR (Fokus: Kerja Lapangan)
-// ==========================================================================
+const calculateSafePercent = (value, total) => {
+  if (!total || total === 0 || !value) return 0;
+  const pct = (value / total) * 100;
+  return Math.min(Math.max(pct, 0), 100);
+};
+
 const OperatorDashboard = ({ dashboardData, user }) => {
   const router = useRouter();
 
@@ -115,9 +118,6 @@ const OperatorDashboard = ({ dashboardData, user }) => {
   );
 };
 
-// ==========================================================================
-// 2. DASHBOARD INVESTOR (Fokus: ROI & Portofolio Pribadi)
-// ==========================================================================
 const InvestorDashboard = ({ dashboardData }) => {
   return (
     <div>
@@ -170,21 +170,21 @@ const InvestorDashboard = ({ dashboardData }) => {
             dashboardData.ownership_percentage.map((owner, index) => (
                <div key={index} style={{ marginBottom: 20 }}>
                  <Flex justify="space-between" align='center' style={{ marginBottom: 4 }}>
-                    <div>
-                        <Text strong style={{ fontSize: 15 }}>{owner.name}</Text>
-                        <div style={{ fontSize: 12, color: '#8c8c8c' }}>
-                           Unit: {owner.units}
-                        </div>
-                    </div>
-                    <Tag color="blue" style={{ fontSize: 14, padding: '4px 10px' }}>
-                        {owner.percentage ? owner.percentage.toFixed(2) : 0}% Saham
-                    </Tag>
+                   <div>
+                       <Text strong style={{ fontSize: 15 }}>{owner.name}</Text>
+                       <div style={{ fontSize: 12, color: '#8c8c8c' }}>
+                          Unit: {owner.units}
+                       </div>
+                   </div>
+                   <Tag color="blue" style={{ fontSize: 14, padding: '4px 10px' }}>
+                       {owner.percentage ? owner.percentage.toFixed(2) : 0}% Saham
+                   </Tag>
                  </Flex>
                  <Progress 
-                    percent={owner.percentage} 
-                    showInfo={false} 
-                    strokeColor={{ from: '#108ee9', to: '#87d068' }} 
-                    strokeWidth={8}
+                   percent={owner.percentage || 0} 
+                   showInfo={false} 
+                   strokeColor={{ from: '#108ee9', to: '#87d068' }} 
+                   strokeWidth={8}
                  />
                </div>
             ))
@@ -196,10 +196,13 @@ const InvestorDashboard = ({ dashboardData }) => {
   );
 };
 
-// ==========================================================================
-// 3. DASHBOARD EKSEKUTIF (Admin/Superadmin/Viewer - Global View)
-// ==========================================================================
 const ExecutiveDashboard = ({ dashboardData, reportData }) => {
+  const labaAmount = reportData?.laba_rugi?.Jumlah || 0;
+  const omzetAmount = dashboardData?.total_yield || 0;
+  
+  const profitMarginPercent = calculateSafePercent(Math.abs(labaAmount), omzetAmount);
+  const isProfit = reportData?.laba_rugi?.Status === 'Laba';
+
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
@@ -256,23 +259,25 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
                   <Text style={{ fontSize: 16 }}>Laba/Rugi Operasional</Text>
                   <Text strong 
                     style={{ 
-                        color: reportData?.laba_rugi?.Status === 'Laba' ? '#52c41a' : '#f5222d',
+                        color: isProfit ? '#52c41a' : '#f5222d',
                         fontSize: 20 
                     }}
                   >
-                    {formatRupiah(reportData?.laba_rugi?.Jumlah)}
+                    {formatRupiah(labaAmount)}
                   </Text>
                </Flex>
+               
                <Progress 
-                 percent={70} 
-                 success={{ percent: reportData?.laba_rugi?.Status === 'Laba' ? 70 : 0 }} 
+                 percent={profitMarginPercent} 
                  showInfo={false} 
-                 status={reportData?.laba_rugi?.Status === 'Laba' ? "active" : "exception"}
+                 status={isProfit ? "active" : "exception"}
+                 strokeColor={isProfit ? '#52c41a' : '#f5222d'}
                />
+               
                <Divider />
                <Flex justify='space-between' align='center'>
                   <Text>Total Nilai Produksi (Omzet)</Text>
-                  <Text strong>{formatRupiah(dashboardData?.total_yield)}</Text>
+                  <Text strong>{formatRupiah(omzetAmount)}</Text>
                </Flex>
             </Card>
          </Col>
@@ -283,9 +288,14 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
                        <div key={i} style={{ marginBottom: 16 }}>
                            <Flex justify="space-between">
                                <Text strong>{owner.name}</Text>
-                               <Text>{owner.percentage.toFixed(1)}%</Text>
+                               <Text>{owner.percentage ? owner.percentage.toFixed(1) : 0}%</Text>
                            </Flex>
-                           <Progress percent={owner.percentage} size="small" showInfo={false} status="active" />
+                           <Progress 
+                              percent={owner.percentage || 0} 
+                              size="small" 
+                              showInfo={false} 
+                              status="active" 
+                           />
                        </div>
                    ))}
                    {(!dashboardData?.ownership_percentage || dashboardData.ownership_percentage.length === 0) && (
@@ -299,9 +309,6 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
   );
 };
 
-// ==========================================================================
-// MAIN COMPONENT
-// ==========================================================================
 function AdminDashboardContent() {
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
@@ -309,7 +316,6 @@ function AdminDashboardContent() {
   const isOperator = userRole === 'Operator';
   const isInvestor = userRole === 'Investor';
 
-  // 1. Fetch Data Dashboard (Personalized by Backend)
   const {
     data: dashboardData,
     isLoading: isLoadingDashboard,
@@ -319,8 +325,6 @@ function AdminDashboardContent() {
     queryFn: getDashboardData,
   });
 
-  // 2. Fetch Financial Report (Hanya untuk Admin/Viewer/Superadmin)
-  // Investor & Operator tidak butuh data global ini di dashboard mereka untuk mencegah confusion/leak
   const shouldFetchReport = !isOperator && !isInvestor;
   
   const {

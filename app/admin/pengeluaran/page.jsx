@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker, Input, Typography, Flex, Space,
-  message, Spin, Alert, Card, Row, Col, Skeleton, Tag
+  message, Spin, Alert, Card, Row, Col, Skeleton, Tag, Upload
 } from 'antd';
 import {
-  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined
+  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined, UploadOutlined, FileImageOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
 import { FaMoneyBillWave } from 'react-icons/fa6';
@@ -16,7 +16,7 @@ import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth Store
+import useAuthStore from '@/lib/store/authStore';
 import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
@@ -90,7 +90,7 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
   );
 };
 
-const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [RBAC] canEdit prop
+const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
   
   const getCategoryColor = () => {
@@ -149,7 +149,6 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => { // [
               Detail
             </Button>
             
-            {/* [RBAC] Tombol Edit disembunyikan jika !canEdit */}
             {canEdit && (
               <Button 
                 style={{ 
@@ -179,6 +178,30 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = Boolean(initialData);
 
+  const selectedProject = Form.useWatch('project_id', form);
+
+  const filteredFundingOptions = useMemo(() => {
+    if (!fundings) return [];
+
+    if (selectedProject) {
+      return fundings.filter(f => {
+        const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+        const isEligible = f.status !== 'used' || (initialData && initialData.funding_id === f.id);
+        return fProjectId === selectedProject && isEligible;
+      });
+    } else {
+      return fundings.filter(f => !f.project && f.status !== 'used');
+    }
+  }, [fundings, selectedProject, initialData]);
+
+  useEffect(() => {
+    if (!visible) return;
+    
+    if (!initialData || (initialData && selectedProject !== initialData.project_id)) {
+        form.setFieldValue('funding_id', null);
+    }
+  }, [selectedProject, visible, initialData, form]);
+
   const mutationOptions = {
     onSuccess: () => {
       message.success(isEditMode ? 'Pengeluaran berhasil diperbarui' : 'Pengeluaran berhasil ditambahkan');
@@ -197,7 +220,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
   const createMutation = useMutation({ mutationFn: createExpense, ...mutationOptions });
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => updateExpense(id, data), ...mutationOptions });
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (visible) {
       if (isEditMode && initialData) {
         form.setFieldsValue({
@@ -272,15 +295,30 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
 
-        <Form.Item name="project_id" label="Proyek Terkait" rules={[{ required: true, message: 'Proyek harus dipilih!' }]}>
-          <Select placeholder="Pilih proyek" showSearch optionFilterProp="children" size="large">
+        <Form.Item name="project_id" label="Proyek Terkait (Opsional)">
+          <Select placeholder="Pilih proyek (kosongkan untuk operasional umum)" showSearch optionFilterProp="children" size="large" allowClear>
             {projects?.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
           </Select>
         </Form.Item>
 
-        <Form.Item name="funding_id" label="Sumber Dana" rules={[{ required: true, message: 'Sumber dana harus dipilih!' }]}>
-          <Select placeholder="Pilih sumber dana" showSearch optionFilterProp="children" size="large">
-            {fundings?.map(f => <Option key={f.id} value={f.id}>{fundingMap[f.id]}</Option>)}
+        <Form.Item 
+          name="funding_id" 
+          label="Sumber Dana" 
+          rules={[{ required: true, message: 'Sumber dana harus dipilih!' }]}
+          help={selectedProject && filteredFundingOptions.length === 0 ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia di proyek ini. Alokasikan dana terlebih dahulu.</span> : null}
+        >
+          <Select 
+            placeholder={selectedProject ? "Pilih dana dari proyek ini" : "Pilih dana operasional (Belum Dialokasikan)"}
+            showSearch 
+            optionFilterProp="children" 
+            size="large"
+            disabled={selectedProject && filteredFundingOptions.length === 0}
+          >
+            {filteredFundingOptions.map(f => (
+              <Option key={f.id} value={f.id}>
+                {fundingMap[f.id] || f.source_name} {f.project ? '' : '(Umum)'}
+              </Option>
+            ))}
           </Select>
         </Form.Item>
 
@@ -321,15 +359,12 @@ function ExpenseManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
-  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  // Admin, Superadmin, & Operator boleh Create/Edit/Delete
   const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
   const isOperator = userRole === 'Operator';
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
-  // [LOGIKA JUDUL DINAMIS]
   let headerTitle = "Laporan Pengeluaran";
   let headerDesc = "Lihat rincian penggunaan biaya operasional.";
 
@@ -366,7 +401,7 @@ function ExpenseManagementContent() {
   const fundingMap = useMemo(() => {
     if (!fundings || !sourceMap) return {};
     return fundings.reduce((acc, f) => {
-      acc[f.id] = `${sourceMap[f.source] || 'Unknown'} - ${formatRupiah(f.amount)}`;
+      acc[f.id] = `${sourceMap[f.source] || f.source_name || 'Unknown'} - ${formatRupiah(f.sisa_dana || f.amount)}`;
       return acc;
     }, {});
   }, [fundings, sourceMap]);
@@ -427,7 +462,6 @@ function ExpenseManagementContent() {
           </Text>
         </div>
         
-        {/* [RBAC] Tombol Tambah hanya jika canEdit (Admin/Superadmin/Operator) */}
         {canEdit && (
           <Button
             type="primary"
@@ -554,7 +588,7 @@ function ExpenseManagementContent() {
                   expense={exp}
                   onEditClick={showEditModal}
                   onDetailClick={handleViewDetail}
-                  canEdit={canEdit} // [RBAC] Pass prop canEdit
+                  canEdit={canEdit}
                 />
               ))
             ) : (
@@ -583,7 +617,6 @@ function ExpenseManagementContent() {
 
 export default function ExpensePage() {
   return (
-    // [RBAC] Semua Role boleh masuk (Investor/Viewer Read Only)
     <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ExpenseManagementContent />
     </ProtectedRoute>

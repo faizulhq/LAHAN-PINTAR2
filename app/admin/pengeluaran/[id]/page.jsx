@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card, Button, Typography, Space, Tag, Flex, Spin, Alert, Descriptions, Row, Col,
@@ -17,7 +17,7 @@ import { FaMoneyBillWave } from 'react-icons/fa6';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Store
+import useAuthStore from '@/lib/store/authStore';
 import { getExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
 import { getProjects } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
@@ -63,88 +63,139 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
 const ExpenseFormModal = ({
   open, expense, form, projects, fundings, fundingMap,
   onCancel, onSubmit, isSubmitting
-}) => (
-  <Modal
-    title="Edit Pengeluaran"
-    open={open}
-    onCancel={onCancel}
-    footer={null}
-    width={700}
-    destroyOnClose
-  >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }} initialValues={{
-        ...expense,
-        date: expense?.date ? moment(expense.date) : null
-    }}>
-      <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori wajib dipilih' }]}>
-        <Select placeholder="Pilih kategori pengeluaran">
-          {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
-            <Option key={value} value={value}>{text}</Option>
-          ))}
-        </Select>
-      </Form.Item>
+}) => {
+  // Watch field project untuk filter otomatis
+  const selectedProject = Form.useWatch('project_id', form);
 
-      <Row gutter={16}>
-        <Col span={12}>
-          <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah wajib diisi' }]}>
-            <InputNumber
-              style={{ width: '100%' }}
-              placeholder="Masukkan jumlah"
-              min={0}
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
-            />
-          </Form.Item>
-        </Col>
-        <Col span={12}>
-          <Form.Item name="date" label="Tanggal" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
-            <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-          </Form.Item>
-        </Col>
-      </Row>
+  // [LOGIKA SMART FILTER]
+  const filteredFundingOptions = useMemo(() => {
+    if (!fundings) return [];
 
-      <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi wajib diisi' }]}>
-        <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
-      </Form.Item>
+    if (selectedProject) {
+      // KASUS A: Jika Proyek Dipilih -> Tampilkan dana proyek tersebut
+      return fundings.filter(f => {
+        // Handle struktur project (bisa object atau ID)
+        const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+        // Tampilkan jika milik proyek ini DAN (status available/allocated ATAU sedang dipakai expense ini)
+        const isEligible = f.status !== 'used' || (expense && expense.funding_id === f.id);
+        return fProjectId === selectedProject && isEligible;
+      });
+    } else {
+      // KASUS B: Jika Proyek Kosong -> Tampilkan dana Unallocated
+      return fundings.filter(f => !f.project && (f.status !== 'used' || (expense && expense.funding_id === f.id)));
+    }
+  }, [fundings, selectedProject, expense]);
 
-      <Form.Item name="project_id" label="Proyek Terkait" rules={[{ required: true, message: 'Proyek wajib dipilih' }]}>
-        <Select placeholder="Pilih proyek" showSearch optionFilterProp="children">
-          {projects?.map(p => (
-            <Option key={p.id} value={p.id}>{p.name}</Option>
-          ))}
-        </Select>
-      </Form.Item>
+  // Efek Samping: Reset Funding jika Proyek berubah (kecuali saat inisialisasi)
+  useEffect(() => {
+    if (!open) return;
+    // Cek apakah user mengubah proyek dari nilai awal
+    if (expense && selectedProject !== expense.project_id) {
+       // Reset field funding agar user memilih ulang
+       form.setFieldValue('funding_id', null);
+    }
+  }, [selectedProject, open, expense, form]);
 
-      <Form.Item name="funding_id" label="Sumber Dana" rules={[{ required: true, message: 'Sumber dana wajib dipilih' }]}>
-        <Select placeholder="Pilih sumber dana" showSearch optionFilterProp="children">
-          {fundings?.map(f => (
-            <Option key={f.id} value={f.id}>{fundingMap[f.id]}</Option>
-          ))}
-        </Select>
-      </Form.Item>
-
-      <Form.Item 
-        label="URL Bukti (Opsional)" 
-        name="proof_url"
-        rules={[{ type: 'url', message: 'Masukkan URL yang valid' }]}
+  return (
+    <Modal
+      title="Edit Pengeluaran"
+      open={open}
+      onCancel={onCancel}
+      footer={null}
+      width={700}
+      destroyOnClose
+    >
+      <Form 
+        form={form} 
+        layout="vertical" 
+        onFinish={onSubmit} 
+        style={{ marginTop: 24 }} 
+        initialValues={{
+          ...expense,
+          date: expense?.date ? moment(expense.date) : null
+        }}
       >
-        <Input
-          placeholder="https://drive.google.com/file/d/..."
-          prefix={<LinkOutlined />}
-        />
-      </Form.Item>
+        <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori wajib dipilih' }]}>
+          <Select placeholder="Pilih kategori pengeluaran">
+            {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
+              <Option key={value} value={value}>{text}</Option>
+            ))}
+          </Select>
+        </Form.Item>
 
-      <Form.Item style={{marginBottom: 0}}>
-        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-          <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting}>
-            Simpan Perubahan
-          </Button>
-        </Space>
-      </Form.Item>
-    </Form>
-  </Modal>
-);
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah wajib diisi' }]}>
+              <InputNumber
+                style={{ width: '100%' }}
+                placeholder="Masukkan jumlah"
+                min={0}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="date" label="Tanggal" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi wajib diisi' }]}>
+          <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
+        </Form.Item>
+
+        {/* [PERUBAHAN] Proyek Opsional */}
+        <Form.Item name="project_id" label="Proyek Terkait (Opsional)">
+          <Select placeholder="Pilih proyek (kosongkan untuk operasional umum)" showSearch optionFilterProp="children" allowClear>
+            {projects?.map(p => (
+              <Option key={p.id} value={p.id}>{p.name}</Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        <Form.Item 
+          name="funding_id" 
+          label="Sumber Dana" 
+          rules={[{ required: true, message: 'Sumber dana wajib dipilih' }]}
+          help={selectedProject && filteredFundingOptions.length === 0 ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia di proyek ini.</span> : null}
+        >
+          <Select 
+            placeholder={selectedProject ? "Pilih dana dari proyek ini" : "Pilih dana operasional (Unallocated)"} 
+            showSearch 
+            optionFilterProp="children"
+            disabled={selectedProject && filteredFundingOptions.length === 0}
+          >
+            {filteredFundingOptions.map(f => (
+              <Option key={f.id} value={f.id}>{fundingMap[f.id] || `Dana ID: ${f.id}`}</Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        <Form.Item 
+          label="URL Bukti (Opsional)" 
+          name="proof_url"
+          rules={[{ type: 'url', message: 'Masukkan URL yang valid' }]}
+        >
+          <Input
+            placeholder="https://drive.google.com/file/d/..."
+            prefix={<LinkOutlined />}
+          />
+        </Form.Item>
+
+        <Form.Item style={{marginBottom: 0}}>
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button onClick={onCancel}>Batal</Button>
+            <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>
+              Simpan Perubahan
+            </Button>
+          </Space>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+};
 
 function ExpenseDetailContent() {
   const router = useRouter();
@@ -205,7 +256,7 @@ function ExpenseDetailContent() {
   }, [fundings, fundingSources]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => updateExpense({id, data}), // Sesuaikan signature
+    mutationFn: ({ id, data }) => updateExpense(id, data), // Adjusted signature match
     onSuccess: () => {
       message.success('Pengeluaran berhasil diperbarui');
       queryClient.invalidateQueries({ queryKey: ['expense'] });
@@ -241,7 +292,7 @@ function ExpenseDetailContent() {
       amount: parseFloat(expense.amount),
       date: expense.date ? moment(expense.date) : null,
       description: expense.description,
-      project_id: expense.project_id,
+      project_id: expense.project_id, // Bisa null
       funding_id: expense.funding_id,
       proof_url: expense.proof_url || '',
     });
@@ -433,7 +484,7 @@ function ExpenseDetailContent() {
                     Proyek Terkait
                   </Text>
                   <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {project?.name || '-'}
+                    {project?.name || '(Umum / Operasional)'}
                   </Text>
                 </div>
               </Flex>
