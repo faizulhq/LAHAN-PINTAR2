@@ -170,7 +170,7 @@ function OwnershipDetailContent() {
   const handleEditSubmit = (values) => {
     const data = {
       investor: values.investor,
-      asset: values.asset,
+      asset: values.asset || null, // [PERBAIKAN] Kirim null jika kosong
       funding: values.funding,
       units: values.units,
       investment_date: values.investment_date.format('YYYY-MM-DD')
@@ -304,7 +304,8 @@ function OwnershipDetailContent() {
       <Modal title="Edit Kepemilikan" open={isEditModalOpen} onCancel={() => setIsEditModalOpen(false)} footer={null} width={600}>
         <Form form={form} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 24 }}>
           <Form.Item name="investor" label="Investor" rules={[{ required: true, message: 'Investor harus dipilih!' }]}><Select placeholder="Pilih investor" showSearch size="large">{allInvestors?.map(inv => (<Option key={inv.id} value={inv.id}>{inv.username || `Investor ${inv.id}`}</Option>))}</Select></Form.Item>
-          <Form.Item name="asset" label="Aset" rules={[{ required: true, message: 'Aset harus dipilih!' }]}><Select placeholder="Pilih aset" showSearch size="large">{allAssets?.map(a => (<Option key={a.id} value={a.id}>{a.name}</Option>))}</Select></Form.Item>
+          {/* [PERBAIKAN] Field Aset jadi Opsional */}
+          <Form.Item name="asset" label="Aset (Opsional)"><Select placeholder="Pilih aset (Kosongkan untuk Dana Mengendap)" showSearch size="large" allowClear>{allAssets?.map(a => (<Option key={a.id} value={a.id}>{a.name}</Option>))}</Select></Form.Item>
           <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}><Select placeholder="Pilih pendanaan" showSearch size="large">{allFundings?.map(f => (<Option key={f.id} value={f.id}>{formatRupiah(f.amount)} - {formatDateShort(f.date_received)}</Option>))}</Select></Form.Item>
           <Form.Item name="units" label="Jumlah Unit" rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]}><InputNumber style={{ width: '100%' }} min={1} placeholder="Masukkan jumlah unit" size="large" /></Form.Item>
           <Form.Item name="investment_date" label="Tanggal Investasi" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" /></Form.Item>

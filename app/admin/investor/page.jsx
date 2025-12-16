@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import {
-  Table, Button, Modal, Form, Input, DatePicker, InputNumber, Select,
+  Table, Button, Modal, Form, Input, DatePicker, Select,
   Typography, Flex, Space, Popconfirm, message, Spin, Alert, Card
 } from 'antd';
 import {
@@ -16,13 +16,12 @@ import {
   getInvestors, createInvestor, updateInvestor, deleteInvestor
 } from '@/lib/api/investor';
 import { getAvailableUsersForInvestor } from '@/lib/api/user';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC]
+import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-// Helper format
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
 
@@ -33,12 +32,10 @@ function InvestorManagementContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [form] = Form.useForm();
 
-  // [RBAC]
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
-  // --- Fetch Data ---
   const { data: investors, isLoading, isError, error } = useQuery({
     queryKey: ['investors'],
     queryFn: getInvestors,
@@ -50,7 +47,6 @@ function InvestorManagementContent() {
     enabled: isModalOpen && !editingInvestor, 
   });
 
-  // --- Mutasi ---
   const mutationOptions = {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['investors'] });
@@ -98,7 +94,6 @@ function InvestorManagementContent() {
     },
   });
 
-  // --- Handlers ---
   const showAddModal = () => {
     setEditingInvestor(null);
     form.resetFields();
@@ -108,10 +103,8 @@ function InvestorManagementContent() {
   const showEditModal = (investor) => {
     setEditingInvestor(investor);
     form.setFieldsValue({
-      // JANGAN set field 'user' saat edit
       contact: investor.contact,
       join_date: moment(investor.join_date),
-      total_investment: parseFloat(investor.total_investment),
     });
     setIsModalOpen(true);
   };
@@ -126,7 +119,6 @@ function InvestorManagementContent() {
     const investorData = {
       contact: values.contact,
       join_date: values.join_date.format('YYYY-MM-DD'),
-      total_investment: Number(values.total_investment), // Pastikan Number
     };
 
     if (editingInvestor) {
@@ -192,7 +184,6 @@ function InvestorManagementContent() {
       align: 'right',
       width: 180,
     },
-    // [RBAC] Kolom Aksi hanya untuk Admin/Superadmin
     ...(canEdit ? [{
       title: 'Aksi',
       key: 'action',
@@ -325,20 +316,6 @@ function InvestorManagementContent() {
               rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
             >
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-            </Form.Item>
-
-            <Form.Item
-              name="total_investment"
-              label="Total Investasi (Rp)"
-              rules={[{ required: true, message: 'Total investasi tidak boleh kosong!' }]}
-            >
-              <InputNumber
-                style={{ width: '100%' }}
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-                min={0}
-                placeholder="Masukkan total investasi"
-              />
             </Form.Item>
 
             <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>

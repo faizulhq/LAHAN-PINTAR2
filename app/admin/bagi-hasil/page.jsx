@@ -1,14 +1,13 @@
-// app/admin/bagi-hasil/page.jsx
 'use client';
 import React, { useMemo, useState } from 'react';
 import {
-  Row, Col, Card, Select, Tabs, List, Avatar, Typography, Divider, Tag, Spin, Alert, Empty, Table
+  Row, Col, Card, Select, Tabs, List, Typography, Divider, Tag, Spin, Alert, Empty, Table, Button, Popconfirm, Tooltip, message, Space
 } from 'antd';
-import { DollarCircleFilled } from '@ant-design/icons';
-import { useQuery } from '@tanstack/react-query';
+import { DollarCircleFilled, CheckCircleOutlined, DeleteOutlined } from '@ant-design/icons';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import { getProfitDistributions } from '@/lib/api/profit_distribution';
+import { getProfitDistributions, updateProfitDistribution, deleteProfitDistribution } from '@/lib/api/profit_distribution';
 import { getDistributionDetails } from '@/lib/api/distribution_detail';
 import { getProductions } from '@/lib/api/production';
 import { getAssets } from '@/lib/api/asset';
@@ -20,7 +19,6 @@ const { Title, Text } = Typography;
 const { Option } = Select;
 const { TabPane } = Tabs;
 
-// Helper functions tetap sama (formatRupiah, dll)
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
@@ -39,15 +37,12 @@ const getPeriodText = (distribution) => {
   return formatShortDate(distribution.created_at);
 };
 
-// ============================================
-// MAIN COMPONENT
-// ============================================
 function ProfitDistributionContent() {
+  const queryClient = useQueryClient();
   const [assetFilter, setAssetFilter] = useState(null);
   const [activeTab, setActiveTab] = useState('ringkasan');
   const [selectedPeriod, setSelectedPeriod] = useState('all');
 
-  // [RBAC] Logic Hak Akses & Judul Dinamis
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const isInvestor = userRole === 'Investor';
@@ -68,7 +63,7 @@ function ProfitDistributionContent() {
     subText = "Rekapitulasi distribusi keuntungan proyek.";
   }
 
-  // DATA FETCHING (Sama seperti sebelumnya)
+  // --- DATA FETCHING ---
   const { data: distributions = [], isLoading: loadingDist, isError: errorDist } = useQuery({
     queryKey: ['profitDistributions'],
     queryFn: getProfitDistributions,
@@ -95,10 +90,44 @@ function ProfitDistributionContent() {
     queryFn: getInvestors,
   });
 
+  // --- MUTATIONS ---
+  // 1. Update Status
+  const updateStatusMutation = useMutation({
+    mutationFn: ({ id, status }) => updateProfitDistribution(id, { status }),
+    onSuccess: () => {
+      message.success('Status distribusi berhasil diperbarui');
+      queryClient.invalidateQueries({ queryKey: ['profitDistributions'] });
+    },
+    onError: (err) => {
+      message.error(`Gagal update status: ${err.message}`);
+    }
+  });
+
+  // 2. Delete Data (Solusi pengganti "Undo")
+  const deleteMutation = useMutation({
+    mutationFn: deleteProfitDistribution,
+    onSuccess: () => {
+      message.success('Data distribusi berhasil dihapus');
+      queryClient.invalidateQueries({ queryKey: ['profitDistributions'] });
+    },
+    onError: (err) => {
+      message.error(`Gagal menghapus data: ${err.message}`);
+    }
+  });
+
+  // --- HANDLERS ---
+  const handleMarkAsDistributed = (id) => {
+    updateStatusMutation.mutate({ id, status: 'Distributed' });
+  };
+
+  const handleDelete = (id) => {
+    deleteMutation.mutate(id);
+  };
+
   const isLoading = loadingDist || loadingDetails || loadingProductions || loadingAssets || loadingInvestors;
   const isError = errorDist;
 
-  // DATA PROCESSING (Sama seperti sebelumnya)
+  // --- DATA PROCESSING ---
   const assetMap = useMemo(() =>
     (assets || []).reduce((acc, a) => {
       acc[a.id] = a.name;
@@ -187,7 +216,7 @@ function ProfitDistributionContent() {
             investor: d.investor_name || investorMap[d.investor] || `Investor ${d.investor}`,
             persentase: Number(d.ownership_percentage || 0),
             jumlah: Number(d.amount_received || 0),
-            status: dist.created_at,
+            status: dist.status || 'Pending',
             periode: getPeriodText(dist),
           });
         });
@@ -200,18 +229,15 @@ function ProfitDistributionContent() {
       investor: d.investor_name || investorMap[d.investor] || `Investor ${d.investor}`,
       persentase: Number(d.ownership_percentage || 0),
       jumlah: Number(d.amount_received || 0),
-      status: selectedDistribution?.created_at,
+      status: selectedDistribution?.status || 'Pending',
     }));
   }, [selectedPeriod, detailsByDist, selectedDistribution, filteredDistributions, investorMap]);
 
-  const getStatusTag = (createdAt) => {
-    if (!createdAt) {
-      return <span style={{ color: '#727272', fontWeight: 500 }}>pending</span>;
+  const getStatusTag = (status) => {
+    if (status === 'Distributed') {
+      return <Tag color="green">Completed</Tag>;
     }
-    const days = moment().diff(moment(createdAt), 'days');
-    return days > 7
-      ? <Tag color="green">Completed</Tag>
-      : <span style={{ color: '#727272', fontWeight: 500 }}>pending</span>;
+    return <Tag color="orange">Pending</Tag>;
   };
 
   const tabStyle = `
@@ -238,7 +264,7 @@ function ProfitDistributionContent() {
     <div style={{ padding: 24 }}>
       <style>{tabStyle}</style>
 
-      {/* HEADER SECTION */}
+      {/* HEADER */}
       <div style={{ marginBottom: 24 }}>
         <Typography.Title
           level={2}
@@ -258,7 +284,7 @@ function ProfitDistributionContent() {
         </Text>
       </div>
 
-      {/* FILTER ASSET */}
+      {/* FILTER */}
       <div style={{ marginBottom: 24, maxWidth: 300 }}>
         <Typography.Title
           level={5}
@@ -284,7 +310,7 @@ function ProfitDistributionContent() {
         </Select>
       </div>
 
-      {/* STATISTICS CARDS */}
+      {/* STATISTICS */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32 }}>
         <Col xs={24} sm={24} md={12} lg={12} xl={12}>
           <Card
@@ -398,16 +424,14 @@ function ProfitDistributionContent() {
 
       <Divider style={{ marginTop: 18, marginBottom: 18 }} />
 
-      {/* TABS */}
       <Tabs activeKey={activeTab} onChange={(key) => setActiveTab(key)}>
         <TabPane tab="Ringkasan" key="ringkasan" />
         <TabPane tab="Periode Distribusi" key="periode" />
         <TabPane tab="Detail Investor" key="detail" />
       </Tabs>
 
-      {/* TAB CONTENT */}
       <Card bodyStyle={{ padding: 24 }}>
-        {/* TAB: RINGKASAN */}
+        {/* TAB 1: RINGKASAN */}
         {activeTab === 'ringkasan' && (
           <div>
             <Typography.Title
@@ -452,7 +476,7 @@ function ProfitDistributionContent() {
                         {formatRupiah(item.investorAmount)}
                       </div>
                       <div style={{ marginTop: 6 }}>
-                        {getStatusTag(item.created_at)}
+                        {getStatusTag(item.status)}
                       </div>
                     </div>
                   </List.Item>
@@ -462,7 +486,7 @@ function ProfitDistributionContent() {
           </div>
         )}
 
-        {/* TAB: PERIODE DISTRIBUSI */}
+        {/* TAB 2: PERIODE DISTRIBUSI */}
         {activeTab === 'periode' && (
           <div>
             <Typography.Title
@@ -482,11 +506,12 @@ function ProfitDistributionContent() {
                 .sort((a, b) => moment(b.created_at).unix() - moment(a.created_at).unix())
                 .map((d, idx) => ({
                   key: d.id || idx,
+                  id: d.id,
                   periode: getPeriodText(d),
                   labaBersih: Number(d.net_profit || 0),
                   totalDistribusi: Number(d.investor_share || 0),
                   investor: (detailsByDist[d.id] || []).length,
-                  status: d.created_at,
+                  status: d.status || 'Pending',
                 }))}
               columns={[
                 {
@@ -517,8 +542,54 @@ function ProfitDistributionContent() {
                   title: 'Status',
                   dataIndex: 'status',
                   key: 'status',
-                  render: (createdAt) => getStatusTag(createdAt)
+                  render: (status) => getStatusTag(status)
                 },
+                {
+                  title: 'Aksi',
+                  key: 'aksi',
+                  render: (_, record) => (
+                    <Space>
+                      {/* Tombol Update Status */}
+                      {canEdit && record.status !== 'Distributed' && (
+                        <Popconfirm
+                          title="Tandai Selesai?"
+                          description="Apakah uang sudah ditransfer ke semua investor?"
+                          onConfirm={() => handleMarkAsDistributed(record.id)}
+                          okText="Ya, Selesai"
+                          cancelText="Batal"
+                          okButtonProps={{ loading: updateStatusMutation.isPending }}
+                        >
+                          <Tooltip title="Tandai Sudah Ditransfer">
+                            <Button 
+                              type="text" 
+                              icon={<CheckCircleOutlined style={{ color: '#52c41a', fontSize: '18px' }} />} 
+                            />
+                          </Tooltip>
+                        </Popconfirm>
+                      )}
+
+                      {/* Tombol Hapus (Untuk Koreksi) */}
+                      {canEdit && (
+                        <Popconfirm
+                          title="Hapus Data Distribusi?"
+                          description="Data yang dihapus tidak dapat dikembalikan."
+                          onConfirm={() => handleDelete(record.id)}
+                          okText="Ya, Hapus"
+                          cancelText="Batal"
+                          okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+                        >
+                          <Tooltip title="Hapus Data (Koreksi)">
+                            <Button 
+                              type="text" 
+                              danger
+                              icon={<DeleteOutlined style={{ fontSize: '18px' }} />} 
+                            />
+                          </Tooltip>
+                        </Popconfirm>
+                      )}
+                    </Space>
+                  )
+                }
               ]}
               pagination={{
                 pageSize: 5,
@@ -534,7 +605,7 @@ function ProfitDistributionContent() {
           </div>
         )}
 
-        {/* TAB: DETAIL INVESTOR */}
+        {/* TAB 3: DETAIL INVESTOR */}
         {activeTab === 'detail' && (
           <div>
             <Row justify="space-between" align="middle" style={{ marginBottom: 16 }} gutter={[16, 16]}>
@@ -551,7 +622,6 @@ function ProfitDistributionContent() {
                   Detail Distribusi
                 </Typography.Title>
               </Col>
-              {/* SELECT PERIODE */}
               <Col xs={24} sm={12} style={{ textAlign: 'right' }}>
                 <Select
                   placeholder="Pilih Periode"
@@ -572,7 +642,6 @@ function ProfitDistributionContent() {
               </Col>
             </Row>
 
-            {/* TABLE DETAIL INVESTOR */}
             <Table
               dataSource={detailInvestorData}
               columns={[
@@ -604,7 +673,7 @@ function ProfitDistributionContent() {
                   title: 'Status',
                   dataIndex: 'status',
                   key: 'status',
-                  render: (createdAt) => getStatusTag(createdAt)
+                  render: (status) => getStatusTag(status)
                 },
               ]}
               pagination={{

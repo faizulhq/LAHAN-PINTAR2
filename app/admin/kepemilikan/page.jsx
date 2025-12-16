@@ -1,4 +1,3 @@
-// File: app/admin/kepemilikan/page.jsx
 'use client';
 
 import React, { useState, useMemo } from 'react';
@@ -8,9 +7,14 @@ import {
   Typography, Flex, Space, message, Spin, Alert, Card, Row, Col, Tag
 } from 'antd';
 import {
-  PlusOutlined, EditOutlined, EyeOutlined, TeamOutlined,
-  DollarOutlined, AppstoreOutlined, PercentageOutlined,
+  PlusOutlined as AntPlusOutlined,
 } from '@ant-design/icons';
+
+// [PERBAIKAN] Import Icon yang Benar (Tanpa react-icons/all)
+import { HiUserGroup as IconUserGroup } from 'react-icons/hi';
+import { BiSolidBox as IconBox } from 'react-icons/bi';
+import { FaMoneyBillTransfer as IconTransfer, FaMoneyBill1 as IconMoney } from 'react-icons/fa6';
+
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import moment from 'moment';
@@ -22,9 +26,6 @@ import { getInvestors } from '@/lib/api/investor';
 import { getAssets } from '@/lib/api/asset';
 import { getFundings } from '@/lib/api/funding';
 import { getFundingSources } from '@/lib/api/funding_source';
-import { HiUserGroup } from 'react-icons/hi';
-import { BiSolidBox } from 'react-icons/bi';
-import { FaMoneyBillTransfer, FaMoneyBill1 } from 'react-icons/fa6';
 import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
@@ -147,7 +148,7 @@ function OwnershipManagementContent() {
   const handleFormSubmit = (values) => {
     const ownershipData = {
       investor: values.investor,
-      asset: values.asset,
+      asset: values.asset || null, // Field Aset boleh null (Dana Mengendap)
       funding: values.funding,
       units: values.units,
       investment_date: values.investment_date.format('YYYY-MM-DD'),
@@ -260,7 +261,7 @@ function OwnershipManagementContent() {
         {canEdit && (
           <Button
             type="primary"
-            icon={<PlusOutlined />}
+            icon={<AntPlusOutlined />}
             size="large"
             onClick={showAddModal}
             loading={createMutation.isPending || updateMutation.isPending}
@@ -309,7 +310,7 @@ function OwnershipManagementContent() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <HiUserGroup style={{ fontSize: 30, color: '#1C64F2' }} />
+                <IconUserGroup style={{ fontSize: 30, color: '#1C64F2' }} />
               </div>
               <div>
                 <Text type="secondary" style={{ fontSize: 18, color: '#111928' }}>Total Investor</Text>
@@ -329,7 +330,7 @@ function OwnershipManagementContent() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <BiSolidBox style={{ fontSize: 30, color: '#9061F9' }} />
+                <IconBox style={{ fontSize: 30, color: '#9061F9' }} />
               </div>
               <div>
                 <Text type="secondary" style={{ fontSize: 18, color: '#111928' }}>Total Unit</Text>
@@ -349,7 +350,7 @@ function OwnershipManagementContent() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <FaMoneyBillTransfer style={{ fontSize: 30, color: '#7CB305' }} />
+                <IconTransfer style={{ fontSize: 30, color: '#7CB305' }} />
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <Text type="secondary" style={{ fontSize: 18, color: '#111928' }}>Total Investasi</Text>
@@ -371,7 +372,7 @@ function OwnershipManagementContent() {
                 alignItems: 'center',
                 justifyContent: 'center'
               }}>
-                <FaMoneyBill1 style={{ fontSize: 30, color: '#CF1322' }} />
+                <IconMoney style={{ fontSize: 30, color: '#CF1322' }} />
               </div>
               <div style={{ flex: 1, overflow: 'hidden' }}>
                 <Text type="secondary" style={{ fontSize: 18, color: '#111928' }}>Nilai per Unit</Text>
@@ -684,8 +685,9 @@ function OwnershipManagementContent() {
               ))}
             </Select>
           </Form.Item>
-          <Form.Item name="asset" label="Aset" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
-            <Select placeholder="Pilih aset" showSearch size="large">
+          {/* [PERBAIKAN] Field Aset jadi Opsional & Allow Clear */}
+          <Form.Item name="asset" label="Aset (Opsional)">
+            <Select placeholder="Pilih aset (Kosongkan untuk Dana Mengendap)" showSearch size="large" allowClear>
               {assets?.map(a => (
                 <Option key={a.id} value={a.id}>{a.name}</Option>
               ))}
