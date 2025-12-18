@@ -64,37 +64,33 @@ const ExpenseFormModal = ({
   open, expense, form, projects, fundings, fundingMap,
   onCancel, onSubmit, isSubmitting
 }) => {
-  // Watch field project untuk filter otomatis
   const selectedProject = Form.useWatch('project_id', form);
 
-  // [LOGIKA SMART FILTER]
   const filteredFundingOptions = useMemo(() => {
     if (!fundings) return [];
 
-    if (selectedProject) {
-      // KASUS A: Jika Proyek Dipilih -> Tampilkan dana proyek tersebut
-      return fundings.filter(f => {
-        // Handle struktur project (bisa object atau ID)
-        const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-        // Tampilkan jika milik proyek ini DAN (status available/allocated ATAU sedang dipakai expense ini)
-        const isEligible = f.status !== 'used' || (expense && expense.funding_id === f.id);
-        return fProjectId === selectedProject && isEligible;
-      });
-    } else {
-      // KASUS B: Jika Proyek Kosong -> Tampilkan dana Unallocated
-      return fundings.filter(f => !f.project && (f.status !== 'used' || (expense && expense.funding_id === f.id)));
-    }
+    return fundings.filter(f => {
+      const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+      const isPoolFund = !fProjectId;
+      const isProjectFund = selectedProject && fProjectId === selectedProject;
+      const isStatusEligible = f.status !== 'used' || (expense && expense.funding_id === f.id);
+
+      if (selectedProject) {
+        return (isPoolFund || isProjectFund) && isStatusEligible;
+      } else {
+        return isPoolFund && isStatusEligible;
+      }
+    });
   }, [fundings, selectedProject, expense]);
 
-  // Efek Samping: Reset Funding jika Proyek berubah (kecuali saat inisialisasi)
   useEffect(() => {
     if (!open) return;
-    // Cek apakah user mengubah proyek dari nilai awal
-    if (expense && selectedProject !== expense.project_id) {
-       // Reset field funding agar user memilih ulang
-       form.setFieldValue('funding_id', null);
+    const currentFunding = form.getFieldValue('funding_id');
+    if (currentFunding) {
+       const isValid = filteredFundingOptions.some(f => f.id === currentFunding);
+       if (!isValid) form.setFieldValue('funding_id', null);
     }
-  }, [selectedProject, open, expense, form]);
+  }, [selectedProject, open, expense, form, filteredFundingOptions]);
 
   return (
     <Modal
@@ -146,7 +142,6 @@ const ExpenseFormModal = ({
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
 
-        {/* [PERUBAHAN] Proyek Opsional */}
         <Form.Item name="project_id" label="Proyek Terkait (Opsional)">
           <Select placeholder="Pilih proyek (kosongkan untuk operasional umum)" showSearch optionFilterProp="children" allowClear>
             {projects?.map(p => (
@@ -159,17 +154,27 @@ const ExpenseFormModal = ({
           name="funding_id" 
           label="Sumber Dana" 
           rules={[{ required: true, message: 'Sumber dana wajib dipilih' }]}
-          help={selectedProject && filteredFundingOptions.length === 0 ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia di proyek ini.</span> : null}
+          help={
+             selectedProject && filteredFundingOptions.length === 0 
+             ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia (Pool maupun Proyek).</span> 
+             : <span style={{color: '#727272', fontSize: '12px'}}>Menampilkan Dana Proyek & Dana Pool (Umum).</span>
+          }
         >
           <Select 
-            placeholder={selectedProject ? "Pilih dana dari proyek ini" : "Pilih dana operasional (Unallocated)"} 
+            placeholder="Pilih dana"
             showSearch 
             optionFilterProp="children"
             disabled={selectedProject && filteredFundingOptions.length === 0}
           >
-            {filteredFundingOptions.map(f => (
-              <Option key={f.id} value={f.id}>{fundingMap[f.id] || `Dana ID: ${f.id}`}</Option>
-            ))}
+            {filteredFundingOptions.map(f => {
+               const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+               const labelType = fProjectId ? '(Khusus Proyek Ini)' : '(Pool / Umum)';
+               return (
+                  <Option key={f.id} value={f.id}>
+                    {fundingMap[f.id] || `Dana ID: ${f.id}`} <span style={{color: fProjectId ? '#237804' : '#0958D9', fontSize: '12px'}}>{labelType}</span>
+                  </Option>
+               );
+            })}
           </Select>
         </Form.Item>
 
@@ -206,7 +211,6 @@ function ExpenseDetailContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
 
-  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
@@ -256,7 +260,7 @@ function ExpenseDetailContent() {
   }, [fundings, fundingSources]);
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => updateExpense(id, data), // Adjusted signature match
+    mutationFn: ({ id, data }) => updateExpense(id, data),
     onSuccess: () => {
       message.success('Pengeluaran berhasil diperbarui');
       queryClient.invalidateQueries({ queryKey: ['expense'] });
@@ -292,7 +296,7 @@ function ExpenseDetailContent() {
       amount: parseFloat(expense.amount),
       date: expense.date ? moment(expense.date) : null,
       description: expense.description,
-      project_id: expense.project_id, // Bisa null
+      project_id: expense.project_id,
       funding_id: expense.funding_id,
       proof_url: expense.proof_url || '',
     });
@@ -396,7 +400,6 @@ function ExpenseDetailContent() {
           </div>
         </Flex>
         
-        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
           <Space>
             <Popconfirm
@@ -617,7 +620,6 @@ function ExpenseDetailContent() {
         </Col>
       </Row>
 
-      {/* Modal Edit (hanya jika canEdit) */}
       {canEdit && (
         <ExpenseFormModal
           open={isModalOpen}
@@ -637,7 +639,6 @@ function ExpenseDetailContent() {
 
 export default function ExpenseDetailPage() {
   return (
-    // [RBAC] Semua Role boleh masuk (Investor/Viewer Read Only)
     <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ExpenseDetailContent />
     </ProtectedRoute>

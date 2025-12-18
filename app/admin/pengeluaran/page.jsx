@@ -4,10 +4,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker, Input, Typography, Flex, Space,
-  message, Spin, Alert, Card, Row, Col, Skeleton, Tag, Upload
+  message, Spin, Alert, Card, Row, Col, Skeleton, Tag
 } from 'antd';
 import {
-  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined, UploadOutlined, FileImageOutlined
+  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
 import { FaMoneyBillWave } from 'react-icons/fa6';
@@ -183,24 +183,30 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
   const filteredFundingOptions = useMemo(() => {
     if (!fundings) return [];
 
-    if (selectedProject) {
-      return fundings.filter(f => {
-        const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-        const isEligible = f.status !== 'used' || (initialData && initialData.funding_id === f.id);
-        return fProjectId === selectedProject && isEligible;
-      });
-    } else {
-      return fundings.filter(f => !f.project && f.status !== 'used');
-    }
+    return fundings.filter(f => {
+      const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+      
+      const isPoolFund = !fProjectId;
+      const isProjectFund = selectedProject && fProjectId === selectedProject;
+      const isStatusEligible = f.status !== 'used' || (initialData && initialData.funding_id === f.id);
+
+      if (selectedProject) {
+        return (isPoolFund || isProjectFund) && isStatusEligible;
+      } else {
+        return isPoolFund && isStatusEligible;
+      }
+    });
   }, [fundings, selectedProject, initialData]);
 
   useEffect(() => {
     if (!visible) return;
     
-    if (!initialData || (initialData && selectedProject !== initialData.project_id)) {
-        form.setFieldValue('funding_id', null);
+    const currentFunding = form.getFieldValue('funding_id');
+    if (currentFunding) {
+        const isValid = filteredFundingOptions.some(f => f.id === currentFunding);
+        if (!isValid) form.setFieldValue('funding_id', null);
     }
-  }, [selectedProject, visible, initialData, form]);
+  }, [selectedProject, visible, filteredFundingOptions, form]);
 
   const mutationOptions = {
     onSuccess: () => {
@@ -210,7 +216,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
       onClose();
     },
     onError: (err) => {
-      console.error("Error:", err);
       const errorDetail = err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message;
       message.error(`Error: ${errorDetail}`);
     },
@@ -305,20 +310,28 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
           name="funding_id" 
           label="Sumber Dana" 
           rules={[{ required: true, message: 'Sumber dana harus dipilih!' }]}
-          help={selectedProject && filteredFundingOptions.length === 0 ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia di proyek ini. Alokasikan dana terlebih dahulu.</span> : null}
+          help={
+             selectedProject && filteredFundingOptions.length === 0 
+             ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia (Pool maupun Proyek).</span> 
+             : <span style={{color: '#727272', fontSize: '12px'}}>Menampilkan Dana Proyek & Dana Pool (Umum).</span>
+          }
         >
           <Select 
-            placeholder={selectedProject ? "Pilih dana dari proyek ini" : "Pilih dana operasional (Belum Dialokasikan)"}
+            placeholder="Pilih dana"
             showSearch 
             optionFilterProp="children" 
             size="large"
             disabled={selectedProject && filteredFundingOptions.length === 0}
           >
-            {filteredFundingOptions.map(f => (
-              <Option key={f.id} value={f.id}>
-                {fundingMap[f.id] || f.source_name} {f.project ? '' : '(Umum)'}
-              </Option>
-            ))}
+            {filteredFundingOptions.map(f => {
+               const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
+               const labelType = fProjectId ? '(Khusus Proyek Ini)' : '(Pool / Umum)';
+               return (
+                  <Option key={f.id} value={f.id}>
+                    {fundingMap[f.id] || f.source_name} <span style={{color: fProjectId ? '#237804' : '#0958D9', fontSize: '12px'}}>{labelType}</span>
+                  </Option>
+               );
+            })}
           </Select>
         </Form.Item>
 
@@ -327,7 +340,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
           label="URL Bukti (Opsional)"
           rules={[{ type: 'url', message: 'Masukkan URL yang valid' }]}
         >
-          <Input prefix={<LinkOutlined />} placeholder="https://docs.google.com/..." size="large" />
+          <Input prefix={<LinkOutlined />} placeholder="https://..." size="large" />
         </Form.Item>
 
         <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>

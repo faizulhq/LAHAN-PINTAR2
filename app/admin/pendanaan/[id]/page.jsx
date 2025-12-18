@@ -17,7 +17,7 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
+import useAuthStore from '@/lib/store/authStore'; 
 
 import { getProjects } from '@/lib/api/project';
 import {
@@ -27,16 +27,12 @@ import {
 import {
   getFunding,
   updateFunding,
-  deleteFunding, // Import deleteFunding
+  deleteFunding, 
   createFunding,
 } from '@/lib/api/funding';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-
-// =================================================================
-// === HELPERS ===
-// =================================================================
 
 const formatRupiah = (value) =>
   value != null
@@ -111,9 +107,6 @@ const getSourceTypeProps = (type) => {
   return { text, style }; 
 };
 
-// =================================================================
-// === INFO CARD COMPONENT ===
-// =================================================================
 const InfoCard = ({ icon, label, value, iconColor }) => (
   <Card 
     style={{
@@ -138,9 +131,6 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
   </Card>
 );
 
-// =================================================================
-// === MODAL EDIT (Disisipkan dari List Page) ===
-// =================================================================
 const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceModal }) => {
   const queryClient = useQueryClient();
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: getProjects });
@@ -163,8 +153,7 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
        <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{...initialData, date_received: moment(initialData?.date_received)}} style={{marginTop: 24}}>
           <Row gutter={16}>
             <Col span={12}>
-                {/* [PERUBAHAN] required: false dan allowClear agar bisa dikosongkan */}
-                <Form.Item name="project" label="Proyek (Opsional)" rules={[{required:false}]}>
+                <Form.Item name="project" label="Proyek (Opsional)" rules={[{required:false}]} help="Kosongkan untuk Dana Pool">
                     <Select showSearch allowClear placeholder="Pilih proyek (opsional)" optionFilterProp="children">
                         {projects?.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
                     </Select>
@@ -191,9 +180,6 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
   );
 };
 
-// =================================================================
-// === MODAL ADD SOURCE (Disisipkan dari List Page) ===
-// =================================================================
 const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
     <Modal title="Tambah Sumber Dana" open={open} onCancel={onCancel} footer={null} destroyOnClose>
       <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
@@ -205,9 +191,6 @@ const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }
     </Modal>
 );
 
-// =================================================================
-// === MAIN COMPONENT ===
-// =================================================================
 function FundingDetailContent() {
   const router = useRouter();
   const params = useParams();
@@ -219,7 +202,6 @@ function FundingDetailContent() {
   const [form] = Form.useForm();
   const [sourceForm] = Form.useForm();
 
-  // [RBAC] Check Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
@@ -230,14 +212,12 @@ function FundingDetailContent() {
     enabled: !!fundingId,
   });
 
-  // DELETE MUTATION
   const deleteMutation = useMutation({ 
       mutationFn: deleteFunding, 
       onSuccess: () => { message.success('Dihapus'); router.push('/admin/pendanaan'); },
       onError: (err) => message.error(`Gagal menghapus: ${err.message}`)
   });
 
-  // CREATE SOURCE MUTATION
   const createSourceMutation = useMutation({ 
       mutationFn: createFundingSource, 
       onSuccess: (ns) => { message.success('Sumber ditambahkan'); queryClient.invalidateQueries({ queryKey: ['fundingSources'] }); setIsSourceModalOpen(false); form.setFieldsValue({ source: ns.id }); }
@@ -291,9 +271,9 @@ function FundingDetailContent() {
   
   const statusProps = getStatusProps(funding.status);
   const sourceTypeProps = getSourceTypeProps(funding.source_type);
-  
-  // [PERBAIKAN ERROR] Amankan variabel persen
   const persenTerpakai = funding.persen_terpakai || 0;
+  
+  const isPool = !funding.project && !funding.project_name;
 
   return (
     <>
@@ -328,20 +308,19 @@ function FundingDetailContent() {
           </div>
         </Flex>
         
-        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
           <Space>
-             <Popconfirm 
+              <Popconfirm 
                 title="Hapus Pendanaan?" 
                 description="Yakin hapus data ini?" 
                 onConfirm={handleDelete} 
                 okText="Ya, Hapus" 
                 cancelText="Batal" 
                 okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
-             >
+              >
                 <Button danger icon={<DeleteOutlined />} size="large" style={{ borderRadius: 24 }}>Hapus</Button>
-             </Popconfirm>
-             <Button
+              </Popconfirm>
+              <Button
                 type="primary"
                 icon={<EditOutlined />}
                 size="large"
@@ -353,7 +332,7 @@ function FundingDetailContent() {
                   fontSize: '16px' 
                 }}
                 onClick={handleEdit}
-             >
+              >
                 Edit Pendanaan
             </Button>
           </Space>
@@ -373,7 +352,7 @@ function FundingDetailContent() {
             <Flex justify="space-between" align="start" style={{ marginBottom: 24 }} wrap='wrap' gap={8}>
               <div>
                 <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-                  {funding.project_name}
+                  {isPool ? "Dana Pool (Umum)" : funding.project_name}
                 </Title>
                 <Space wrap>
                   <Tag style={statusProps.style}>
@@ -382,6 +361,7 @@ function FundingDetailContent() {
                   <Tag style={sourceTypeProps.style}>
                     {sourceTypeProps.text}
                   </Tag>
+                  {isPool && <Tag color="purple">Bisa digunakan semua proyek</Tag>}
                 </Space>
               </div>
               <Text style={{ 
@@ -444,7 +424,7 @@ function FundingDetailContent() {
             <Descriptions bordered column={1} size="middle">
               <Descriptions.Item label="Proyek Terkait">
                 <Text style={{ fontWeight: 500 }}>
-                  {funding.project_name}
+                  {isPool ? "(Tidak Ada / Dana Umum)" : funding.project_name}
                 </Text>
               </Descriptions.Item>
               <Descriptions.Item label="Sumber Dana">
@@ -509,7 +489,6 @@ function FundingDetailContent() {
                 </Flex>
                 <Flex justify="space-between">
                   <Text style={{ color: '#6B7280' }}>Persen Terpakai</Text>
-                  {/* [PERBAIKAN ERROR] Gunakan variabel aman agar tidak NaN */}
                   <Text style={{ fontWeight: 600 }}>{parseFloat(persenTerpakai).toFixed(1)}%</Text>
                 </Flex>
                 <Flex justify="space-between">

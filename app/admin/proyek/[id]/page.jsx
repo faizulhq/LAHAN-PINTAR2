@@ -26,7 +26,6 @@ import {
   EditOutlined,
   DeleteOutlined,
   CalendarOutlined,
-  EnvironmentOutlined,
   FileTextOutlined,
   ClockCircleOutlined,
   InfoCircleOutlined,
@@ -39,16 +38,13 @@ import { getProjects, updateProject, deleteProject } from '@/lib/api/project';
 import { getAssets } from '@/lib/api/asset';
 import { BiSolidCalendar } from 'react-icons/bi';
 import { MdLocationPin } from 'react-icons/md';
-import { BsCalculatorFill } from 'react-icons/bs';
-import { FaBuilding, FaMapMarkerAlt } from 'react-icons/fa';
-// [RBAC] Import Auth
+import { FaBuilding } from 'react-icons/fa';
 import useAuthStore from '@/lib/store/authStore';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 const { Option } = Select;
 
-// ... (Helper functions tetap sama, tidak saya ubah)
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
   return `Rp ${Number(value).toLocaleString('id-ID')}`;
@@ -57,11 +53,6 @@ const formatRupiah = (value) => {
 const formatDate = (dateString) => {
   if (!dateString) return '-';
   return moment(dateString).format('DD MMMM YYYY');
-};
-
-const formatDateShort = (dateString) => {
-  if (!dateString) return '-';
-  return moment(dateString).format('DD/MM/YYYY');
 };
 
 const calculateDuration = (startDate, endDate) => {
@@ -92,7 +83,6 @@ const getProjectStatus = (startDate, endDate) => {
   }
 };
 
-// Component Info Item - Tanpa background icon
 const InfoItem = ({ icon, label, value }) => (
   <Card style={{ 
     backgroundColor: '#ffffff', 
@@ -131,19 +121,15 @@ function ProjectDetailContent() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [form] = Form.useForm();
 
-  // [RBAC] Logic Hak Akses
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  // Hanya Admin dan Superadmin yang boleh Edit/Hapus Proyek
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
-  // Fetch Projects
   const { data: projects, isLoading: isLoadingProjects, isError, error } = useQuery({
     queryKey: ['projects'],
     queryFn: getProjects,
   });
 
-  // Fetch Assets
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets,
@@ -254,7 +240,6 @@ function ProjectDetailContent() {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Header dengan Tombol Kembali */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <Space direction="vertical" size={0}>
           <Button
@@ -273,7 +258,6 @@ function ProjectDetailContent() {
           </Text>
         </Space>
         
-        {/* [RBAC] Tombol Aksi - Hanya muncul jika canEdit */}
         {canEdit && (
             <Space size="middle">
             <Button
@@ -307,7 +291,6 @@ function ProjectDetailContent() {
         )}
       </Flex>
 
-      {/* --- BAGIAN BAWAH INI TIDAK DISENTUH SAMA SEKALI (Sesuai kode asli) --- */}
       <Card
         style={{
           marginBottom: 24,
@@ -322,9 +305,12 @@ function ProjectDetailContent() {
             <Title level={3} style={{ margin: 0, color: '#111928', fontSize: '24px', fontWeight: 700 }}>
               {project.name}
             </Title>
-            <Tag color={projectStatus.color} style={{ fontSize: '14px', padding: '4px 12px' }}>
-              {projectStatus.status}
-            </Tag>
+            <Space>
+                <Tag color={projectStatus.color} style={{ fontSize: '14px', padding: '4px 12px' }}>
+                {projectStatus.status}
+                </Tag>
+                <Tag color="cyan">Didukung Dana Pool</Tag>
+            </Space>
           </Space>
           <Space direction="vertical" size={0} align="end">
             <Text type="secondary" style={{ fontSize: '14px' }}>Total Anggaran</Text>
@@ -336,7 +322,6 @@ function ProjectDetailContent() {
 
         <Divider style={{ margin: '20px 0' }} />
 
-        {/* Deskripsi */}
         <Space direction="vertical" size={4} style={{ width: '100%', marginBottom: 24 }}>
           <Flex align="center" gap={8}>
             <FileTextOutlined style={{ color: '#237804', fontSize: '18px' }} />
@@ -347,14 +332,12 @@ function ProjectDetailContent() {
           </Text>
         </Space>
 
-        {/* Info Grid */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
           gap: '16px',
           marginTop: 24 
         }}>
-          {/* Tanggal Mulai */}
           <Card style={{ 
             backgroundColor: '#ffffff', 
             borderRadius: '8px', 
@@ -371,7 +354,6 @@ function ProjectDetailContent() {
             </Flex>
           </Card>
 
-          {/* Tanggal Selesai */}
           <Card style={{ 
             backgroundColor: '#ffffff', 
             borderRadius: '8px', 
@@ -388,7 +370,6 @@ function ProjectDetailContent() {
             </Flex>
           </Card>
 
-          {/* Durasi */}
           <Card style={{ 
             backgroundColor: '#ffffff', 
             borderRadius: '8px', 
@@ -407,7 +388,6 @@ function ProjectDetailContent() {
         </div>
       </Card>
 
-      {/* Asset Information */}
       {asset && (
         <Card
           style={{
@@ -458,7 +438,6 @@ function ProjectDetailContent() {
         </Card>
       )}
 
-      {/* Informasi Tambahan */}
       <Card
         style={{
           borderRadius: '12px',
@@ -491,9 +470,7 @@ function ProjectDetailContent() {
           </Col>
         </Row>
       </Card>
-      {/* ------------------------------------------------------------- */}
 
-      {/* Modal Edit */}
       <Modal
         title="Edit Proyek"
         open={isEditModalOpen}
@@ -582,7 +559,6 @@ function ProjectDetailContent() {
         </Form>
       </Modal>
 
-      {/* Modal Konfirmasi Hapus */}
       <Modal
         title="Konfirmasi Hapus"
         open={isDeleteModalOpen}

@@ -1,6 +1,5 @@
 'use client';
 
-// --- IMPORTS ---
 import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -10,7 +9,6 @@ import {
 } from '@tanstack/react-query';
 import moment from 'moment';
 
-// ANTD Components
 import {
   Button,
   Select,
@@ -33,21 +31,19 @@ import {
   Alert,
 } from 'antd';
 
-// Icons
 import {
   PlusCircleOutlined,
   PlusOutlined,
   BankOutlined,
   InfoCircleOutlined,
-  FilterOutlined // Tambahan icon untuk filter status
+  FilterOutlined 
 } from '@ant-design/icons';
 import { FaMoneyBillTransfer, FaMoneyBills } from 'react-icons/fa6';
 import { GiPayMoney } from 'react-icons/gi';
 import { ChevronDown } from 'lucide-react';
 
-// API IMPORTS
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
+import useAuthStore from '@/lib/store/authStore'; 
 import { getFinancialReport } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
@@ -62,7 +58,6 @@ import {
   updateFunding,
 } from '@/lib/api/funding';
 
-// --- HELPERS ---
 const { Title, Text } = Typography;
 const { Option } = Select;
 
@@ -128,9 +123,6 @@ const getSourceTypeProps = (type) => {
   return { text, style }; 
 };
 
-// =================================================================
-// === MODAL TAMBAH SUMBER DANA ===
-// =================================================================
 const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
   <Modal
     title="Tambah Sumber Dana Baru" open={open} onCancel={onCancel} footer={null}
@@ -166,9 +158,6 @@ const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }
   </Modal>
 );
 
-// =================================================================
-// === MODAL EDIT PENDANAAN ===
-// =================================================================
 const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceModal }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -264,11 +253,11 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
       >
         <Row gutter={16}>
           <Col span={12}>
-            {/* [PERUBAHAN VALIDASI] required: false agar pendanaan bisa masuk tanpa proyek */}
             <Form.Item
               name="project"
               label="Proyek Terkait (Opsional)"
               rules={[{ required: false }]}
+              help="Kosongkan untuk menjadikan ini Dana Pool / Umum"
             >
               <Select
                 showSearch
@@ -371,9 +360,6 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
   );
 };
 
-// =================================================================
-// === MODAL DETAIL SUMBER DANA (Tetap ada) ===
-// =================================================================
 const FundingSourceDetailModal = ({ visible, onClose, sourceId }) => {
   const { data: source, isLoading, isError, error } = useQuery({
     queryKey: ['fundingSource', sourceId],
@@ -425,10 +411,6 @@ const FundingSourceDetailModal = ({ visible, onClose, sourceId }) => {
   );
 };
 
-
-// =================================================================
-// === KOMPONEN STAT CARD ===
-// =================================================================
 const StatCard = ({ title, value, icon, bgColor, loading }) => (
   <Card 
     bodyStyle={{ padding: '24px' }} 
@@ -485,9 +467,6 @@ const StatCard = ({ title, value, icon, bgColor, loading }) => (
   </Card>
 );
 
-// =================================================================
-// === KOMPONEN RINGKASAN CARD ===
-// =================================================================
 const RingkasanCard = ({ data, loading, onSourceClick }) => (
   <Card 
     bodyStyle={{ padding: '24px' }} 
@@ -532,13 +511,12 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <Tag 
                     style={{ ...sourceType.style, cursor: 'pointer' }}
-                    onClick={() => onSourceClick(item.source_id)} // <-- Klik Tag di sini
+                    onClick={() => onSourceClick(item.source_id)} 
                   >
                     {sourceType.text}
                   </Tag>
                   <Text 
                     style={{ 
-                      // fontFamily: 'Inter, sans-serif',
                       fontSize: '16px', 
                       fontWeight: 500, 
                       color: '#111928',
@@ -550,7 +528,6 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
                 </div>
                 <Text 
                   style={{ 
-                    // fontFamily: 'Inter, sans-serif',
                     fontSize: '16px', 
                     fontWeight: 500, 
                     color: '#727272',
@@ -571,7 +548,6 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
               </div>
               <Text 
                 style={{ 
-                  // fontFamily: 'Inter, sans-serif',
                   fontSize: '16px', 
                   fontWeight: 500, 
                   color: '#727272',
@@ -594,19 +570,14 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
   </Card>
 );
 
-// =================================================================
-// === KOMPONEN FUNDING CARD (FIXED & IMPROVED) ===
-// =================================================================
-const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { // [RBAC] Tambah prop canEdit
+const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { 
   const status = getStatusProps(funding.status);
   const sourceType = getSourceTypeProps(funding.source_type);
   
-  // [PERBAIKAN ERROR] Gunakan operator || 0 agar tidak crash jika undefined
   const persenTerpakai = funding.persen_terpakai || 0;
 
-  // [LOGIKA UI] Cek apakah pendanaan sudah dialokasikan ke proyek atau belum
   const isUnallocated = !funding.project && !funding.project_name;
-  const projectTitle = isUnallocated ? "Dana Belum Dialokasikan" : (funding.project_name || "Proyek Tidak Diketahui");
+  const projectTitle = isUnallocated ? "Dana Pool (Umum)" : (funding.project_name || "Proyek Tidak Diketahui");
 
   return (
     <div 
@@ -630,7 +601,7 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
             
             <Tag 
               style={{ ...sourceType.style, cursor: 'pointer' }}
-              onClick={() => onSourceClick(funding.source)} // <-- Klik Tag = Detail SUMBER
+              onClick={() => onSourceClick(funding.source)} 
             >
               {sourceType.text}
             </Tag>
@@ -639,20 +610,18 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
               {status.text}
             </Tag>
 
-            {/* BADGE TAMBAHAN JIKA UNALLOCATED */}
             {isUnallocated && (
-               <Tag color="green" style={{ borderRadius: '6px', fontWeight: 600 }}>
-                 Dana Tersedia
+               <Tag color="purple" style={{ borderRadius: '6px', fontWeight: 600 }}>
+                 Dana Pool (Umum)
                </Tag>
             )}
           </div>
           <Title 
             level={5} 
             style={{ 
-              // fontFamily: 'Inter, sans-serif',
               fontSize: '20px', 
               fontWeight: 600, 
-              color: '#111928',
+              color: isUnallocated ? '#0958D9' : '#111928',
               lineHeight: '24px',
               margin: 0
             }}
@@ -661,7 +630,6 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
           </Title>
           <Text 
             style={{ 
-              // fontFamily: 'Inter, sans-serif',
               fontSize: '16px', 
               fontWeight: 500, 
               color: '#111928',
@@ -679,7 +647,6 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
         }}>
           <Text 
             style={{ 
-              // fontFamily: 'Inter, sans-serif',
               fontSize: '16px', 
               fontWeight: 500, 
               color: '#7CB305',
@@ -691,7 +658,6 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
           </Text>
           <Text 
             style={{ 
-              // fontFamily: 'Inter, sans-serif',
               fontSize: '16px', 
               fontWeight: 500, 
               color: '#727272',
@@ -704,14 +670,13 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
       </div>
       <div style={{ marginBottom: '14px' }}>
         <Progress
-          percent={parseFloat(persenTerpakai.toFixed(1))} // [PERBAIKAN] Gunakan variabel aman
-          strokeColor="#1A56DB"
+          percent={parseFloat(persenTerpakai.toFixed(1))} 
+          strokeColor={isUnallocated ? "#722ED1" : "#1A56DB"}
           trailColor="#E5E7EB"
           showInfo={true}
           strokeWidth={6}
           format={(percent) => (
             <span style={{ 
-              // fontFamily: 'Inter, sans-serif',
               fontSize: '12px', 
               color: '#6B7280', 
               fontWeight: 500,
@@ -734,17 +699,15 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
             border: '1px solid #237804',
             borderRadius: '8px',
             color: '#237804',
-            // fontFamily: 'Inter, sans-serif',
             fontWeight: 500,
             fontSize: '14px',
             lineHeight: '21px'
           }}
-          onClick={() => onDetailClick(funding.id)} // <-- PERBAIKAN: Klik Tombol = Detail PENDANAAN
+          onClick={() => onDetailClick(funding.id)} 
         >
           Detail
         </Button>
         
-        {/* [RBAC] Tombol Edit hanya jika canEdit=true */}
         {canEdit && (
           <Button 
             style={{ 
@@ -754,7 +717,6 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
               borderColor: '#237804',
               borderRadius: '8px',
               color: '#FFFFFF',
-              // fontFamily: 'Inter, sans-serif',
               fontWeight: 500,
               fontSize: '14px',
               lineHeight: '21px'
@@ -769,17 +731,12 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
   );
 };
 
-
-// =================================================================
-// === KOMPONEN KONTEN UTAMA HALAMAN (DIMODIFIKASI) ===
-// =================================================================
 function PendanaanContent() {
   const queryClient = useQueryClient();
   const router = useRouter();
   
-  // STATE FILTER GANDA
   const [selectedAsset, setSelectedAsset] = useState('all');
-  const [selectedStatus, setSelectedStatus] = useState('all'); // <-- NEW FILTER STATE
+  const [selectedStatus, setSelectedStatus] = useState('all'); 
 
   const [modalVisible, setModalVisible] = useState(false);
   const [editingFunding, setEditingFunding] = useState(null);
@@ -790,12 +747,10 @@ function PendanaanContent() {
   
   const [detailSourceId, setDetailSourceId] = useState(null);
   
-  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
 
-  // [LOGIKA JUDUL DINAMIS]
   let pageTitle = "Laporan Pendanaan";
   let pageDesc = "Ringkasan aliran dana masuk dan penggunaannya.";
 
@@ -807,7 +762,6 @@ function PendanaanContent() {
     pageDesc = "Pantau status dan penggunaan dana investasi Anda.";
   }
 
-  // Data Fetching
   const { data: reportData, isLoading: isLoadingReport } = useQuery({
     queryKey: ['financialReport', selectedAsset],
     queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' || selectedAsset === 'unallocated' ? undefined : selectedAsset }),
@@ -820,8 +774,6 @@ function PendanaanContent() {
     staleTime: 1000 * 60 * 5,
   });
 
-  // [LOGIKA FETCHING BARU] 
-  // Jika 'unallocated', kita fetch semua (undefined asset_id) lalu filter di client-side.
   const queryAssetId = (selectedAsset === 'all' || selectedAsset === 'unallocated') ? undefined : selectedAsset;
 
   const { data: rawFundings, isLoading: isLoadingFundings } = useQuery({
@@ -849,18 +801,15 @@ function PendanaanContent() {
     }
   });
 
-  // [FILTERING LOGIC - SMART DUAL FILTER]
   const fundings = useMemo(() => {
     if (!rawFundings) return [];
     
     let filtered = rawFundings;
     
-    // 1. Filter Aset
     if (selectedAsset === 'unallocated') {
       filtered = filtered.filter(f => !f.project);
     }
     
-    // 2. Filter Status (Jika tidak 'all')
     if (selectedStatus !== 'all') {
       filtered = filtered.filter(f => f.status === selectedStatus);
     }
@@ -868,7 +817,6 @@ function PendanaanContent() {
     return filtered;
   }, [rawFundings, selectedAsset, selectedStatus]);
 
-  // Data Processing untuk Ringkasan Card
   const ringkasanData = useMemo(() => {
     if (!fundings) return [];
     
@@ -877,13 +825,13 @@ function PendanaanContent() {
     fundings.forEach(funding => {
       const sourceName = funding.source_name || 'Tanpa Sumber';
       const sourceType = funding.source_type || 'unknown';
-      const sourceId = funding.source; // <-- Ambil source_id
+      const sourceId = funding.source; 
       
       if (!summary.has(sourceName)) {
         summary.set(sourceName, {
           source_name: sourceName,
           source_type: sourceType,
-          source_id: sourceId, // <-- Simpan source_id
+          source_id: sourceId, 
           totalAmount: 0,
           totalTerpakai: 0,
         });
@@ -901,11 +849,10 @@ function PendanaanContent() {
 
   }, [fundings]);
 
-  // OPTIONS DROPDOWN
   const assetOptions = useMemo(() => {
     const options = [
-      { value: 'all', label: 'Tampilkan Semua' }, // <-- Label diubah agar lebih umum
-      { value: 'unallocated', label: 'Belum Dialokasikan (Dana Mengendap)' } // <--- Opsi Baru
+      { value: 'all', label: 'Tampilkan Semua' }, 
+      { value: 'unallocated', label: 'Dana Pool (Umum / Belum Dialokasikan)' } 
     ];
     if (assets) {
       assets.forEach(asset => {
@@ -925,7 +872,6 @@ function PendanaanContent() {
   const stats = reportData?.ringkasan_dana || {};
   const isLoadingStats = isLoadingReport;
 
-  // Handlers
   const handleOpenModal = (funding) => {
     setEditingFunding(funding);
     setModalVisible(true);
@@ -941,19 +887,15 @@ function PendanaanContent() {
   const handleCancelSourceModal = () => { setIsSourceModalOpen(false); sourceForm.resetFields(); };
   const handleSourceFormSubmit = (values) => { createSourceMutation.mutate(values); };
   
-  // Handler untuk Detail SUMBER (dari Tag)
   const handleOpenSourceDetail = (id) => { setDetailSourceId(id); };
   const handleCloseSourceDetail = () => { setDetailSourceId(null); };
 
-  // --- HANDLER BARU: Untuk Detail PENDANAAN (dari tombol "Detail") ---
   const handleOpenFundingDetail = (id) => {
     router.push(`/admin/pendanaan/${id}`);
   };
 
-  // Render
   return (
     <div style={{ padding: '24px', backgroundColor: '#F9FAFB', minHeight: '100vh' }}> 
-      {/* Header */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -970,7 +912,6 @@ function PendanaanContent() {
           </Text>
         </div>
         
-        {/* [RBAC] Tombol Tambah hanya untuk Admin/Superadmin */}
         {canEdit && (
           <Button
             type="primary"
@@ -981,7 +922,6 @@ function PendanaanContent() {
               borderRadius: '24px',
               height: '40px',
               padding: '8px 16px',
-              // fontFamily: 'Roboto, sans-serif',
               fontWeight: 400,
               fontSize: '16px',
               boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
@@ -997,7 +937,6 @@ function PendanaanContent() {
         )}
       </div>
 
-      {/* --- FILTER SECTION (DUAL FILTER) --- */}
       <Card bodyStyle={{ padding: '20px' }} style={{ marginBottom: '24px', borderRadius: '12px', border: '1px solid #F0F0F0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
         <Row gutter={[16, 16]} align="middle">
           <Col xs={24} md={12} lg={8}>
@@ -1030,7 +969,6 @@ function PendanaanContent() {
         </Row>
       </Card>
 
-      {/* Stat Cards */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ marginBottom: '18px' }}>
           <StatCard
@@ -1063,18 +1001,15 @@ function PendanaanContent() {
         </Row>
       </div>
 
-      {/* Main Content */}
     <Row gutter={[0, 24]}>
-    {/* Ringkasan - Atas */}
     <Col xs={24}> 
         <RingkasanCard 
           data={ringkasanData} 
           loading={isLoadingFundings} 
-          onSourceClick={handleOpenSourceDetail} // <-- Pass handler u/ detail SUMBER
+          onSourceClick={handleOpenSourceDetail} 
         />
     </Col>
     
-    {/* List Pendanaan - Bawah */}
     <Col xs={24}> 
         <Card 
         bodyStyle={{ padding: '24px' }} 
@@ -1107,10 +1042,10 @@ function PendanaanContent() {
                 <FundingCard 
                     key={funding.id} 
                     funding={funding} 
-                    canEdit={canEdit} // [RBAC] Pass canEdit
+                    canEdit={canEdit} 
                     onEditClick={handleOpenModal}
-                    onSourceClick={handleOpenSourceDetail} // <-- handler u/ detail SUMBER (dari Tag)
-                    onDetailClick={handleOpenFundingDetail} // <-- handler u/ detail PENDANAAN (dari Tombol)
+                    onSourceClick={handleOpenSourceDetail} 
+                    onDetailClick={handleOpenFundingDetail} 
                 />
                 ))}
             </div>
@@ -1134,7 +1069,6 @@ function PendanaanContent() {
     </Col>
     </Row>
             
-      {/* Modal Edit/Tambah PENDANAAN */}
       <FundingModal 
         visible={modalVisible} 
         onClose={handleCloseModal} 
@@ -1143,7 +1077,6 @@ function PendanaanContent() {
         handleShowSourceModal={handleShowSourceModal}
       />
 
-      {/* Modal Tambah SUMBER DANA */}
       <FundingSourceFormModal 
         open={isSourceModalOpen} 
         form={sourceForm} 
@@ -1152,7 +1085,6 @@ function PendanaanContent() {
         isSubmitting={createSourceMutation.isPending} 
       />
       
-      {/* Modal Detail SUMBER DANA (dari Tag) */}
       <FundingSourceDetailModal
         visible={!!detailSourceId}
         onClose={handleCloseSourceDetail}
@@ -1164,7 +1096,6 @@ function PendanaanContent() {
 
 export default function PendanaanPage() {
   return (
-    // [RBAC] Operator tidak boleh akses
     <ProtectedRoute roles={['Superadmin', 'Admin', 'Investor', 'Viewer']}>
       <PendanaanContent />
     </ProtectedRoute>
