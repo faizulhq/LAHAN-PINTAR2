@@ -36,7 +36,7 @@ import {
 
 // Internal Components & API
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
+import useAuthStore from '@/lib/store/authStore'; 
 import * as reportingAPI from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
 import { getProjects } from '@/lib/api/project';
@@ -108,6 +108,7 @@ const CustomNextArrow = ({ onClick }) => (
   </button>
 );
 
+// === KOMPONEN RINCIAN DANA PROYEK - DENGAN INDIKATOR POOL ===
 const RincianDanaProyek = ({ data, isLoading }) => {
   if (isLoading) {
     return (
@@ -150,8 +151,16 @@ const RincianDanaProyek = ({ data, isLoading }) => {
             anggaran,
             total_dana_masuk,
             total_pengeluaran,
-            sisa_dana,
           } = projectData;
+
+          // === LOGIC UNTUK INDIKATOR POOL ===
+          // Hitung penggunaan Dana Pool
+          // Jika Pengeluaran > Dana Masuk, selisihnya diambil dari Pool
+          const poolUsage = Math.max(0, total_pengeluaran - total_dana_masuk);
+          const isUsingPool = poolUsage > 0;
+
+          // Kita hitung Sisa Budget untuk chart kedua, agar valid meski pakai Dana Pool
+          const sisaBudget = Math.max(0, anggaran - total_pengeluaran);
 
           const fundingData = [
             {
@@ -163,29 +172,41 @@ const RincianDanaProyek = ({ data, isLoading }) => {
 
           const expenseData = [
             {
-              name: 'Pengeluaran',
-              Pengeluaran: total_pengeluaran,
-              'Sisa Dana': sisa_dana,
+              name: 'Realisasi',
+              'Pengeluaran': total_pengeluaran,
+              'Sisa Budget': sisaBudget,
             },
           ];
 
           const fundingPercent =
             anggaran > 0 ? ((total_dana_masuk / anggaran) * 100).toFixed(0) : 0;
+          
           const expensePercent =
-            total_dana_masuk > 0
-              ? ((total_pengeluaran / total_dana_masuk) * 100).toFixed(0)
+            anggaran > 0
+              ? ((total_pengeluaran / anggaran) * 100).toFixed(0)
               : 0;
-          const sisaDanaPercent =
-            total_dana_masuk > 0
-              ? ((sisa_dana / total_dana_masuk) * 100).toFixed(0)
+          
+          const sisaBudgetPercent =
+            anggaran > 0
+              ? ((sisaBudget / anggaran) * 100).toFixed(0)
               : 0;
 
           return (
             <div key={project_id}>
               <div className="flex flex-col gap-1">
-                <h3 className="text-[16px] font-medium text-gray-900">
-                  {project_name}
-                </h3>
+                {/* === HEADER DENGAN INDIKATOR POOL === */}
+                <div className="flex justify-between items-start mb-1">
+                  <h3 className="text-[16px] font-medium text-gray-900">
+                    {project_name}
+                  </h3>
+                  {/* INDIKATOR: MUNCUL JIKA PAKAI DANA POOL */}
+                  {isUsingPool && (
+                    <span className="bg-orange-100 text-orange-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-orange-200">
+                      Subsidi Pool: {formatRupiah(poolUsage)}
+                    </span>
+                  )}
+                </div>
+                
                 <p className="text-[16px] text-gray-600">
                   Anggaran: {formatRupiah(anggaran)}
                 </p>
@@ -194,13 +215,14 @@ const RincianDanaProyek = ({ data, isLoading }) => {
                 </p>
               </div>
 
+              {/* Chart 1: Pendanaan (Green) */}
               <div className="mb-4">
                 <div className="flex justify-between items-center mb-1 text-sm font-semibold">
                   <span className="text-green-700 bg-[#E3FEE1] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-                    {fundingPercent}%
+                    {fundingPercent}% Terpenuhi
                   </span>
                   <span className="text-gray-500 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-                    {100 - fundingPercent}%
+                    {Math.max(0, 100 - fundingPercent)}%
                   </span>
                 </div>
                 <ResponsiveContainer width="100%" height={40}>
@@ -242,13 +264,14 @@ const RincianDanaProyek = ({ data, isLoading }) => {
                 </div>
               </div>
 
+              {/* Chart 2: Pengeluaran (Blue/Purple) */}
               <div className="mb-2">
-                <div className="flex justify-between items-center  text-sm font-semibold">
+                <div className="flex justify-between items-center text-sm font-semibold">
                   <span className="text-blue-700 bg-[#E1EFFE] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-                    {expensePercent}%
+                    {expensePercent}% Terpakai
                   </span>
                   <span className="text-purple-700 bg-[#E5E7EB] rounded-md pt-1 pb-1 pl-2.5 pr-2.5">
-                    {sisaDanaPercent}%
+                    {sisaBudgetPercent}% Sisa Budget
                   </span>
                 </div>
                 <ResponsiveContainer width="100%" height={40}>
@@ -267,7 +290,7 @@ const RincianDanaProyek = ({ data, isLoading }) => {
                       radius={[4, 0, 0, 4]}
                     />
                     <Bar
-                      dataKey="Sisa Dana"
+                      dataKey="Sisa Budget"
                       stackId="b"
                       fill="#c4b5fd"
                       radius={[0, 4, 4, 0]}
@@ -282,12 +305,20 @@ const RincianDanaProyek = ({ data, isLoading }) => {
                     </span>
                   </p>
                   <p className="text-gray-700">
-                    Sisa:{' '}
+                    Sisa Budget:{' '}
                     <span className="font-semibold text-purple-700">
-                      {formatRupiah(sisa_dana)}
+                      {formatRupiah(sisaBudget)}
                     </span>
                   </p>
                 </div>
+              </div>
+
+              {/* === FOOTER MESSAGE DINAMIS === */}
+              <div className="mt-4 p-2 bg-gray-50 rounded border border-gray-100 text-[11px] text-gray-500 text-center italic">
+                {isUsingPool 
+                  ? "⚠️ Proyek ini menggunakan sebagian Dana Pool karena pengeluaran melebihi dana investor khusus."
+                  : "✅ Proyek ini sepenuhnya didanai oleh sumber dana terikat (Investor/CSR)."
+                }
               </div>
             </div>
           );
@@ -710,8 +741,6 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
   );
 };
 
-// --- MAIN CONTENT COMPONENT ---
-
 function ReportingContent() {
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [selectedProject, setSelectedProject] = useState('all');
@@ -719,7 +748,6 @@ function ReportingContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
 
-  // [RBAC] Cek Role untuk Filter Tampilan
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const isOperator = userRole === 'Operator';
@@ -1090,7 +1118,6 @@ function ReportingContent() {
 
         {!isLoading && !isErrorReport && reportData && (
           <>
-            {/* [RBAC] Section "Ringkasan Dana" DISEMBUNYIKAN untuk Operator */}
             {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
@@ -1131,7 +1158,6 @@ function ReportingContent() {
             </section>
             )}
 
-            {/* [RBAC] Section Chart Dana & Proyek juga DISEMBUNYIKAN untuk Operator */}
             {!isOperator && (
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-1">
@@ -1154,7 +1180,6 @@ function ReportingContent() {
             </div>
             )}
 
-            {/* [RBAC] Section Pengeluaran: OPERATOR BOLEH LIHAT */}
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
                 Pengeluaran
@@ -1216,7 +1241,6 @@ function ReportingContent() {
               </div>
             </section>
 
-            {/* [RBAC] Section Laba Rugi: OPERATOR TIDAK BOLEH LIHAT */}
             {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">
@@ -1274,7 +1298,6 @@ function ReportingContent() {
             </section>
             )}
 
-            {/* [RBAC] Section Ringkasan Bulanan: OPERATOR TIDAK BOLEH LIHAT */}
             {!isOperator && (
             <section>
               <div className="bg-gray-50 rounded-lg">
@@ -1293,7 +1316,6 @@ function ReportingContent() {
             </section>
             )}
 
-            {/* [RBAC] Section Yield & Investor: OPERATOR TIDAK BOLEH LIHAT */}
             {!isOperator && (
             <section>
               <h2 className="text-2xl font-bold text-gray-900 mb-5">Yield</h2>
@@ -1353,8 +1375,6 @@ function ReportingContent() {
     </div>
   );
 }
-
-// --- PAGE EXPORT ---
 
 export default function LaporanPage() {
   return (
