@@ -316,8 +316,8 @@ const RincianDanaProyek = ({ data, isLoading }) => {
               {/* === FOOTER MESSAGE DINAMIS === */}
               <div className="mt-4 p-2 bg-gray-50 rounded border border-gray-100 text-[11px] text-gray-500 text-center italic">
                 {isUsingPool 
-                  ? "⚠️ Proyek ini menggunakan sebagian Dana Pool karena pengeluaran melebihi dana investor khusus."
-                  : "✅ Proyek ini sepenuhnya didanai oleh sumber dana terikat (Investor/CSR)."
+                  ? "⚠️ Proyek ini menggunakan sebagian Dana Umum."
+                  : "✅ Proyek ini sepenuhnya didanai oleh sumber dana terikat."
                 }
               </div>
             </div>

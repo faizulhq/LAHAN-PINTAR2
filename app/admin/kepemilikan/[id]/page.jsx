@@ -9,7 +9,8 @@ import {
 import {
   ArrowLeftOutlined, EditOutlined, CalendarOutlined,
   DeleteOutlined, BankOutlined, ClockCircleOutlined,
-  CheckCircleOutlined, DollarOutlined, AppstoreOutlined
+  CheckCircleOutlined, DollarOutlined, AppstoreOutlined,
+  StopOutlined
 } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
@@ -93,7 +94,6 @@ function OwnershipDetailContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [form] = Form.useForm();
 
-  // [RBAC] Logic Hak Akses
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin'].includes(userRole);
@@ -143,13 +143,12 @@ function OwnershipDetailContent() {
     onError: (err) => message.error(`Error: ${err.message}`)
   });
 
-  // [PERBAIKAN] Tambahkan Delete Mutation
   const deleteMutation = useMutation({
     mutationFn: deleteOwnership,
     onSuccess: () => {
       message.success('Data kepemilikan berhasil dihapus');
-      queryClient.invalidateQueries(['ownerships']); // Refresh list
-      router.push('/admin/kepemilikan'); // Redirect ke list
+      queryClient.invalidateQueries(['ownerships']); 
+      router.push('/admin/kepemilikan'); 
     },
     onError: (err) => message.error(`Gagal menghapus: ${err.message}`)
   });
@@ -161,7 +160,8 @@ function OwnershipDetailContent() {
         asset: ownershipData.asset,
         funding: ownershipData.funding,
         units: ownershipData.units,
-        investment_date: moment(ownershipData.investment_date)
+        investment_date: moment(ownershipData.investment_date),
+        status: ownershipData.status || 'Active' // [PERUBAHAN] Set status
       });
       setIsEditModalOpen(true);
     }
@@ -170,10 +170,11 @@ function OwnershipDetailContent() {
   const handleEditSubmit = (values) => {
     const data = {
       investor: values.investor,
-      asset: values.asset || null, // [PERBAIKAN] Kirim null jika kosong
+      asset: values.asset || null, 
       funding: values.funding,
       units: values.units,
-      investment_date: values.investment_date.format('YYYY-MM-DD')
+      investment_date: values.investment_date.format('YYYY-MM-DD'),
+      status: values.status // [PERUBAHAN] Kirim status
     };
     updateMutation.mutate({ id: ownershipId, data });
   };
@@ -191,7 +192,6 @@ function OwnershipDetailContent() {
 
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: '0 auto' }}>
-      {/* Header */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <Space direction="vertical" size={0}>
           <Button type="text" icon={<ArrowLeftOutlined />} onClick={() => router.back()} style={{ padding: 0, marginBottom: 8, color: '#237804', fontWeight: 500 }}>
@@ -201,10 +201,8 @@ function OwnershipDetailContent() {
           <Text type="secondary" style={{ fontSize: 14 }}>Informasi lengkap tentang kepemilikan investasi</Text>
         </Space>
         
-        {/* [RBAC] Tombol Edit & Hapus */}
         {canEdit && (
           <Space>
-            {/* Tombol Hapus */}
             <Popconfirm
                 title="Hapus Data Kepemilikan?"
                 description="Tindakan ini tidak dapat dibatalkan."
@@ -213,17 +211,9 @@ function OwnershipDetailContent() {
                 cancelText="Batal"
                 okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
             >
-                <Button 
-                    danger 
-                    size="large" 
-                    icon={<DeleteOutlined />} 
-                    style={{ borderRadius: 8 }}
-                >
-                    Hapus
-                </Button>
+                <Button danger size="large" icon={<DeleteOutlined />} style={{ borderRadius: 8 }}>Hapus</Button>
             </Popconfirm>
 
-            {/* Tombol Edit */}
             <Button
               type="primary"
               icon={<EditOutlined />}
@@ -237,7 +227,6 @@ function OwnershipDetailContent() {
         )}
       </Flex>
 
-      {/* --- KONTEN DETAIL SAMA SEPERTI SEBELUMNYA --- */}
       <Card title={<Flex align="center" gap={8}><HiUserGroup style={{ fontSize: 24, color: '#3b82f6' }} /><Text strong style={{ fontSize: 18 }}>Informasi Investor</Text></Flex>} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[24, 24]}>
           <Col xs={24} md={12}>
@@ -250,7 +239,17 @@ function OwnershipDetailContent() {
             <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Tanggal Bergabung</Text><Flex align="center" gap={8}><CalendarOutlined style={{ color: '#3b82f6' }} /><Text style={{ fontSize: 16 }}>{formatDate(ownershipData.investment_date)}</Text></Flex></div>
             <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Durasi Investasi</Text><Flex align="center" gap={8}><ClockCircleOutlined style={{ color: '#10b981' }} /><Text style={{ fontSize: 16 }}>{joinDurationDays} hari ({Math.floor(joinDurationDays / 30)} bulan)</Text></Flex></div>
             <div style={{ marginBottom: 16 }}><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>ID Kepemilikan</Text><Tag color="purple" style={{ fontSize: 14, padding: '4px 12px' }}>#{ownershipData.id}</Tag></div>
-            <div><Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Status</Text><Tag color="green" icon={<CheckCircleOutlined />} style={{ fontSize: 14, padding: '4px 12px' }}>Aktif</Tag></div>
+            {/* [PERUBAHAN] Status dinamis dari DB */}
+            <div>
+                <Text type="secondary" style={{ fontSize: 14, display: 'block', marginBottom: 6 }}>Status</Text>
+                <Tag 
+                    color={ownershipData.status === 'Active' ? 'green' : 'red'} 
+                    icon={ownershipData.status === 'Active' ? <CheckCircleOutlined /> : <StopOutlined />} 
+                    style={{ fontSize: 14, padding: '4px 12px' }}
+                >
+                    {ownershipData.status === 'Active' ? 'Aktif' : 'Non-Aktif'}
+                </Tag>
+            </div>
           </Col>
         </Row>
       </Card>
@@ -261,6 +260,7 @@ function OwnershipDetailContent() {
         <Col xs={24} sm={12} lg={8}><StatCard icon={<DollarOutlined style={{ fontSize: 24, color: '#f59e0b' }} />} label="Nilai per Unit" value={formatRupiah(ownershipData.total_investment / (ownershipData.units || 1))} /></Col>
       </Row>
 
+      {/* ... (Konten Asset & Funding Tetap Sama) ... */}
       <Card title={<Flex align="center" gap={8}><AppstoreOutlined style={{ fontSize: 24, color: '#9333ea' }} /><Text strong style={{ fontSize: 18 }}>Informasi Aset</Text></Flex>} style={{ marginBottom: 24, borderRadius: 12 }}>
         <Row gutter={[24, 24]}>
           <Col xs={24} md={16}>
@@ -295,17 +295,24 @@ function OwnershipDetailContent() {
           <Card title={<Flex align="center" gap={8}><ClockCircleOutlined style={{ fontSize: 24, color: '#3b82f6' }} /><Text strong style={{ fontSize: 18 }}>Timeline Investasi</Text></Flex>} style={{ height: '100%', borderRadius: 12 }}>
             <TimelineItem title="Pendanaan Diterima" date={formatDate(fundingData?.date_received)} description={formatRupiah(fundingData?.amount)} color="#10b981" />
             <TimelineItem title="Investasi Dimulai" date={formatDate(ownershipData.investment_date)} description={`${ownershipData.units || 0} unit dibeli`} color="#3b82f6" />
-            <TimelineItem title="Status Saat Ini" date="Aktif" description={`Durasi: ${Math.floor(joinDurationDays / 30)} bulan`} color="#f59e0b" isLast />
+            <TimelineItem title="Status Saat Ini" date={ownershipData.status === 'Active' ? 'Aktif' : 'Non-Aktif'} description={`Durasi: ${Math.floor(joinDurationDays / 30)} bulan`} color={ownershipData.status === 'Active' ? "#10b981" : "#ef4444"} isLast />
           </Card>
         </Col>
       </Row>
 
-      {/* Modal Edit */}
       <Modal title="Edit Kepemilikan" open={isEditModalOpen} onCancel={() => setIsEditModalOpen(false)} footer={null} width={600}>
         <Form form={form} layout="vertical" onFinish={handleEditSubmit} style={{ marginTop: 24 }}>
           <Form.Item name="investor" label="Investor" rules={[{ required: true, message: 'Investor harus dipilih!' }]}><Select placeholder="Pilih investor" showSearch size="large">{allInvestors?.map(inv => (<Option key={inv.id} value={inv.id}>{inv.username || `Investor ${inv.id}`}</Option>))}</Select></Form.Item>
-          {/* [PERBAIKAN] Field Aset jadi Opsional */}
           <Form.Item name="asset" label="Aset (Opsional)"><Select placeholder="Pilih aset (Kosongkan untuk Dana Mengendap)" showSearch size="large" allowClear>{allAssets?.map(a => (<Option key={a.id} value={a.id}>{a.name}</Option>))}</Select></Form.Item>
+          
+          {/* [PERUBAHAN] Input Status Baru */}
+          <Form.Item name="status" label="Status Kepemilikan" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
+            <Select placeholder="Pilih status" size="large">
+                <Option value="Active">Active (Aktif)</Option>
+                <Option value="Inactive">Inactive (Non-Aktif)</Option>
+            </Select>
+          </Form.Item>
+
           <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}><Select placeholder="Pilih pendanaan" showSearch size="large">{allFundings?.map(f => (<Option key={f.id} value={f.id}>{formatRupiah(f.amount)} - {formatDateShort(f.date_received)}</Option>))}</Select></Form.Item>
           <Form.Item name="units" label="Jumlah Unit" rules={[{ required: true, message: 'Unit tidak boleh kosong!' }]}><InputNumber style={{ width: '100%' }} min={1} placeholder="Masukkan jumlah unit" size="large" /></Form.Item>
           <Form.Item name="investment_date" label="Tanggal Investasi" rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}><DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" /></Form.Item>

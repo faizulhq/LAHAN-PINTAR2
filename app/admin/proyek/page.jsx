@@ -19,6 +19,7 @@ import {
   Col,
   Select,
   Statistic,
+  Tag
 } from 'antd';
 import {
   PlusOutlined,
@@ -53,6 +54,25 @@ const formatRupiah = (value) => {
 const formatDate = (dateString) => {
   if (!dateString) return '-';
   return moment(dateString).format('DD/MM/YYYY');
+};
+
+// Helper warna status
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Completed': return 'green';
+    case 'In Progress': return 'blue';
+    case 'Planned': return 'orange';
+    default: return 'default';
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'Completed': return 'Selesai';
+    case 'In Progress': return 'Sedang Berjalan';
+    case 'Planned': return 'Direncanakan';
+    default: return status || '-';
+  }
 };
 
 function ProjectManagementContent() {
@@ -138,6 +158,8 @@ function ProjectManagementContent() {
   const showAddModal = () => {
     setEditingProject(null);
     form.resetFields();
+    // Default status saat tambah baru
+    form.setFieldsValue({ status: 'Planned' });
     setIsModalOpen(true);
   };
 
@@ -149,6 +171,7 @@ function ProjectManagementContent() {
       dates: [moment(project.start_date), moment(project.end_date)],
       budget: parseFloat(project.budget),
       asset: project.asset,
+      status: project.status || 'Planned', // [PERUBAHAN] Set status ke form
     });
     setIsModalOpen(true);
   };
@@ -171,6 +194,7 @@ function ProjectManagementContent() {
       end_date: values.dates[1].format('YYYY-MM-DD'),
       budget: values.budget,
       asset: values.asset,
+      status: values.status, // [PERUBAHAN] Kirim status ke backend
     };
 
     if (editingProject) {
@@ -344,7 +368,7 @@ function ProjectManagementContent() {
                 style={{
                   width: '100%',
                   maxWidth: '600px',
-                  height: '211px',
+                  height: '220px', // Sedikit dipertinggi untuk status
                   borderRadius: '12px',
                   border: '1px solid #E5E7EB',
                   boxShadow: '0px 2px 4px -2px rgba(0, 0, 0, 0.05), 0px 4px 6px -1px rgba(0, 0, 0, 0.1)',
@@ -357,15 +381,22 @@ function ProjectManagementContent() {
                 }}
               >
                 <div style={{ padding: '16px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                  <Title level={5} style={{
-                    margin: 0,
-                    marginBottom: 8,
-                    color: '#111928',
-                    fontSize: '16px',
-                    fontWeight: 600
-                  }}>
-                    {project.name}
-                  </Title>
+                  <Flex justify="space-between" align="start">
+                    <Title level={5} style={{
+                      margin: 0,
+                      marginBottom: 8,
+                      color: '#111928',
+                      fontSize: '16px',
+                      fontWeight: 600
+                    }}>
+                      {project.name}
+                    </Title>
+                    {/* [PERUBAHAN] Tampilkan Label Status */}
+                    <Tag color={getStatusColor(project.status)}>
+                        {getStatusLabel(project.status)}
+                    </Tag>
+                  </Flex>
+                  
                   <Text
                     strong
                     style={{
@@ -471,6 +502,15 @@ function ProjectManagementContent() {
                   </Option>
                 ))}
               </Select>
+            </Form.Item>
+
+            {/* [PERUBAHAN] Input Status di Modal Utama */}
+            <Form.Item name="status" label="Status Proyek" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
+                <Select placeholder="Pilih status proyek" size="large">
+                    <Option value="Planned">Planned (Direncanakan)</Option>
+                    <Option value="In Progress">In Progress (Sedang Berjalan)</Option>
+                    <Option value="Completed">Completed (Selesai)</Option>
+                </Select>
             </Form.Item>
 
             <Form.Item

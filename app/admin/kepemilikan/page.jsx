@@ -3,20 +3,20 @@
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Table, Button, Modal, Form, Select, InputNumber, DatePicker,
-  Typography, Flex, Space, message, Spin, Alert, Card, Row, Col, Tag
+  Button, Modal, Form, Select, InputNumber, DatePicker,
+  Typography, Flex, Space, message, Spin, Alert, Card, Row, Col
 } from 'antd';
 import {
   PlusOutlined as AntPlusOutlined,
 } from '@ant-design/icons';
 
-// [PERBAIKAN] Import Icon yang Benar (Tanpa react-icons/all)
+// Import Icon
 import { HiUserGroup as IconUserGroup } from 'react-icons/hi';
 import { BiSolidBox as IconBox } from 'react-icons/bi';
 import { FaMoneyBillTransfer as IconTransfer, FaMoneyBill1 as IconMoney } from 'react-icons/fa6';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import {
@@ -80,11 +80,6 @@ function OwnershipManagementContent() {
     return fundingSources.reduce((acc, source) => { acc[source.id] = source.name; return acc; }, {});
   }, [fundingSources]);
 
-  const fundingMap = useMemo(() => {
-    if (!fundings) return {};
-    return fundings.reduce((acc, funding) => { acc[funding.id] = funding; return acc; }, {});
-  }, [fundings]);
-
   // --- Mutasi ---
   const mutationOptions = {
     onSuccess: () => {
@@ -120,6 +115,8 @@ function OwnershipManagementContent() {
   const showAddModal = () => {
     setEditingOwnership(null);
     form.resetFields();
+    // Default status Active saat tambah
+    form.setFieldsValue({ status: 'Active' });
     setIsModalOpen(true);
   };
 
@@ -131,6 +128,7 @@ function OwnershipManagementContent() {
       funding: ownership.funding,
       units: ownership.units,
       investment_date: moment(ownership.investment_date),
+      status: ownership.status || 'Active' // [PERUBAHAN] Set status ke form
     });
     setIsModalOpen(true);
   };
@@ -148,10 +146,11 @@ function OwnershipManagementContent() {
   const handleFormSubmit = (values) => {
     const ownershipData = {
       investor: values.investor,
-      asset: values.asset || null, // Field Aset boleh null (Dana Mengendap)
+      asset: values.asset || null, 
       funding: values.funding,
       units: values.units,
       investment_date: values.investment_date.format('YYYY-MM-DD'),
+      status: values.status || 'Active' // [PERUBAHAN] Kirim status ke backend
     };
 
     if (editingOwnership) {
@@ -512,156 +511,156 @@ function OwnershipManagementContent() {
       )}
 
       {/* Daftar Investor */}
-        {!isLoadingInitialData && !isErrorInitialData && (
-          <Card title="Daftar Investor" style={{ marginTop: 16 }}>
-            {filteredOwnerships.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {filteredOwnerships.map((ownership, index) => (
-                  <Card 
-                    key={ownership.id}
-                    style={{ 
-                      borderRadius: '8px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                      border: '1px solid #f0f0f0'
-                    }}
-                  >
-                    {/* Header Section dengan Nama dan Badge */}
-                    <div style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: 20 
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <Text strong style={{ fontSize: 20 }}>
-                          {ownership.investor_name || '-'}
-                        </Text>
-                        <div style={{
-                          padding: '2px 12px',
-                          backgroundColor: '#E1EFFE',
-                          borderRadius: '4px',
-                          color: '#1E429F',
-                          fontSize: 12,
-                          fontWeight: 500
-                        }}>
-                          Aktif
-                        </div>
+      {!isLoadingInitialData && !isErrorInitialData && (
+        <Card title="Daftar Investor" style={{ marginTop: 16 }}>
+          {filteredOwnerships.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {filteredOwnerships.map((ownership, index) => (
+                <Card 
+                  key={ownership.id}
+                  style={{ 
+                    borderRadius: '8px',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    border: '1px solid #f0f0f0'
+                  }}
+                >
+                  {/* Header Section dengan Nama dan Badge Status Dinamis */}
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    alignItems: 'flex-start',
+                    marginBottom: 20 
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Text strong style={{ fontSize: 20 }}>
+                        {ownership.investor_name || '-'}
+                      </Text>
+                      {/* [PERUBAHAN] Tag Status Dinamis dari DB */}
+                      <div style={{
+                        padding: '2px 12px',
+                        backgroundColor: ownership.status === 'Active' ? '#E1EFFE' : '#FDE8E8',
+                        borderRadius: '4px',
+                        color: ownership.status === 'Active' ? '#1E429F' : '#9B1C1C',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}>
+                        {ownership.status === 'Active' ? 'Aktif' : 'Non-Aktif'}
                       </div>
                     </div>
+                  </div>
 
-                    {/* Data Grid - 4 Kolom dalam 1 Baris */}
-                    <Row gutter={[24, 16]} style={{ marginBottom: 20 }}>
-                      <Col xs={12} sm={12} md={6}>
-                        <div>
-                          <Text type="secondary" style={{ 
-                            fontSize: 12, 
-                            display: 'block', 
-                            marginBottom: 6,
-                            lineHeight: '20px'
-                          }}>
-                            Unit Kepemilikan
-                          </Text>
-                          <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
-                            {ownership.units?.toLocaleString('id-ID') || '0'}
-                          </Text>
-                        </div>
-                      </Col>
-                      <Col xs={12} sm={12} md={6}>
-                        <div>
-                          <Text type="secondary" style={{ 
-                            fontSize: 12, 
-                            display: 'block', 
-                            marginBottom: 6,
-                            lineHeight: '20px'
-                          }}>
-                            Persentase
-                          </Text>
-                          <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
-                            {ownership.ownership_percentage?.toFixed(0) || '0'}%
-                          </Text>
-                        </div>
-                      </Col>
-                      <Col xs={12} sm={12} md={6}>
-                        <div>
-                          <Text type="secondary" style={{ 
-                            fontSize: 12, 
-                            display: 'block', 
-                            marginBottom: 6,
-                            lineHeight: '20px'
-                          }}>
-                            Total Investasi
-                          </Text>
-                          <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
-                            {formatRupiah(ownership.total_investment)}
-                          </Text>
-                        </div>
-                      </Col>
-                      <Col xs={12} sm={12} md={6}>
-                        <div>
-                          <Text type="secondary" style={{ 
-                            fontSize: 12, 
-                            display: 'block', 
-                            marginBottom: 6,
-                            lineHeight: '20px'
-                          }}>
-                            Tanggal Bergabung
-                          </Text>
-                          <Text style={{ fontSize: 14, lineHeight: '22px' }}>
-                            {formatDate(ownership.investment_date)}
-                          </Text>
-                        </div>
-                      </Col>
-                    </Row>
+                  {/* Data Grid - 4 Kolom dalam 1 Baris */}
+                  <Row gutter={[24, 16]} style={{ marginBottom: 20 }}>
+                    <Col xs={12} sm={12} md={6}>
+                      <div>
+                        <Text type="secondary" style={{ 
+                          fontSize: 12, 
+                          display: 'block', 
+                          marginBottom: 6,
+                          lineHeight: '20px'
+                        }}>
+                          Unit Kepemilikan
+                        </Text>
+                        <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
+                          {ownership.units?.toLocaleString('id-ID') || '0'}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div>
+                        <Text type="secondary" style={{ 
+                          fontSize: 12, 
+                          display: 'block', 
+                          marginBottom: 6,
+                          lineHeight: '20px'
+                        }}>
+                          Persentase
+                        </Text>
+                        <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
+                          {ownership.ownership_percentage?.toFixed(0) || '0'}%
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div>
+                        <Text type="secondary" style={{ 
+                          fontSize: 12, 
+                          display: 'block', 
+                          marginBottom: 6,
+                          lineHeight: '20px'
+                        }}>
+                          Total Investasi
+                        </Text>
+                        <Text strong style={{ fontSize: 14, lineHeight: '22px' }}>
+                          {formatRupiah(ownership.total_investment)}
+                        </Text>
+                      </div>
+                    </Col>
+                    <Col xs={12} sm={12} md={6}>
+                      <div>
+                        <Text type="secondary" style={{ 
+                          fontSize: 12, 
+                          display: 'block', 
+                          marginBottom: 6,
+                          lineHeight: '20px'
+                        }}>
+                          Tanggal Bergabung
+                        </Text>
+                        <Text style={{ fontSize: 14, lineHeight: '22px' }}>
+                          {formatDate(ownership.investment_date)}
+                        </Text>
+                      </div>
+                    </Col>
+                  </Row>
 
-                    {/* Action Buttons */}
-                    <div>
-                      <Space size={8}>
+                  {/* Action Buttons */}
+                  <div>
+                    <Space size={8}>
+                      <Button 
+                        size="middle"
+                        style={{ 
+                          borderColor: '#237804',
+                          color: '#237804',
+                          minWidth: '100px',
+                          height: '36px',
+                          borderRadius: '6px',
+                          fontWeight: 400
+                        }}
+                        onClick={() => handleDetailClick(ownership.id)}
+                      >
+                        Detail
+                      </Button>
+                      
+                      {/* [RBAC] Tombol Edit */}
+                      {canEdit && (
                         <Button 
                           size="middle"
+                          type="primary"
+                          onClick={() => showEditModal(ownership)}
                           style={{ 
+                            backgroundColor: '#237804', 
                             borderColor: '#237804',
-                            color: '#237804',
                             minWidth: '100px',
                             height: '36px',
                             borderRadius: '6px',
                             fontWeight: 400
                           }}
-                          onClick={() => handleDetailClick(ownership.id)}
                         >
-                          Detail
+                          Edit
                         </Button>
-                        
-                        {/* [RBAC] Tombol Edit - Hanya muncul jika canEdit */}
-                        {canEdit && (
-                          <Button 
-                            size="middle"
-                            type="primary"
-                            onClick={() => showEditModal(ownership)}
-                            style={{ 
-                              backgroundColor: '#237804', 
-                              borderColor: '#237804',
-                              minWidth: '100px',
-                              height: '36px',
-                              borderRadius: '6px',
-                              fontWeight: 400
-                            }}
-                          >
-                            Edit
-                          </Button>
-                        )}
-                      </Space>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '40px 0' }}>
-                <Text type="secondary">Belum ada data investor</Text>
-              </div>
-            )}
-          </Card>
-        )}
-
+                      )}
+                    </Space>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 0' }}>
+              <Text type="secondary">Belum ada data investor</Text>
+            </div>
+          )}
+        </Card>
+      )}
 
       {/* Modal Tambah/Edit */}
       <Modal
@@ -685,7 +684,6 @@ function OwnershipManagementContent() {
               ))}
             </Select>
           </Form.Item>
-          {/* [PERBAIKAN] Field Aset jadi Opsional & Allow Clear */}
           <Form.Item name="asset" label="Aset (Opsional)">
             <Select placeholder="Pilih aset (Kosongkan untuk Dana Mengendap)" showSearch size="large" allowClear>
               {assets?.map(a => (
@@ -693,11 +691,21 @@ function OwnershipManagementContent() {
               ))}
             </Select>
           </Form.Item>
+          
+          {/* [PERUBAHAN] Input Status di Modal Utama */}
+          <Form.Item name="status" label="Status Kepemilikan" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
+            <Select placeholder="Pilih status" size="large">
+              <Option value="Active">Active (Aktif)</Option>
+              <Option value="Inactive">Inactive (Non-Aktif)</Option>
+            </Select>
+          </Form.Item>
+
           <Form.Item name="funding" label="Pendanaan Terkait" rules={[{ required: true, message: 'Pendanaan harus dipilih!' }]}>
             <Select placeholder="Pilih pendanaan" showSearch size="large">
               {fundings?.map(f => (
                 <Option key={f.id} value={f.id}>
-                  {sourceMap[f.source] || `Sumber ID ${f.source}`} - {formatRupiah(f.amount)} ({formatDate(f.date_received)})
+                  {/* Gunakan Optional Chaining untuk sourceMap */}
+                  {sourceMap?.[f.source] || `Sumber ID ${f.source}`} - {formatRupiah(f.amount)} ({formatDate(f.date_received)})
                 </Option>
               ))}
             </Select>

@@ -69,17 +69,22 @@ const calculateDuration = (startDate, endDate) => {
   return `${days} hari`;
 };
 
-const getProjectStatus = (startDate, endDate) => {
-  const now = moment();
-  const start = moment(startDate);
-  const end = moment(endDate);
-  
-  if (now.isBefore(start)) {
-    return { status: 'Belum Dimulai', color: 'blue' };
-  } else if (now.isAfter(end)) {
-    return { status: 'Selesai', color: 'default' };
-  } else {
-    return { status: 'Sedang Berjalan', color: 'green' };
+// [PERUBAHAN] Fungsi helper untuk warna status berdasarkan Database
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Completed': return 'green';
+    case 'In Progress': return 'blue';
+    case 'Planned': return 'orange';
+    default: return 'default';
+  }
+};
+
+const getStatusLabel = (status) => {
+  switch (status) {
+    case 'Completed': return 'Selesai';
+    case 'In Progress': return 'Sedang Berjalan';
+    case 'Planned': return 'Direncanakan';
+    default: return status || '-';
   }
 };
 
@@ -171,6 +176,7 @@ function ProjectDetailContent() {
         dates: [moment(project.start_date), moment(project.end_date)],
         budget: parseFloat(project.budget),
         asset: project.asset,
+        status: project.status || 'Planned', // [PERUBAHAN] Set status ke form
       });
       setIsEditModalOpen(true);
     }
@@ -184,6 +190,7 @@ function ProjectDetailContent() {
       end_date: values.dates[1].format('YYYY-MM-DD'),
       budget: values.budget,
       asset: values.asset,
+      status: values.status, // [PERUBAHAN] Kirim status ke backend
     };
     updateMutation.mutate({ id: projectId, data: projectData });
   };
@@ -235,7 +242,6 @@ function ProjectDetailContent() {
     );
   }
 
-  const projectStatus = getProjectStatus(project.start_date, project.end_date);
   const duration = calculateDuration(project.start_date, project.end_date);
 
   return (
@@ -306,10 +312,11 @@ function ProjectDetailContent() {
               {project.name}
             </Title>
             <Space>
-                <Tag color={projectStatus.color} style={{ fontSize: '14px', padding: '4px 12px' }}>
-                {projectStatus.status}
+                {/* [PERUBAHAN] Menggunakan status dari DB */}
+                <Tag color={getStatusColor(project.status)} style={{ fontSize: '14px', padding: '4px 12px' }}>
+                {getStatusLabel(project.status)}
                 </Tag>
-                <Tag color="cyan">Didukung Dana Pool</Tag>
+                {/* <Tag color="cyan">Didukung Dana Pool</Tag> */}
             </Space>
           </Space>
           <Space direction="vertical" size={0} align="end">
@@ -322,6 +329,7 @@ function ProjectDetailContent() {
 
         <Divider style={{ margin: '20px 0' }} />
 
+        {/* ... (Konten Informasi Tetap Sama) ... */}
         <Space direction="vertical" size={4} style={{ width: '100%', marginBottom: 24 }}>
           <Flex align="center" gap={8}>
             <FileTextOutlined style={{ color: '#237804', fontSize: '18px' }} />
@@ -338,50 +346,32 @@ function ProjectDetailContent() {
           gap: '16px',
           marginTop: 24 
         }}>
-          <Card style={{ 
-            backgroundColor: '#ffffff', 
-            borderRadius: '8px', 
-            border: '1px solid #E5E7EB' 
-          }}>
+          <Card style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
             <Flex align="center" gap={12}>
               <BiSolidCalendar style={{ color: '#3B82F6', fontSize: '48px' }} />
               <Space direction="vertical" size={0}>
                 <Text type="secondary" style={{ fontSize: '13px' }}>Tanggal Mulai</Text>
-                <Text strong style={{ fontSize: '16px', color: '#111928' }}>
-                  {formatDate(project.start_date)}
-                </Text>
+                <Text strong style={{ fontSize: '16px', color: '#111928' }}>{formatDate(project.start_date)}</Text>
               </Space>
             </Flex>
           </Card>
 
-          <Card style={{ 
-            backgroundColor: '#ffffff', 
-            borderRadius: '8px', 
-            border: '1px solid #E5E7EB' 
-          }}>
+          <Card style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
             <Flex align="center" gap={12}>
               <CalendarOutlined style={{ color: '#F59E0B', fontSize: '48px' }} />
               <Space direction="vertical" size={0}>
                 <Text type="secondary" style={{ fontSize: '13px' }}>Tanggal Selesai</Text>
-                <Text strong style={{ fontSize: '16px', color: '#111928' }}>
-                  {formatDate(project.end_date)}
-                </Text>
+                <Text strong style={{ fontSize: '16px', color: '#111928' }}>{formatDate(project.end_date)}</Text>
               </Space>
             </Flex>
           </Card>
 
-          <Card style={{ 
-            backgroundColor: '#ffffff', 
-            borderRadius: '8px', 
-            border: '1px solid #E5E7EB' 
-          }}>
+          <Card style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
             <Flex align="center" gap={12}>
               <ClockCircleOutlined style={{ color: '#8B5CF6', fontSize: '48px' }} />
               <Space direction="vertical" size={0}>
                 <Text type="secondary" style={{ fontSize: '13px' }}>Durasi Proyek</Text>
-                <Text strong style={{ fontSize: '16px', color: '#111928' }}>
-                  {duration}
-                </Text>
+                <Text strong style={{ fontSize: '16px', color: '#111928' }}>{duration}</Text>
               </Space>
             </Flex>
           </Card>
@@ -389,85 +379,29 @@ function ProjectDetailContent() {
       </Card>
 
       {asset && (
-        <Card
-          style={{
-            marginBottom: 24,
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-            backgroundColor: '#ffffff'
-          }}
-        >
+        <Card style={{ marginBottom: 24, borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)', backgroundColor: '#ffffff' }}>
           <Flex align="center" gap={10} style={{ marginBottom: 20 }}>
             <FaBuilding style={{ color: '#237804', fontSize: '40px' }} />
-            <Title level={4} style={{ margin: 0, color: '#111928', fontSize: '20px', fontWeight: 600 }}>
-              Aset Terkait
-            </Title>
+            <Title level={4} style={{ margin: 0, color: '#111928', fontSize: '20px', fontWeight: 600 }}>Aset Terkait</Title>
           </Flex>
-
           <Row gutter={[16, 16]}>
-            <Col xs={24} sm={12}>
-              <InfoItem
-                icon={<FaBuilding style={{ color: '#16A34A', fontSize: '48px' }} />}
-                label="Nama Aset"
-                value={asset.name}
-              />
-            </Col>
-            <Col xs={24} sm={12}>
-              <InfoItem
-                icon={<FileTextOutlined style={{ color: '#2563EB', fontSize: '48px' }} />}
-                label="Tipe Aset"
-                value={asset.type || '-'}
-              />
-            </Col>
-            <Col xs={24} sm={12}>
-              <InfoItem
-                icon={<MdLocationPin style={{ color: '#EF4444', fontSize: '48px' }} />}
-                label="Lokasi"
-                value={asset.location}
-              />
-            </Col>
-            <Col xs={24} sm={12}>
-              <InfoItem
-                icon={<DollarCircleFilled style={{ color: '#7CB305', fontSize: '48px' }} />}
-                label="Nilai Aset"
-                value={formatRupiah(asset.value)}
-              />
-            </Col>
+            <Col xs={24} sm={12}><InfoItem icon={<FaBuilding style={{ color: '#16A34A', fontSize: '48px' }} />} label="Nama Aset" value={asset.name} /></Col>
+            <Col xs={24} sm={12}><InfoItem icon={<FileTextOutlined style={{ color: '#2563EB', fontSize: '48px' }} />} label="Tipe Aset" value={asset.type || '-'} /></Col>
+            <Col xs={24} sm={12}><InfoItem icon={<MdLocationPin style={{ color: '#EF4444', fontSize: '48px' }} />} label="Lokasi" value={asset.location} /></Col>
+            <Col xs={24} sm={12}><InfoItem icon={<DollarCircleFilled style={{ color: '#7CB305', fontSize: '48px' }} />} label="Nilai Aset" value={formatRupiah(asset.value)} /></Col>
           </Row>
         </Card>
       )}
 
-      <Card
-        style={{
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)',
-          backgroundColor: '#ffffff'
-        }}
-      >
+      {/* Card Info Tambahan */}
+      <Card style={{ borderRadius: '12px', border: '1px solid #E5E7EB', boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)', backgroundColor: '#ffffff' }}>
         <Flex align="center" gap={10} style={{ marginBottom: 20 }}>
           <InfoCircleOutlined style={{ color: '#1D4ED8', fontSize: '40px' }} />
-          <Title level={4} style={{ margin: 0, color: '#111928', fontSize: '20px', fontWeight: 600 }}>
-            Informasi Tambahan
-          </Title>
+          <Title level={4} style={{ margin: 0, color: '#111928', fontSize: '20px', fontWeight: 600 }}>Informasi Tambahan</Title>
         </Flex>
-
         <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12}>
-            <InfoItem
-              icon={<InfoCircleOutlined style={{ color: '#7C3AED', fontSize: '48px' }} />}
-              label="ID Proyek"
-              value={`#${project.id}`}
-            />
-          </Col>
-          <Col xs={24} sm={12}>
-            <InfoItem
-              icon={<CalendarOutlined style={{ color: '#EA580C', fontSize: '48px' }} />}
-              label="Dibuat Pada"
-              value={project.created_at ? formatDate(project.created_at) : '-'}
-            />
-          </Col>
+          <Col xs={24} sm={12}><InfoItem icon={<InfoCircleOutlined style={{ color: '#7C3AED', fontSize: '48px' }} />} label="ID Proyek" value={`#${project.id}`} /></Col>
+          <Col xs={24} sm={12}><InfoItem icon={<CalendarOutlined style={{ color: '#EA580C', fontSize: '48px' }} />} label="Dibuat Pada" value={project.created_at ? formatDate(project.created_at) : '-'} /></Col>
         </Row>
       </Card>
 
@@ -484,76 +418,43 @@ function ProjectDetailContent() {
           onFinish={handleEditSubmit}
           style={{ marginTop: 24 }}
         >
-          <Form.Item
-            name="name"
-            label="Nama Proyek"
-            rules={[{ required: true, message: 'Nama proyek tidak boleh kosong!' }]}
-          >
+          <Form.Item name="name" label="Nama Proyek" rules={[{ required: true, message: 'Nama proyek tidak boleh kosong!' }]}>
             <Input placeholder="Masukkan nama proyek" size="large" />
           </Form.Item>
 
-          <Form.Item
-            name="asset"
-            label="Aset Terkait"
-            rules={[{ required: true, message: 'Aset harus dipilih!' }]}
-          >
-            <Select
-              placeholder="Pilih aset yang terkait proyek"
-              loading={isLoadingAssets}
-              showSearch
-              optionFilterProp="children"
-              size="large"
-            >
+          <Form.Item name="asset" label="Aset Terkait" rules={[{ required: true, message: 'Aset harus dipilih!' }]}>
+            <Select placeholder="Pilih aset yang terkait proyek" loading={isLoadingAssets} showSearch optionFilterProp="children" size="large">
               {assets?.map(asset => (
-                <Option key={asset.id} value={asset.id}>
-                  {asset.name} ({asset.location})
-                </Option>
+                <Option key={asset.id} value={asset.id}>{asset.name} ({asset.location})</Option>
               ))}
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="description"
-            label="Deskripsi"
-            rules={[{ required: true, message: 'Deskripsi tidak boleh kosong!' }]}
-          >
+          <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi tidak boleh kosong!' }]}>
             <Input.TextArea rows={4} placeholder="Masukkan deskripsi singkat proyek" />
           </Form.Item>
 
-          <Form.Item
-            name="dates"
-            label="Periode Proyek"
-            rules={[{ required: true, message: 'Tanggal mulai dan selesai harus dipilih!' }]}
-          >
+          {/* [PERUBAHAN] Input Status Baru */}
+          <Form.Item name="status" label="Status Proyek" rules={[{ required: true, message: 'Status harus dipilih!' }]}>
+            <Select placeholder="Pilih status proyek" size="large">
+                <Option value="Planned">Planned (Direncanakan)</Option>
+                <Option value="In Progress">In Progress (Sedang Berjalan)</Option>
+                <Option value="Completed">Completed (Selesai)</Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item name="dates" label="Periode Proyek" rules={[{ required: true, message: 'Tanggal mulai dan selesai harus dipilih!' }]}>
             <RangePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
           </Form.Item>
 
-          <Form.Item
-            name="budget"
-            label="Anggaran (Rp)"
-            rules={[{ required: true, message: 'Anggaran tidak boleh kosong!' }]}
-          >
-            <InputNumber
-              size="large"
-              style={{ width: '100%' }}
-              formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-              parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-              min={0}
-              placeholder="Masukkan total anggaran proyek"
-            />
+          <Form.Item name="budget" label="Anggaran (Rp)" rules={[{ required: true, message: 'Anggaran tidak boleh kosong!' }]}>
+            <InputNumber size="large" style={{ width: '100%' }} formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')} parser={(value) => value.replace(/\$\s?|(,*)/g, '')} min={0} placeholder="Masukkan total anggaran proyek" />
           </Form.Item>
 
           <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
             <Space>
               <Button onClick={() => setIsEditModalOpen(false)}>Batal</Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                loading={updateMutation.isPending}
-                style={{ backgroundColor: '#237804', borderColor: '#237804' }}
-              >
-                Simpan Perubahan
-              </Button>
+              <Button type="primary" htmlType="submit" loading={updateMutation.isPending} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>Simpan Perubahan</Button>
             </Space>
           </Form.Item>
         </Form>
@@ -566,15 +467,9 @@ function ProjectDetailContent() {
         onCancel={() => setIsDeleteModalOpen(false)}
         okText="Hapus"
         cancelText="Batal"
-        okButtonProps={{ 
-          danger: true, 
-          loading: deleteMutation.isPending 
-        }}
+        okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
       >
-        <Text>
-          Apakah Anda yakin ingin menghapus proyek <strong>{project.name}</strong>? 
-          Tindakan ini tidak dapat dibatalkan.
-        </Text>
+        <Text>Apakah Anda yakin ingin menghapus proyek <strong>{project.name}</strong>? Tindakan ini tidak dapat dibatalkan.</Text>
       </Modal>
     </div>
   );
