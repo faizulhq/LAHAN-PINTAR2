@@ -82,7 +82,8 @@ function ProjectManagementContent() {
   const [editingProject, setEditingProject] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAsset, setFilterAsset] = useState('all');
-  const [filterType, setFilterType] = useState('all');
+  // [PERUBAHAN]: Ubah filterType jadi filterStatus agar lebih berguna
+  const [filterStatus, setFilterStatus] = useState('all');
   const [form] = Form.useForm();
 
   // [RBAC] Logic Hak Akses & Judul Dinamis
@@ -208,12 +209,15 @@ function ProjectManagementContent() {
     if (!projects) return [];
     return projects.filter(project => {
       const matchSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.description.toLowerCase().includes(searchTerm.toLowerCase());
+                          project.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchAsset = filterAsset === 'all' || project.asset === parseInt(filterAsset);
-     
-      return matchSearch && matchAsset;
+      
+      // [PERUBAHAN] Filter berdasarkan Status
+      const matchStatus = filterStatus === 'all' || project.status === filterStatus;
+      
+      return matchSearch && matchAsset && matchStatus;
     });
-  }, [projects, searchTerm, filterAsset]);
+  }, [projects, searchTerm, filterAsset, filterStatus]);
 
   const totalProjects = filteredProjects.length;
   const totalBudget = filteredProjects.reduce((sum, p) => sum + parseFloat(p.budget || 0), 0);
@@ -332,13 +336,17 @@ function ProjectManagementContent() {
             onChange={(e) => setSearchTerm(e.target.value)}
             style={{ flex: 1, minWidth: 300, maxWidth: 900 }}
           />
+          {/* [PERUBAHAN] Select Filter Status */}
           <Select
-            value={filterType}
+            value={filterStatus}
             size="large"
             style={{ width: 200 }}
-            onChange={(value) => setFilterType(value)}
+            onChange={(value) => setFilterStatus(value)}
           >
-            <Option value="all">Semua Tipe</Option>
+            <Option value="all">Semua Status</Option>
+            <Option value="Planned">Direncanakan</Option>
+            <Option value="In Progress">Sedang Berjalan</Option>
+            <Option value="Completed">Selesai</Option>
           </Select>
         </Flex>
       </Card>
@@ -368,7 +376,7 @@ function ProjectManagementContent() {
                 style={{
                   width: '100%',
                   maxWidth: '600px',
-                  height: '220px', // Sedikit dipertinggi untuk status
+                  height: '220px', 
                   borderRadius: '12px',
                   border: '1px solid #E5E7EB',
                   boxShadow: '0px 2px 4px -2px rgba(0, 0, 0, 0.05), 0px 4px 6px -1px rgba(0, 0, 0, 0.1)',

@@ -771,14 +771,22 @@ function ReportingContent() {
   });
 
   const periodOptions = [
+    // 1. Opsi Global
     { value: 'all', label: 'Semua Periode' },
-    { value: '2025', label: 'Tahun 2025' },
-    { value: '2025-Q4', label: 'Kuartal 4 2025' },
-    { value: '2025-Q3', label: 'Kuartal 3 2025' },
-    { value: '2025-12', label: 'Desember 2025' },
-    { value: '2025-11', label: 'November 2025' },
-    { value: '2025-10', label: 'Oktober 2025' },
-  ];
+    
+    // 2. Filter Tahunan (Wajib ada)
+    { value: '2025', label: 'Tahun 2025 (Tahun Berjalan)' },
+    { value: '2024', label: 'Tahun 2024 (Arsip Data)' },
+
+    // 3. Filter Kuartal (Fokus ke 2024 karena datanya di sini)
+    // Urutkan dari yang terbaru (Q4) ke terlama (Q1)
+    { value: '2024-Q4', label: 'Kuartal 4 2024 (Okt-Des)' },
+    { value: '2024-Q3', label: 'Kuartal 3 2024 (Jul-Sep)' },
+    
+    // 4. Filter Bulan (Opsional, jika ingin detail)
+    { value: '2024-12', label: 'Desember 2024' },
+    { value: '2024-11', label: 'November 2024' },
+];
 
   const {
     data: reportData,
@@ -1006,7 +1014,7 @@ function ReportingContent() {
   const resetFilters = () => {
     setSelectedAsset('all');
     setSelectedProject('all');
-    setSelectedPeriod('all');
+    setSelectedPeriod('all'); 
     setCurrentPage(1);
   };
 
