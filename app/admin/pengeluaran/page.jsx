@@ -18,11 +18,12 @@ import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
-import { getProjects } from '@/lib/api/project';
+// HAPUS IMPORT YANG SUDAH TIDAK ADA DI BACKEND
+// import { getProjects } from '@/lib/api/project';
+// import { getFundingSources } from '@/lib/api/funding_source';
+// import { getFinancialReport } from '@/lib/api/reporting'; 
 import { getAssets } from '@/lib/api/asset';
 import { getFundings } from '@/lib/api/funding';
-import { getFundingSources } from '@/lib/api/funding_source';
-import { getFinancialReport } from '@/lib/api/reporting';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -35,11 +36,14 @@ const formatRupiah = (value) =>
 const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
 const EXPENSE_CATEGORIES = {
-  'Proyek': 'Proyek',
+  'Proyek': 'Proyek', // Tetap biarkan stringnya jika data lama masih ada
   'Operasional': 'Operasional',
   'Pembelian': 'Pembelian',
+  'Gaji': 'Gaji',
+  'Lainnya': 'Lainnya',
 };
 
+// Fungsi Helper Hitung Total Per Kategori
 const calculateCategoryTotals = (expenses) => {
   if (!expenses) return { Operasional: 0, Proyek: 0, Pembelian: 0 };
   
@@ -51,6 +55,9 @@ const calculateCategoryTotals = (expenses) => {
     
     if (totals[category] !== undefined) {
       totals[category] += amount;
+    } else {
+        // Handle kategori lain agar tidak error
+        totals['Operasional'] += amount; 
     }
   });
   
@@ -128,6 +135,10 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
             }}>
               {categoryLabel}
             </Tag>
+            {/* Tampilkan Nama Aset jika ada */}
+            {expense.asset_details && (
+                <Tag color="orange">{expense.asset_details.name}</Tag>
+            )}
           </Space>
           
           <Title level={4} style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 600, color: '#111928' }}>
@@ -139,7 +150,8 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
           </Text>
           
           <Space>
-            <Button 
+            {/* Tombol Detail sementara dimatikan navigasinya jika halaman detail [id] belum disesuaikan */}
+            {/* <Button 
               style={{ 
                 minWidth: '128px', height: '40px', border: '1px solid #237804', borderRadius: '8px',
                 color: '#237804', fontSize: '14px', fontWeight: 500 
@@ -147,7 +159,7 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
               onClick={() => onDetailClick(expense.id)}
             >
               Detail
-            </Button>
+            </Button> */}
             
             {canEdit && (
               <Button 
@@ -173,46 +185,16 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   );
 };
 
-const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings, fundingMap }) => {
+const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = Boolean(initialData);
-
-  const selectedProject = Form.useWatch('project_id', form);
-
-  const filteredFundingOptions = useMemo(() => {
-    if (!fundings) return [];
-
-    return fundings.filter(f => {
-      const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-      
-      const isPoolFund = !fProjectId;
-      const isProjectFund = selectedProject && fProjectId === selectedProject;
-      const isStatusEligible = f.status !== 'used' || (initialData && initialData.funding_id === f.id);
-
-      if (selectedProject) {
-        return (isPoolFund || isProjectFund) && isStatusEligible;
-      } else {
-        return isPoolFund && isStatusEligible;
-      }
-    });
-  }, [fundings, selectedProject, initialData]);
-
-  useEffect(() => {
-    if (!visible) return;
-    
-    const currentFunding = form.getFieldValue('funding_id');
-    if (currentFunding) {
-        const isValid = filteredFundingOptions.some(f => f.id === currentFunding);
-        if (!isValid) form.setFieldValue('funding_id', null);
-    }
-  }, [selectedProject, visible, filteredFundingOptions, form]);
 
   const mutationOptions = {
     onSuccess: () => {
       message.success(isEditMode ? 'Pengeluaran berhasil diperbarui' : 'Pengeluaran berhasil ditambahkan');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
+      // queryClient.invalidateQueries({ queryKey: ['financialReport'] }); // Sudah tidak ada
       onClose();
     },
     onError: (err) => {
@@ -233,8 +215,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
           amount: parseFloat(initialData.amount),
           date: moment(initialData.date),
           description: initialData.description,
-          project_id: initialData.project_id,
-          funding_id: initialData.funding_id,
+          asset: initialData.asset, // Ganti project_id ke asset
           proof_url: initialData.proof_url,
         });
       } else {
@@ -249,6 +230,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
       ...values,
       date: values.date.format('YYYY-MM-DD'),
       proof_url: values.proof_url || null,
+      project_id: null, // Paksa null karena tabel project dihapus
     };
     
     if (isEditMode) {
@@ -300,38 +282,10 @@ const ExpenseModal = ({ visible, onClose, initialData, form, projects, fundings,
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
 
-        <Form.Item name="project_id" label="Proyek Terkait (Opsional)">
-          <Select placeholder="Pilih proyek (kosongkan untuk operasional umum)" showSearch optionFilterProp="children" size="large" allowClear>
-            {projects?.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
-          </Select>
-        </Form.Item>
-
-        <Form.Item 
-          name="funding_id" 
-          label="Sumber Dana" 
-          rules={[{ required: true, message: 'Sumber dana harus dipilih!' }]}
-          help={
-             selectedProject && filteredFundingOptions.length === 0 
-             ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia (Pool maupun Proyek).</span> 
-             : <span style={{color: '#727272', fontSize: '12px'}}>Menampilkan Dana Proyek & Dana Pool (Umum).</span>
-          }
-        >
-          <Select 
-            placeholder="Pilih dana"
-            showSearch 
-            optionFilterProp="children" 
-            size="large"
-            disabled={selectedProject && filteredFundingOptions.length === 0}
-          >
-            {filteredFundingOptions.map(f => {
-               const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-               const labelType = fProjectId ? '(Khusus Proyek Ini)' : '(Pool / Umum)';
-               return (
-                  <Option key={f.id} value={f.id}>
-                    {fundingMap[f.id] || f.source_name} <span style={{color: fProjectId ? '#237804' : '#0958D9', fontSize: '12px'}}>{labelType}</span>
-                  </Option>
-               );
-            })}
+        {/* INPUT ASSET SEBAGAI PENGGANTI PROJECT */}
+        <Form.Item name="asset" label="Aset Lahan Terkait (Opsional)">
+          <Select placeholder="Pilih aset (kosongkan untuk operasional pusat)" showSearch optionFilterProp="children" size="large" allowClear>
+            {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
           </Select>
         </Form.Item>
 
@@ -383,48 +337,26 @@ function ExpenseManagementContent() {
 
   if (isAdmin) {
     headerTitle = "Manajemen Pengeluaran";
-    headerDesc = "Kelola semua pengeluaran operasional, proyek, dan pembelian";
-  } else if (isOperator) {
-    headerTitle = "Input Pengeluaran";
-    headerDesc = "Catat pembelian barang dan biaya operasional harian di sini.";
+    headerDesc = "Kelola semua pengeluaran operasional dan pembelian";
   }
 
-  const { data: reportData, isLoading: isLoadingReport } = useQuery({
-    queryKey: ['financialReport', selectedAsset],
-    queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' ? undefined : selectedAsset }),
-  });
+  // --- HAPUS QUERY KE REPORTING API (KARENA SUDAH DIHAPUS) ---
+  // Ganti dengan data dummy atau null agar tidak error saat render awal
+  const isLoadingReport = false;
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
-  const { data: projects, isLoading: isLoadingProjects } = useQuery({ queryKey: ['projects'], queryFn: getProjects });
+  // const { data: projects } ... HAPUS
   const { data: expenses, isLoading: isLoadingExpenses, isError, error } = useQuery({ 
     queryKey: ['expenses'], 
     queryFn: getExpenses 
   });
-  const { data: fundings, isLoading: isLoadingFundings } = useQuery({ queryKey: ['fundings'], queryFn: getFundings });
-  const { data: fundingSources } = useQuery({ queryKey: ['fundingSources'], queryFn: getFundingSources });
-
-  const assetMap = useMemo(() => {
-    if (!projects || !assets) return {};
-    const aMap = assets.reduce((acc, a) => { acc[a.id] = a.name; return acc; }, {});
-    return projects.reduce((acc, p) => { acc[p.id] = aMap[p.asset] || '-'; return acc; }, {});
-  }, [projects, assets]);
-
-  const sourceMap = useMemo(() => fundingSources ? fundingSources.reduce((acc, s) => { acc[s.id] = s.name; return acc; }, {}) : {}, [fundingSources]);
-  
-  const fundingMap = useMemo(() => {
-    if (!fundings || !sourceMap) return {};
-    return fundings.reduce((acc, f) => {
-      acc[f.id] = `${sourceMap[f.source] || f.source_name || 'Unknown'} - ${formatRupiah(f.sisa_dana || f.amount)}`;
-      return acc;
-    }, {});
-  }, [fundings, sourceMap]);
+  // const { data: fundings } ... HAPUS RELASI KE FUNDING SOURCE
 
   const deleteMutation = useMutation({
     mutationFn: deleteExpense,
     onSuccess: () => {
       message.success('Pengeluaran berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
     },
     onError: (err) => message.error(`Error: ${err.response?.data?.detail || err.message}`),
   });
@@ -434,10 +366,10 @@ function ExpenseManagementContent() {
     return expenses.filter(e => {
       const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || e.category === selectedCategory;
-      const matchesAsset = selectedAsset === 'all' || assetMap[e.project_id] === assets?.find(a => a.id === parseInt(selectedAsset))?.name;
-      return matchesSearch && matchesCategory && matchesAsset;
+      // const matchesAsset = ... (Logic filter aset bisa diaktifkan kembali jika backend support filter by asset di endpoint expense)
+      return matchesSearch && matchesCategory;
     });
-  }, [expenses, searchTerm, selectedCategory, selectedAsset, assetMap, assets]);
+  }, [expenses, searchTerm, selectedCategory]);
 
   const showAddModal = () => { 
     setEditingExpense(null); 
@@ -451,7 +383,8 @@ function ExpenseManagementContent() {
   };
 
   const handleViewDetail = (expenseId) => {
-    router.push(`/admin/pengeluaran/${expenseId}`);
+    // router.push(`/admin/pengeluaran/${expenseId}`); 
+    message.info("Fitur detail sedang diperbarui");
   };
 
   const handleCancel = () => { 
@@ -460,7 +393,11 @@ function ExpenseManagementContent() {
     form.resetFields(); 
   };
 
-  const stats = reportData?.ringkasan_dana || {};
+  // --- HITUNG STATISTIK CLIENT SIDE (PENGGANTI API REPORTING) ---
+  const totalPengeluaran = useMemo(() => {
+      return filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  }, [filteredExpenses]);
+
   const categoryTotals = useMemo(() => calculateCategoryTotals(filteredExpenses), [filteredExpenses]);
 
   return (
@@ -512,9 +449,9 @@ function ExpenseManagementContent() {
         <Col xs={24} sm={12}>
           <StatCard 
             title="Total Pengeluaran" 
-            value={stats.total_pengeluaran}
+            value={totalPengeluaran} // Menggunakan hasil hitungan manual
             icon={<GiPayMoney />}
-            loading={isLoadingReport}
+            loading={isLoadingExpenses}
             iconColor="#0958D9"
           />
         </Col>
@@ -529,7 +466,7 @@ function ExpenseManagementContent() {
         </Col>
         <Col xs={24} sm={12}>
           <StatCard 
-            title="Proyek" 
+            title="Proyek/Aset" 
             value={categoryTotals.Proyek}
             icon={<BiMoneyWithdraw />}
             loading={isLoadingExpenses}
@@ -584,7 +521,7 @@ function ExpenseManagementContent() {
           Daftar Pengeluaran
         </Title>
 
-        {(isLoadingExpenses || isLoadingProjects || isLoadingFundings) && (
+        {(isLoadingExpenses || isLoadingAssets) && (
           <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>
         )}
         
@@ -620,9 +557,7 @@ function ExpenseManagementContent() {
         onClose={handleCancel}
         initialData={editingExpense}
         form={form}
-        projects={projects}
-        fundings={fundings}
-        fundingMap={fundingMap}
+        assets={assets}
       />
     </>
   );

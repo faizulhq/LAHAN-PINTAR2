@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Row, Col, Card, Statistic, Typography,
-  Divider, Spin, Alert, Flex, Progress, Tag
+  Divider, Spin, Alert, Flex, Progress, Tag, Skeleton
 } from 'antd';
 import {
   ContainerOutlined, DollarCircleOutlined, RiseOutlined, 
@@ -12,12 +12,13 @@ import {
 } from '@ant-design/icons';
 import { GiReceiveMoney, GiPayMoney } from 'react-icons/gi';
 import { useQuery } from '@tanstack/react-query';
-// [BARU] Import Library Grafik
+// Import Recharts untuk Grafik
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
+
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import { getDashboardData } from '@/lib/api/dashboard';
-import { getFinancialReport } from '@/lib/api/reporting';
+// import { getFinancialReport } from '@/lib/api/reporting'; // <-- HAPUS INI KARENA SUDAH DIHAPUS
 import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
@@ -33,7 +34,7 @@ const calculateSafePercent = (value, total) => {
   return Math.min(Math.max(pct, 0), 100);
 };
 
-// --- OPERATOR DASHBOARD (Tetap Sama) ---
+// --- OPERATOR DASHBOARD ---
 const OperatorDashboard = ({ dashboardData, user }) => {
   const router = useRouter();
   return (
@@ -74,11 +75,12 @@ const OperatorDashboard = ({ dashboardData, user }) => {
             </Flex>
           </Card>
         </Col>
+        {/* HAPUS/GANTI LINK PROYEK JIKA SUDAH DIHAPUS, ATAU GANTI KE ASET */}
         <Col xs={24} sm={12} md={8}>
-          <Card hoverable style={{ background: '#fff7e6', borderColor: '#ffd591' }} onClick={() => router.push('/admin/proyek')}>
+          <Card hoverable style={{ background: '#fff7e6', borderColor: '#ffd591' }} onClick={() => router.push('/admin/asset')}>
             <Flex align="center" gap={16}>
               <ShopOutlined style={{ fontSize: 24, color: '#fa8c16' }} />
-              <div><Title level={5} style={{ margin: 0 }}>Lihat Proyek</Title><Text type="secondary" style={{ fontSize: 12 }}>Cek status proyek</Text></div>
+              <div><Title level={5} style={{ margin: 0 }}>Lihat Aset</Title><Text type="secondary" style={{ fontSize: 12 }}>Cek status lahan</Text></div>
               <ArrowRightOutlined style={{ marginLeft: 'auto', color: '#fa8c16' }} />
             </Flex>
           </Card>
@@ -88,7 +90,7 @@ const OperatorDashboard = ({ dashboardData, user }) => {
   );
 };
 
-// --- INVESTOR DASHBOARD (Tetap Sama) ---
+// --- INVESTOR DASHBOARD ---
 const InvestorDashboard = ({ dashboardData }) => {
   return (
     <div>
@@ -131,23 +133,24 @@ const InvestorDashboard = ({ dashboardData }) => {
                </div>
             ))
         ) : (
-            <Alert message="Anda belum memiliki kepemilikan aset." type="info" showIcon />
+            <Alert message="Data kepemilikan spesifik belum tersedia." type="info" showIcon />
         )}
       </Card>
     </div>
   );
 };
 
-// --- EXECUTIVE DASHBOARD (Updated with Charts) ---
-const ExecutiveDashboard = ({ dashboardData, reportData }) => {
-  const labaAmount = reportData?.laba_rugi?.Jumlah || 0;
-  const omzetAmount = dashboardData?.total_yield || 0;
-  const expenseAmount = reportData?.ringkasan_dana?.total_pengeluaran || 0;
+// --- EXECUTIVE DASHBOARD (Updated Logic) ---
+const ExecutiveDashboard = ({ dashboardData }) => {
+  // LOGIKA BARU: Ambil data langsung dari dashboardData (Backend sudah mengirim total_revenue & total_expense)
+  const omzetAmount = dashboardData?.total_revenue || 0; // Total Penjualan
+  const expenseAmount = dashboardData?.total_expense || 0; // Total Pengeluaran
+  const labaAmount = omzetAmount - expenseAmount; // Hitung Laba Bersih
   
   const profitMarginPercent = calculateSafePercent(Math.abs(labaAmount), omzetAmount);
-  const isProfit = reportData?.laba_rugi?.Status === 'Laba';
+  const isProfit = labaAmount >= 0;
 
-  // [VISUALISASI DATA]
+  // Data Visualisasi Grafik
   const financialData = [
     { name: 'Omzet', value: omzetAmount, color: '#1890ff' }, // Biru
     { name: 'Pengeluaran', value: expenseAmount, color: '#ff4d4f' }, // Merah
@@ -158,7 +161,7 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
     <div>
       <div style={{ marginBottom: 24 }}>
         <Title level={3} style={{ marginBottom: 0 }}>Dashboard Eksekutif</Title>
-        <Text type="secondary">Ringkasan performa keseluruhan Lahan Pintar.</Text>
+        <Text type="secondary">Ringkasan performa keseluruhan Lahan Pintar (Global State).</Text>
       </div>
 
       {/* 1. Summary Cards */}
@@ -180,12 +183,13 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
          </Col>
          <Col xs={24} sm={12} lg={6}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <Statistic title="Cash on Hand" value={formatRupiah(reportData?.ringkasan_dana?.sisa_dana)} prefix={<WalletOutlined />} valueStyle={{ color: '#1890ff' }} />
+              {/* Cash on Hand diambil langsung dari dashboardData */}
+              <Statistic title="Cash on Hand" value={formatRupiah(dashboardData?.total_cash_on_hand)} prefix={<WalletOutlined />} valueStyle={{ color: dashboardData?.total_cash_on_hand < 0 ? '#cf1322' : '#1890ff' }} />
             </Card>
          </Col>
       </Row>
 
-      {/* 2. Charts Section (BARU) */}
+      {/* 2. Charts Section */}
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
          {/* Kiri: Grafik Arus Kas */}
          <Col xs={24} lg={14}>
@@ -217,7 +221,7 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
             </Card>
          </Col>
 
-         {/* Kanan: Profit Margin & Top Investors */}
+         {/* Kanan: Profit Margin & Status Saham */}
          <Col xs={24} lg={10}>
             <Flex vertical gap={24} style={{ height: '100%' }}>
                 {/* Health Card */}
@@ -225,7 +229,7 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
                    <Flex justify='space-between' align='center' style={{ marginBottom: 24 }}>
                       <Text style={{ fontSize: 16 }}>Margin Laba</Text>
                       <Text strong style={{ color: isProfit ? '#52c41a' : '#f5222d', fontSize: 20 }}>
-                         {profitMarginPercent.toFixed(1)}%
+                          {profitMarginPercent.toFixed(1)}%
                       </Text>
                    </Flex>
                    <Progress 
@@ -240,20 +244,16 @@ const ExecutiveDashboard = ({ dashboardData, reportData }) => {
                    </div>
                 </Card>
 
-                {/* Top Investors */}
-                <Card title="Top Investor (Kepemilikan)" bordered={false} style={{ flex: 2 }}>
+                {/* Status Saham Global */}
+                <Card title="Status Saham Global" bordered={false} style={{ flex: 2 }}>
+                   <div style={{ textAlign: 'center', marginBottom: 20 }}>
+                       <Statistic title="Saham Tersedia" value={dashboardData?.shares_available || 0} suffix="Lembar" valueStyle={{ color: '#fa8c16' }} />
+                   </div>
                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                       {dashboardData?.ownership_percentage?.map((owner, i) => (
-                           <div key={i} style={{ marginBottom: 16 }}>
-                               <Flex justify="space-between">
-                                   <Text strong>{owner.name}</Text>
-                                   <Text>{owner.percentage ? owner.percentage.toFixed(1) : 0}%</Text>
-                               </Flex>
-                               <Progress percent={owner.percentage || 0} size="small" showInfo={false} status="active" />
-                           </div>
-                       ))}
                        {(!dashboardData?.ownership_percentage || dashboardData.ownership_percentage.length === 0) && (
-                           <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>Belum ada data kepemilikan.</Text>
+                           <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>
+                               Belum ada data pemegang saham spesifik.
+                           </Text>
                        )}
                    </div>
                 </Card>
@@ -277,15 +277,7 @@ function AdminDashboardContent() {
     queryFn: getDashboardData,
   });
 
-  const shouldFetchReport = !isOperator && !isInvestor;
-  
-  const { data: reportData, isLoading: isLoadingReport } = useQuery({
-    queryKey: ['financialReport'],
-    queryFn: getFinancialReport,
-    enabled: shouldFetchReport,
-  });
-
-  const isLoading = isLoadingDashboard || (shouldFetchReport && isLoadingReport);
+  const isLoading = isLoadingDashboard;
 
   if (isLoading) {
     return <div style={{ padding: 100, textAlign: 'center' }}><Spin size="large" tip="Memuat Dashboard..." /></div>;
@@ -302,7 +294,8 @@ function AdminDashboardContent() {
       ) : isInvestor ? (
          <InvestorDashboard dashboardData={dashboardData} />
       ) : (
-         <ExecutiveDashboard dashboardData={dashboardData} reportData={reportData} />
+         // Hapus prop reportData karena sudah tidak dipakai
+         <ExecutiveDashboard dashboardData={dashboardData} />
       )}
     </div>
   );

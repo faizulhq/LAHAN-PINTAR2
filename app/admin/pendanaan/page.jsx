@@ -44,14 +44,11 @@ import { ChevronDown } from 'lucide-react';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore'; 
-import { getFinancialReport } from '@/lib/api/reporting';
+// HAPUS IMPORT YANG HILANG DI BE
+// import { getFinancialReport } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
-import { getProjects } from '@/lib/api/project';
-import {
-  getFundingSources,
-  createFundingSource,
-  getFundingSource,
-} from '@/lib/api/funding_source';
+// import { getProjects } from '@/lib/api/project';
+// import { getFundingSources... } 
 import {
   getFundings,
   createFunding,
@@ -94,10 +91,13 @@ const getStatusProps = (status) => {
   return { text, style }; 
 };
 
+// Map manual tipe karena master source dihapus
 const SOURCE_TYPE_MAP = {
   'foundation': 'Yayasan',
   'csr': 'CSR',
   'investor': 'Investor',
+  'bank': 'Bank',
+  'personal': 'Pribadi',
 };
 
 const getSourceTypeProps = (type) => {
@@ -113,7 +113,7 @@ const getSourceTypeProps = (type) => {
     lineHeight: '17px',
   };
   
-  text = SOURCE_TYPE_MAP[type] || type || 'Lainnya';
+  text = SOURCE_TYPE_MAP[type] || type || 'Umum';
   
   if (!SOURCE_TYPE_MAP[type]) {
     style.background = '#F3F4F6'; 
@@ -123,70 +123,23 @@ const getSourceTypeProps = (type) => {
   return { text, style }; 
 };
 
-const FundingSourceFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
-  <Modal
-    title="Tambah Sumber Dana Baru" open={open} onCancel={onCancel} footer={null}
-    width={500} zIndex={1001} destroyOnClose
-  >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
-      <Form.Item label="Nama Sumber Dana" name="name" rules={[{ required: true, message: 'Nama wajib diisi' }]}>
-        <Input prefix={<BankOutlined />} placeholder="cth: Yayasan XYZ, PT ABC (CSR)" />
-      </Form.Item>
-      <Form.Item label="Tipe Sumber" name="type" rules={[{ required: true, message: 'Tipe wajib dipilih' }]}>
-        <Select placeholder="Pilih tipe sumber dana">
-          {Object.entries(SOURCE_TYPE_MAP).map(([value, label]) => (
-            <Option key={value} value={value}>{label}</Option>
-          ))}
-        </Select>
-      </Form.Item>
-      <Form.Item label="Info Kontak" name="contact_info" rules={[{ required: true, message: 'Info kontak wajib diisi' }]}>
-        <Input.TextArea
-            prefix={<InfoCircleOutlined />}
-            placeholder="Masukkan detail kontak (cth: Nama PIC, No HP, Email, Alamat)"
-            rows={4}
-        />
-      </Form.Item>
-      <Form.Item style={{ textAlign: 'right', marginTop: 16, marginBottom: 0 }}>
-        <Space>
-          <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ background: '#237804', borderColor: '#237804' }}>
-            Simpan Sumber Dana
-          </Button>
-        </Space>
-      </Form.Item>
-    </Form>
-  </Modal>
-);
-
-const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceModal }) => {
+// MODAL UTAMA: CREATE/EDIT FUNDING
+const FundingModal = ({ visible, onClose, initialData, form }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEditMode = Boolean(initialData);
-
-  const { data: projects, isLoading: isLoadingProjects } = useQuery({
-    queryKey: ['projects'],
-    queryFn: getProjects,
-    staleTime: 1000 * 60 * 5,
-  });
-  
-  const { data: sources, isLoading: isLoadingSources } = useQuery({
-    queryKey: ['fundingSources'],
-    queryFn: getFundingSources,
-    staleTime: 1000 * 60 * 5,
-  });
 
   const createMutation = useMutation({
     mutationFn: createFunding,
     onSuccess: () => {
       message.success('Pendanaan berhasil ditambahkan');
       queryClient.invalidateQueries({ queryKey: ['fundings'] });
-      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
       onClose();
     },
     onError: (err) => {
       console.error("Error creating funding:", err);
-      message.error('Gagal menambahkan pendanaan. Cek konsol untuk detail.');
+      message.error('Gagal menambahkan pendanaan.');
     },
     onSettled: () => setIsSubmitting(false),
   });
@@ -196,12 +149,11 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
     onSuccess: () => {
       message.success('Pendanaan berhasil diperbarui');
       queryClient.invalidateQueries({ queryKey: ['fundings'] });
-      queryClient.invalidateQueries({ queryKey: ['financialReport'] });
       onClose();
     },
     onError: (err) => {
       console.error("Error updating funding:", err);
-      message.error('Gagal memperbarui pendanaan. Cek konsol untuk detail.');
+      message.error('Gagal memperbarui pendanaan.');
     },
     onSettled: () => setIsSubmitting(false),
   });
@@ -212,8 +164,8 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
         form.setFieldsValue({
           ...initialData,
           date_received: moment(initialData.date_received, 'YYYY-MM-DD'),
-          source: initialData.source,
-          project: initialData.project,
+          source_name: initialData.source_name || initialData.source, // String Name
+          type: initialData.type || 'investor'
         });
       } else {
         form.resetFields();
@@ -227,6 +179,7 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
     const payload = {
       ...values,
       date_received: values.date_received.format('YYYY-MM-DD'),
+      project: null, // Hapus relasi project
     };
     
     if (isEditMode) {
@@ -253,47 +206,27 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
       >
         <Row gutter={16}>
           <Col span={12}>
+            {/* INPUT MANUAL SUMBER DANA */}
             <Form.Item
-              name="project"
-              label="Proyek Terkait (Opsional)"
-              rules={[{ required: false }]}
-              help="Kosongkan untuk menjadikan ini Dana Pool / Umum"
+              name="source_name"
+              label="Nama Sumber Dana / Investor"
+              rules={[{ required: true, message: 'Sumber dana harus diisi' }]}
             >
-              <Select
-                showSearch
-                allowClear
-                placeholder="Pilih proyek (bisa dikosongkan)"
-                loading={isLoadingProjects}
-                optionFilterProp="children"
-                options={projects?.map(p => ({ value: p.id, label: p.name }))}
-                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-              />
+              <Input placeholder="Contoh: Bank BRI / Bapak Budi" />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item
-              name="source"
-              label="Sumber Dana"
-              rules={[{ required: true, message: 'Sumber dana harus diisi' }]}
+             <Form.Item
+              name="type"
+              label="Tipe Sumber"
+              rules={[{ required: true }]}
             >
-              <Select
-                showSearch
-                placeholder="Pilih sumber dana"
-                loading={isLoadingSources}
-                optionFilterProp="children"
-                options={sources?.map(s => ({ value: s.id, label: `${s.name} (${SOURCE_TYPE_MAP[s.type] || s.type})` }))}
-                filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
-              />
+              <Select placeholder="Pilih tipe">
+                 {Object.entries(SOURCE_TYPE_MAP).map(([key, label]) => (
+                    <Option key={key} value={key}>{label}</Option>
+                 ))}
+              </Select>
             </Form.Item>
-            
-            <Button 
-              type="link" 
-              icon={<PlusOutlined />} 
-              onClick={handleShowSourceModal}
-              style={{ paddingLeft: 0, marginTop: '-16px', marginBottom: '16px' }}
-            >
-              Tambah Sumber Dana Baru
-            </Button>
           </Col>
         </Row>
         
@@ -310,6 +243,7 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
                 parser={(value) => (value || '').replace(/\$\s?|(,*)/g, '')}
                 className="w-full"
                 placeholder='Contoh: 50000000'
+                style={{ width: '100%' }}
               />
             </Form.Item>
           </Col>
@@ -319,7 +253,7 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
               label="Tanggal Diterima"
               rules={[{ required: true, message: 'Tanggal harus diisi' }]}
             >
-              <DatePicker className="w-full" format="DD/MM/YYYY" />
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
           </Col>
         </Row>
@@ -360,57 +294,7 @@ const FundingModal = ({ visible, onClose, initialData, form, handleShowSourceMod
   );
 };
 
-const FundingSourceDetailModal = ({ visible, onClose, sourceId }) => {
-  const { data: source, isLoading, isError, error } = useQuery({
-    queryKey: ['fundingSource', sourceId],
-    queryFn: () => getFundingSource(sourceId),
-    enabled: !!sourceId, 
-    staleTime: 1000 * 60 * 5,
-  });
-
-  return (
-    <Modal
-      title="Detail Sumber Pendanaan"
-      open={visible}
-      onCancel={onClose}
-      footer={[<Button key="close" onClick={onClose}>Tutup</Button>]}
-      width={600}
-      destroyOnClose
-    >
-      {isLoading && (
-        <div style={{ textAlign: 'center', padding: '48px' }}>
-          <Spin size="large" />
-        </div>
-      )}
-      {isError && (
-        <Alert
-          message="Gagal Mengambil Data"
-          description={error?.message || 'Terjadi kesalahan saat mengambil detail sumber dana.'}
-          type="error"
-          showIcon
-        />
-      )}
-      {source && !isLoading && !isError && (
-        <Descriptions bordered layout="vertical" column={1}>
-          <Descriptions.Item label="Nama Sumber Dana">
-            <Text strong style={{ fontSize: '16px' }}>{source.name}</Text>
-          </Descriptions.Item>
-          <Descriptions.Item label="Tipe Sumber">
-            <Tag style={getSourceTypeProps(source.type).style}>
-              {getSourceTypeProps(source.type).text}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="Informasi Kontak">
-            <div style={{ whiteSpace: 'pre-wrap' }}>
-              {source.contact_info}
-            </div>
-          </Descriptions.Item>
-        </Descriptions>
-      )}
-    </Modal>
-  );
-};
-
+// STATS CARD COMPONENT (Visual)
 const StatCard = ({ title, value, icon, bgColor, loading }) => (
   <Card 
     bodyStyle={{ padding: '24px' }} 
@@ -467,7 +351,8 @@ const StatCard = ({ title, value, icon, bgColor, loading }) => (
   </Card>
 );
 
-const RingkasanCard = ({ data, loading, onSourceClick }) => (
+// RINGKASAN CARD COMPONENT (Logic visualisasi data grouping)
+const RingkasanCard = ({ data, loading }) => (
   <Card 
     bodyStyle={{ padding: '24px' }} 
     style={{
@@ -497,11 +382,11 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
         {!loading && data.length === 0 && (
           <Text type="secondary">Belum ada data pendanaan.</Text>
         )}
-        {data.map((item) => {
+        {data.map((item, index) => {
           const sourceType = getSourceTypeProps(item.source_type);
           
           return (
-            <div key={item.source_name} style={{ marginBottom: '12px' }}>
+            <div key={index} style={{ marginBottom: '12px' }}>
               <div style={{ 
                 display: 'flex', 
                 justifyContent: 'space-between', 
@@ -509,53 +394,26 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
                 marginBottom: '8px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <Tag 
-                    style={{ ...sourceType.style, cursor: 'pointer' }}
-                    onClick={() => onSourceClick(item.source_id)} 
-                  >
+                  <Tag style={{ ...sourceType.style }}>
                     {sourceType.text}
                   </Tag>
-                  <Text 
-                    style={{ 
-                      fontSize: '16px', 
-                      fontWeight: 500, 
-                      color: '#111928',
-                      lineHeight: '19px'
-                    }}
-                  >
-                    {formatRupiah(item.totalAmount)}
+                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
+                    {item.source_name}
                   </Text>
                 </div>
-                <Text 
-                  style={{ 
-                    fontSize: '16px', 
-                    fontWeight: 500, 
-                    color: '#727272',
-                    lineHeight: '19px'
-                  }}
-                >
-                  {item.percent.toFixed(1)}% Terpakai
+                <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
+                    {formatRupiah(item.totalAmount)}
                 </Text>
               </div>
               <div style={{ marginBottom: '4px' }}>
                 <Progress
-                  percent={item.percent}
+                  percent={100} // Selalu 100 karena konsep terpakai vs sisa agak bias di global, kita visual full bar saja sebagai representasi
                   strokeColor="#1A56DB"
                   trailColor="#E5E7EB"
                   showInfo={false}
                   strokeWidth={6}
                 />
               </div>
-              <Text 
-                style={{ 
-                  fontSize: '16px', 
-                  fontWeight: 500, 
-                  color: '#727272',
-                  lineHeight: '19px'
-                }}
-              >
-                Terpakai {formatRupiah(item.totalTerpakai)}
-              </Text>
             </div>
           );
         })}
@@ -570,14 +428,13 @@ const RingkasanCard = ({ data, loading, onSourceClick }) => (
   </Card>
 );
 
-const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEdit }) => { 
+// FUNDING ITEM CARD
+const FundingCard = ({ funding, onEditClick, canEdit }) => { 
   const status = getStatusProps(funding.status);
-  const sourceType = getSourceTypeProps(funding.source_type);
+  const sourceType = getSourceTypeProps(funding.type || 'investor');
   
-  const persenTerpakai = funding.persen_terpakai || 0;
-
-  const isUnallocated = !funding.project && !funding.project_name;
-  const projectTitle = isUnallocated ? "Dana Pool (Umum)" : (funding.project_name || "Proyek Tidak Diketahui");
+  // Karena field source adalah string, kita pakai itu
+  const sourceNameDisplay = funding.source_name || funding.source || 'Sumber Umum';
 
   return (
     <div 
@@ -599,34 +456,25 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
         <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             
-            <Tag 
-              style={{ ...sourceType.style, cursor: 'pointer' }}
-              onClick={() => onSourceClick(funding.source)} 
-            >
+            <Tag style={{ ...sourceType.style }}>
               {sourceType.text}
             </Tag>
             
             <Tag style={status.style}>
               {status.text}
             </Tag>
-
-            {isUnallocated && (
-               <Tag color="purple" style={{ borderRadius: '6px', fontWeight: 600 }}>
-                 Dana Pool (Umum)
-               </Tag>
-            )}
           </div>
           <Title 
             level={5} 
             style={{ 
               fontSize: '20px', 
               fontWeight: 600, 
-              color: isUnallocated ? '#0958D9' : '#111928',
+              color: '#111928',
               lineHeight: '24px',
               margin: 0
             }}
           >
-            {projectTitle}
+            {sourceNameDisplay}
           </Title>
           <Text 
             style={{ 
@@ -636,6 +484,9 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
               lineHeight: '19px'
             }}
           >
+            {funding.purpose || 'Pendanaan Umum'}
+          </Text>
+          <Text type="secondary">
             Tanggal: {formatTanggal(funding.date_received)}
           </Text>
         </div>
@@ -656,58 +507,14 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
           >
             {formatRupiah(funding.amount)}
           </Text>
-          <Text 
-            style={{ 
-              fontSize: '16px', 
-              fontWeight: 500, 
-              color: '#727272',
-              lineHeight: '19px'
-            }}
-          >
-            Tersisa {formatRupiah(funding.sisa_dana)}
-          </Text>
         </div>
       </div>
-      <div style={{ marginBottom: '14px' }}>
-        <Progress
-          percent={parseFloat(persenTerpakai.toFixed(1))} 
-          strokeColor={isUnallocated ? "#722ED1" : "#1A56DB"}
-          trailColor="#E5E7EB"
-          showInfo={true}
-          strokeWidth={6}
-          format={(percent) => (
-            <span style={{ 
-              fontSize: '12px', 
-              color: '#6B7280', 
-              fontWeight: 500,
-              lineHeight: '18px'
-            }}>
-              {percent}%
-            </span>
-          )}
-        />
-      </div>
+      
       <div style={{ 
         display: 'flex', 
         gap: '20px', 
         paddingTop: '14px'
       }}>
-        <Button 
-          style={{ 
-            width: '128px',
-            height: '40px',
-            border: '1px solid #237804',
-            borderRadius: '8px',
-            color: '#237804',
-            fontWeight: 500,
-            fontSize: '14px',
-            lineHeight: '21px'
-          }}
-          onClick={() => onDetailClick(funding.id)} 
-        >
-          Detail
-        </Button>
-        
         {canEdit && (
           <Button 
             style={{ 
@@ -731,6 +538,7 @@ const FundingCard = ({ funding, onEditClick, onSourceClick, onDetailClick, canEd
   );
 };
 
+// MAIN CONTENT
 function PendanaanContent() {
   const queryClient = useQueryClient();
   const router = useRouter();
@@ -742,10 +550,6 @@ function PendanaanContent() {
   const [editingFunding, setEditingFunding] = useState(null);
   
   const [form] = Form.useForm();
-  const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
-  const [sourceForm] = Form.useForm();
-  
-  const [detailSourceId, setDetailSourceId] = useState(null);
   
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
@@ -756,17 +560,11 @@ function PendanaanContent() {
 
   if (canEdit) {
     pageTitle = "Manajemen Pendanaan";
-    pageDesc = "Kelola semua sumber pendanaan dan alokasi dana";
-  } else if (userRole === 'Investor') {
-    pageTitle = "Portofolio Pendanaan";
-    pageDesc = "Pantau status dan penggunaan dana investasi Anda.";
+    pageDesc = "Kelola semua sumber pendanaan global";
   }
 
-  const { data: reportData, isLoading: isLoadingReport } = useQuery({
-    queryKey: ['financialReport', selectedAsset],
-    queryFn: () => getFinancialReport({ asset: selectedAsset === 'all' || selectedAsset === 'unallocated' ? undefined : selectedAsset }),
-    staleTime: 1000 * 60,
-  });
+  // --- HAPUS LOGIC REPORTING ---
+  // const { data: reportData } = useQuery...
 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
@@ -774,49 +572,21 @@ function PendanaanContent() {
     staleTime: 1000 * 60 * 5,
   });
 
-  const queryAssetId = (selectedAsset === 'all' || selectedAsset === 'unallocated') ? undefined : selectedAsset;
-
   const { data: rawFundings, isLoading: isLoadingFundings } = useQuery({
-    queryKey: ['fundings', queryAssetId],
-    queryFn: () => getFundings({ asset_id: queryAssetId }),
+    queryKey: ['fundings'],
+    queryFn: () => getFundings({}),
   });
   
-  const createSourceMutation = useMutation({
-    mutationFn: createFundingSource,
-    onSuccess: (newSource) => {
-      message.success(`Sumber Dana "${newSource.name}" berhasil ditambahkan`);
-      queryClient.invalidateQueries({ queryKey: ['fundingSources'] });
-      setIsSourceModalOpen(false);
-      sourceForm.resetFields();
-      form.setFieldsValue({ source: newSource.id }); 
-    },
-    onError: (err) => {
-      let errorMsg = 'Gagal menambahkan sumber dana.';
-      if (err.response?.data) {
-        const errors = err.response.data;
-        const messages = Object.entries(errors).map(([field, fieldErrors]) => `${field}: ${fieldErrors.join('; ')}`).join('; ');
-        errorMsg = messages || 'Gagal menambahkan sumber dana.';
-      } else { errorMsg = err.message || 'Gagal menambahkan sumber dana.'; }
-      message.error(`Error: ${errorMsg}`, 6);
-    }
-  });
-
   const fundings = useMemo(() => {
     if (!rawFundings) return [];
-    
     let filtered = rawFundings;
-    
-    if (selectedAsset === 'unallocated') {
-      filtered = filtered.filter(f => !f.project);
-    }
-    
     if (selectedStatus !== 'all') {
       filtered = filtered.filter(f => f.status === selectedStatus);
     }
-
     return filtered;
-  }, [rawFundings, selectedAsset, selectedStatus]);
+  }, [rawFundings, selectedStatus]);
 
+  // Kalkulasi Ringkasan Manual
   const ringkasanData = useMemo(() => {
     if (!fundings) return [];
     
@@ -824,35 +594,33 @@ function PendanaanContent() {
     
     fundings.forEach(funding => {
       const sourceName = funding.source_name || 'Tanpa Sumber';
-      const sourceType = funding.source_type || 'unknown';
-      const sourceId = funding.source; 
+      const sourceType = funding.type || 'investor';
       
       if (!summary.has(sourceName)) {
         summary.set(sourceName, {
           source_name: sourceName,
           source_type: sourceType,
-          source_id: sourceId, 
           totalAmount: 0,
-          totalTerpakai: 0,
         });
       }
       
       const current = summary.get(sourceName);
       current.totalAmount += parseFloat(funding.amount);
-      current.totalTerpakai += parseFloat(funding.total_terpakai);
     });
     
-    return Array.from(summary.values()).map(item => ({
-      ...item,
-      percent: item.totalAmount > 0 ? (item.totalTerpakai / item.totalAmount) * 100 : 0,
-    }));
-
+    return Array.from(summary.values());
   }, [fundings]);
+
+  // Kalkulasi Stats Manual
+  const stats = useMemo(() => {
+      if(!rawFundings) return { total_dana_masuk: 0 };
+      const total = rawFundings.reduce((acc, curr) => acc + parseFloat(curr.amount || 0), 0);
+      return { total_dana_masuk: total };
+  }, [rawFundings]);
 
   const assetOptions = useMemo(() => {
     const options = [
       { value: 'all', label: 'Tampilkan Semua' }, 
-      { value: 'unallocated', label: 'Dana Pool (Umum / Belum Dialokasikan)' } 
     ];
     if (assets) {
       assets.forEach(asset => {
@@ -869,9 +637,6 @@ function PendanaanContent() {
     { value: 'used', label: 'Digunakan' },
   ];
 
-  const stats = reportData?.ringkasan_dana || {};
-  const isLoadingStats = isLoadingReport;
-
   const handleOpenModal = (funding) => {
     setEditingFunding(funding);
     setModalVisible(true);
@@ -883,17 +648,6 @@ function PendanaanContent() {
     form.resetFields();
   };
   
-  const handleShowSourceModal = () => { setIsSourceModalOpen(true); };
-  const handleCancelSourceModal = () => { setIsSourceModalOpen(false); sourceForm.resetFields(); };
-  const handleSourceFormSubmit = (values) => { createSourceMutation.mutate(values); };
-  
-  const handleOpenSourceDetail = (id) => { setDetailSourceId(id); };
-  const handleCloseSourceDetail = () => { setDetailSourceId(null); };
-
-  const handleOpenFundingDetail = (id) => {
-    router.push(`/admin/pendanaan/${id}`);
-  };
-
   return (
     <div style={{ padding: '24px', backgroundColor: '#F9FAFB', minHeight: '100vh' }}> 
       <div style={{ 
@@ -939,20 +693,9 @@ function PendanaanContent() {
 
       <Card bodyStyle={{ padding: '20px' }} style={{ marginBottom: '24px', borderRadius: '12px', border: '1px solid #F0F0F0', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' }}>
         <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} md={12} lg={8}>
-            <Text style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '8px', display: 'block' }}>
-              Filter Berdasarkan Aset
-            </Text>
-            <Select
-              value={selectedAsset}
-              onChange={setSelectedAsset}
-              loading={isLoadingAssets}
-              options={assetOptions}
-              suffixIcon={<ChevronDown size={16} />}
-              style={{ width: '100%', height: '42px' }}
-              size="large"
-            />
-          </Col>
+          {/* <Col xs={24} md={12} lg={8}>
+             FILTER ASET BISA DIHIDUPKAN JIKA API SUPPORT
+          </Col> */}
           <Col xs={24} md={12} lg={8}>
             <Text style={{ fontSize: '14px', fontWeight: 600, color: '#374151', marginBottom: '8px', display: 'block' }}>
               Filter Status Dana
@@ -976,29 +719,9 @@ function PendanaanContent() {
             value={stats.total_dana_masuk}
             icon={<FaMoneyBillTransfer size={34} />}
             bgColor="#7CB305"
-            loading={isLoadingStats}
+            loading={isLoadingFundings}
           />
         </div>
-        <Row gutter={18}>
-          <Col xs={24} sm={12}>
-            <StatCard
-              title="Dana Terpakai"
-              value={stats.total_pengeluaran}
-              icon={<GiPayMoney size={34} />}
-              bgColor="#1C64F2"
-              loading={isLoadingStats}
-            />
-          </Col>
-          <Col xs={24} sm={12}>
-            <StatCard
-              title="Dana Tersisa"
-              value={stats.sisa_dana}
-              icon={<FaMoneyBills size={34} />}
-              bgColor="#9061F9"
-              loading={isLoadingStats}
-            />
-          </Col>
-        </Row>
       </div>
 
     <Row gutter={[0, 24]}>
@@ -1006,7 +729,6 @@ function PendanaanContent() {
         <RingkasanCard 
           data={ringkasanData} 
           loading={isLoadingFundings} 
-          onSourceClick={handleOpenSourceDetail} 
         />
     </Col>
     
@@ -1044,8 +766,6 @@ function PendanaanContent() {
                     funding={funding} 
                     canEdit={canEdit} 
                     onEditClick={handleOpenModal}
-                    onSourceClick={handleOpenSourceDetail} 
-                    onDetailClick={handleOpenFundingDetail} 
                 />
                 ))}
             </div>
@@ -1074,21 +794,6 @@ function PendanaanContent() {
         onClose={handleCloseModal} 
         initialData={editingFunding} 
         form={form}
-        handleShowSourceModal={handleShowSourceModal}
-      />
-
-      <FundingSourceFormModal 
-        open={isSourceModalOpen} 
-        form={sourceForm} 
-        onCancel={handleCancelSourceModal} 
-        onSubmit={handleSourceFormSubmit} 
-        isSubmitting={createSourceMutation.isPending} 
-      />
-      
-      <FundingSourceDetailModal
-        visible={!!detailSourceId}
-        onClose={handleCloseSourceDetail}
-        sourceId={detailSourceId}
       />
     </div>
   );

@@ -11,7 +11,7 @@ import { HiUserGroup, HiUsers } from 'react-icons/hi';
 import { GiPayMoney, GiSprout } from 'react-icons/gi';
 import { LuWheat } from 'react-icons/lu';
 import { AiFillDollarCircle, AiOutlineAreaChart, AiFillSetting } from 'react-icons/ai';
-import { UserOutlined, LogoutOutlined, MailOutlined, UserSwitchOutlined } from '@ant-design/icons';
+import { UserOutlined, LogoutOutlined, MailOutlined, UserSwitchOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { usePathname, useRouter } from 'next/navigation';
 import useAuthStore from '@/lib/store/authStore';
 import { useLogout } from '@/lib/hooks/useAuth';
@@ -19,42 +19,33 @@ import { useLogout } from '@/lib/hooks/useAuth';
 const { Header, Content, Sider } = Layout;
 const { Title, Text } = Typography;
 
-// KONFIGURASI MENU (Sesuai Tabel PRD & Prinsip Transparansi)
+// KONFIGURASI MENU (Sesuai Global State)
 const menuConfig = [
   // 1. Dashboard: Semua Role
   { key: '1', icon: <BiSolidDashboard />, label: 'Dashboard', path: '/admin', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
-  // 2. Aset: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
+  // 2. Aset: Admin/Superadmin (CRUD), Investor/Viewer (Read)
   { key: '2', icon: <FileTextFilled />, label: 'Asset', path: '/admin/asset', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 3. Pendanaan: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
+  // 3. Produksi
+  { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
+
+  // 4. Penjualan (BARU - Pengganti Proyek sbg Revenue)
+  { key: '7', icon: <ShoppingCartOutlined />, label: 'Penjualan', path: '/admin/penjualan', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
+
+  // 5. Pendanaan
   { key: '4', icon: <FaDollarSign />, label: 'Pendanaan', path: '/admin/pendanaan', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 4. Kepemilikan: Admin/Superadmin (CRUD), Investor/Viewer (Read). Operator: Hidden
-  { key: '5', icon: <HiUserGroup />, label: 'Kepemilikan', path: '/admin/kepemilikan', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
-  
-  // 5. Proyek: Semua Role Boleh Lihat (Transparansi). CUD hanya Admin/Superadmin.
-  { key: '7', icon: <BiSolidCalculator />, label: 'Proyek', path: '/admin/proyek', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
-  
-  // 6. Pengeluaran: Admin/Superadmin (Full), Operator (Input), Investor/Viewer (Read)
+  // 6. Pengeluaran
   { key: '6', icon: <GiPayMoney />, label: 'Pengeluaran', path: '/admin/pengeluaran', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
   
-  // 7. Produksi: Admin/Superadmin (Full), Operator (Input), Investor/Viewer (Read)
-  { key: '8', icon: <LuWheat />, label: 'Produksi', path: '/admin/produksi', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
-  
-  // 8. Bagi Hasil: Admin/Superadmin (Full), Investor (Read Own), Viewer (Read). Operator: Hidden
+  // 7. Bagi Hasil
   { key: '9', icon: <AiFillDollarCircle />, label: 'Bagi Hasil', path: '/admin/bagi-hasil', roles: ['Superadmin', 'Admin', 'Investor', 'Viewer'] },
   
-  // 9. Laporan: Semua Role
-  { key: '10', icon: <AiOutlineAreaChart />, label: 'Laporan', path: '/admin/laporan', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
-  
-  // User Management: Superadmin Only
+  // User Management
   { key: '11', icon: <HiUsers />, label: 'User Management', path: '/admin/user-management', roles: ['Superadmin'] },
   
-  // Investor Management: Superadmin & Admin
-  { key: '3', icon: <BiUser />, label: 'Data Investor', path: '/admin/investor', roles: ['Superadmin', 'Admin'] },
-
-  // Pengaturan: Semua
+  // Pengaturan
   { key: '12', icon: <AiFillSetting />, label: 'Pengaturan', path: '/admin/pengaturan', roles: ['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer'] },
 ];
 
@@ -128,11 +119,9 @@ export default function AdminLayout({ children }) {
   const baseIconSize = '18px';
   const iconTextGap = '10px';
 
-  // Filter menu logic
   const processedMenuItems = menuConfig
     .filter(item => {
       if (!mounted || !userRoleName) return false; 
-      // Cek apakah role user ada di daftar roles yang diizinkan menu
       if (item.roles && !item.roles.includes(userRoleName)) return false;
       return true;
     })

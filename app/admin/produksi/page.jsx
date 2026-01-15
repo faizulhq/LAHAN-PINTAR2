@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker,
   Input, Typography, Flex, Space, message, Spin, Alert, Card, Row, Col,
-  Tag, Skeleton, Descriptions, Popconfirm
+  Tag, Skeleton, Descriptions, Popconfirm, Divider
 } from 'antd';
 import {
   PlusOutlined, EditOutlined, SearchOutlined, DeleteOutlined, CloseCircleOutlined, PlusCircleOutlined
@@ -18,12 +18,12 @@ import { ChevronDown } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC] Import Auth
+import useAuthStore from '@/lib/store/authStore';
 import {
   getProductions, createProduction, patchProduction, deleteProduction
 } from '@/lib/api/production';
-import { getProductionStats } from '@/lib/api/reporting';
 import { getAssets } from '@/lib/api/asset';
+import { getProducts, createProduct } from '@/lib/api/product';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -43,7 +43,7 @@ const formatRupiah = (value) =>
 
 const STATUS_MAP = {
   stok: { label: 'Stok', color: '#1E429F' },
-  terjual: { label: 'Dijual', color: '#057A55' }, // Adjusted color for clarity
+  terjual: { label: 'Dijual', color: '#057A55' },
 };
 
 const ASSET_TYPE_MAP = {
@@ -115,8 +115,12 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
 // =================================================================
 const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, canEdit }) => { 
   const status = STATUS_MAP[production.status] || { label: production.status, color: '#1E429F' };
-  const type = ASSET_TYPE_MAP[production.asset_type] || { label: production.asset_type, color: '#1E429F' };
+  const type = ASSET_TYPE_MAP[production.asset_details?.type] || { label: 'Umum', color: '#1E429F' };
   
+  // Ambil nama & unit dari relasi product_details (Backend Baru)
+  const productName = production.product_details?.name || production.name || 'Produk Tanpa Nama';
+  const productUnit = production.product_details?.unit || production.unit || '';
+
   return (
     <Card
       bodyStyle={{ padding: '20px' }}
@@ -132,174 +136,84 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, canE
         <div style={{ flex: 1 }}>
           <Space size="small" style={{ marginBottom: '10px' }}>
             <div style={{
-              display: 'inline-flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '4px 10px',
-              background: '#E1EFFE',
-              borderRadius: '6px',
+              display: 'inline-flex', justifyContent: 'center', alignItems: 'center', padding: '4px 10px',
+              background: '#E1EFFE', borderRadius: '6px',
             }}>
-              <Text style={{
-                fontWeight: 600,
-                fontSize: '14px',
-                lineHeight: '17px',
-                color: '#1E429F',
-              }}>
+              <Text style={{ fontWeight: 600, fontSize: '14px', lineHeight: '17px', color: '#1E429F' }}>
                 {type.label}
               </Text>
             </div>
             <div style={{
-              display: 'inline-flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              padding: '4px 10px',
-              background: status.label === 'Dijual' ? '#DEF7EC' : '#E1EFFE',
-              borderRadius: '6px',
+              display: 'inline-flex', justifyContent: 'center', alignItems: 'center', padding: '4px 10px',
+              background: status.label === 'Dijual' ? '#DEF7EC' : '#E1EFFE', borderRadius: '6px',
             }}>
-              <Text style={{
-                fontWeight: 600,
-                fontSize: '14px',
-                lineHeight: '17px',
-                color: status.label === 'Dijual' ? '#057A55' : '#1E429F',
-              }}>
+              <Text style={{ fontWeight: 600, fontSize: '14px', lineHeight: '17px', color: status.label === 'Dijual' ? '#057A55' : '#1E429F' }}>
                 {status.label}
               </Text>
             </div>
           </Space>
           
-          <Title level={4} style={{
-            margin: '0 0 10px 0',
-            fontSize: '20px',
-            fontWeight: 600,
-            lineHeight: '24px',
-            color: '#111928',
-          }}>
-            {production.name}
+          <Title level={4} style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 600, lineHeight: '24px', color: '#111928' }}>
+            {productName}
           </Title>
           
-          <Text style={{
-            fontSize: '16px',
-            fontWeight: 500,
-            lineHeight: '19px',
-            color: '#111928',
-            display: 'block',
-            marginBottom: '16px',
-          }}>
+          <Text style={{ fontSize: '16px', fontWeight: 500, lineHeight: '19px', color: '#111928', display: 'block', marginBottom: '16px' }}>
             {formatDate(production.date)}
           </Text>
           
           <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
             <div>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#727272',
-                display: 'block',
-                marginBottom: '10px',
-              }}>
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block', marginBottom: '10px' }}>
                 Kuantitas
               </Text>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#111928',
-              }}>
-                {production.quantity}{production.unit}
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#111928' }}>
+                {Number(production.quantity).toLocaleString('id-ID')} {productUnit}
               </Text>
             </div>
             <div>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#727272',
-                display: 'block',
-                marginBottom: '10px',
-              }}>
-                Harga per Unit
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block', marginBottom: '10px' }}>
+                Estimasi Harga/Unit
               </Text>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#111928',
-              }}>
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#111928' }}>
                 {formatRupiah(production.unit_price)}
               </Text>
             </div>
             <div>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#727272',
-                display: 'block',
-                marginBottom: '10px',
-              }}>
-                Total Nilai
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block', marginBottom: '10px' }}>
+                Nilai Total
               </Text>
-              <Text style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#7CB305',
-              }}>
-                {formatRupiah(production.total_value)}
+              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#7CB305' }}>
+                {formatRupiah(production.quantity * production.unit_price)}
               </Text>
             </div>
           </div>
           
           <Space>
-            <Button
-              style={{
-                minWidth: '128px',
-                height: '40px',
-                border: '1px solid #237804',
-                borderRadius: '8px',
-                color: '#237804',
-                fontSize: '14px',
-                fontWeight: 500,
-              }}
-              onClick={() => onDetailClick(production.id)}
-            >
-              Detail
-            </Button>
-            
-            {/* [RBAC] Tombol Edit hanya jika canEdit (Operator/Admin) */}
             {canEdit && (
               <Button
                 style={{
-                  minWidth: '128px',
-                  height: '40px',
-                  background: '#237804',
-                  borderColor: '#237804',
-                  borderRadius: '8px',
-                  color: '#FFFFFF',
-                  fontSize: '14px',
-                  fontWeight: 500,
+                  minWidth: '128px', height: '40px', background: '#237804', borderColor: '#237804',
+                  borderRadius: '8px', color: '#FFFFFF', fontSize: '14px', fontWeight: 500,
                 }}
                 onClick={() => onEditClick(production)}
               >
                 Edit
               </Button>
             )}
+            {canEdit && (
+               <Popconfirm title="Hapus data ini?" onConfirm={() => onDelete(production.id)} okText="Ya" cancelText="Batal">
+                  <Button danger icon={<DeleteOutlined />} style={{ borderRadius: '8px', height: '40px' }} />
+               </Popconfirm>
+            )}
           </Space>
         </div>
 
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-          <Text style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            color: '#7CB305',
-            display: 'block',
-            lineHeight: '29px',
-            marginBottom: '0px',
-          }}>
-            {formatRupiah(production.total_value)}
+          <Text style={{ fontSize: '24px', fontWeight: 700, color: '#7CB305', display: 'block', lineHeight: '29px', marginBottom: '0px' }}>
+            {formatRupiah(production.quantity * production.unit_price)}
           </Text>
-          <Text style={{
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#727272',
-            display: 'block',
-          }}>
-            {production.quantity}{production.unit}
+          <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block' }}>
+             Total Estimasi
           </Text>
         </div>
       </div>
@@ -310,66 +224,102 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, canE
 // =================================================================
 // === KOMPONEN MODAL TAMBAH/EDIT ===
 // =================================================================
-const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadingAssets }) => {
+const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadingAssets, products, isLoadingProducts }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isNewProductMode, setIsNewProductMode] = useState(false);
+  
   const isEditMode = Boolean(initialData);
 
   const mutationOptions = {
     onSuccess: () => {
       message.success(isEditMode ? 'Produksi berhasil diperbarui' : 'Produksi berhasil ditambahkan');
       queryClient.invalidateQueries({ queryKey: ['productions'] });
-      queryClient.invalidateQueries({ queryKey: ['productionStats'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] }); // Refresh produk juga
       onClose();
     },
     onError: (err) => {
       console.error("Error:", err);
-      message.error('Gagal menyimpan. Cek konsol untuk detail.');
+      message.error(`Gagal menyimpan: ${err.response?.data?.detail || 'Terjadi kesalahan'}`);
     },
     onSettled: () => setIsSubmitting(false),
   };
 
   const createMutation = useMutation({ mutationFn: createProduction, ...mutationOptions });
-  const updateMutation = useMutation({
-    mutationFn: ({ id, data }) => patchProduction(id, data),
-    ...mutationOptions
-  });
+  const updateMutation = useMutation({ mutationFn: ({ id, data }) => patchProduction(id, data), ...mutationOptions });
+  const createProductMutation = useMutation({ mutationFn: createProduct });
+
+  // Handle Dropdown Produk Change
+  const handleProductChange = (value) => {
+    if (value === 'NEW_PRODUCT') {
+      setIsNewProductMode(true);
+    } else {
+      setIsNewProductMode(false);
+    }
+  };
 
   useEffect(() => {
     if (visible) {
       if (isEditMode && initialData) {
+        setIsNewProductMode(false);
         form.setFieldsValue({
           ...initialData,
           date: moment(initialData.date, 'YYYY-MM-DD'),
           quantity: parseFloat(initialData.quantity),
           unit_price: parseFloat(initialData.unit_price),
-          // Pastikan status terset
-          status: initialData.status 
+          status: initialData.status,
+          // Mapping product ID. Pastikan backend mengirim ID produk.
+          product: initialData.product || initialData.product_details?.id 
         });
       } else {
         form.resetFields();
-        form.setFieldValue('status', 'stok'); // Default status
+        setIsNewProductMode(false);
+        form.setFieldValue('status', 'stok');
       }
     }
   }, [visible, initialData, form, isEditMode]);
 
-  const onFinish = (values) => {
+  const onFinish = async (values) => {
     setIsSubmitting(true);
-    const payload = {
-      ...values,
-      date: values.date.format('YYYY-MM-DD'),
-    };
-    
-    if (isEditMode) {
-      updateMutation.mutate({ id: initialData.id, data: payload });
-    } else {
-      createMutation.mutate(payload);
+    try {
+      let finalProductId = values.product;
+
+      // 1. Flow Buat Produk Baru
+      if (isNewProductMode) {
+        const newProductRes = await createProductMutation.mutateAsync({
+          name: values.new_product_name,
+          unit: values.new_product_unit,
+          current_stock: 0 
+        });
+        finalProductId = newProductRes.id;
+        message.success('Master produk baru dibuat');
+      }
+
+      // 2. Simpan Produksi
+      const payload = {
+        asset: values.asset,
+        product: finalProductId, 
+        quantity: values.quantity,
+        unit_price: values.unit_price,
+        date: values.date.format('YYYY-MM-DD'),
+        status: values.status,
+      };
+      
+      if (isEditMode) {
+        updateMutation.mutate({ id: initialData.id, data: payload });
+      } else {
+        createMutation.mutate(payload);
+      }
+    } catch (error) {
+      console.error("Gagal simpan:", error);
+      message.error("Gagal memproses data.");
+      setIsSubmitting(false);
     }
   };
 
   return (
     <Modal
-      title={isEditMode ? 'Edit Produksi' : 'Tambah Produksi Baru'}
+      title={isEditMode ? 'Edit Produksi' : 'Catat Hasil Panen'}
       open={visible}
       onCancel={onClose}
       footer={null}
@@ -377,22 +327,73 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
       destroyOnClose
     >
       <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
+        
+        {/* Dropdown Produk */}
         <Form.Item
-          name="name"
-          label="Nama Produk/Hasil"
-          rules={[{ required: true, message: 'Nama produk wajib diisi' }]}
+          name="product"
+          label="Pilih Produk Hasil Panen"
+          rules={[{ required: true, message: 'Produk wajib dipilih' }]}
         >
-          <Input placeholder="cth: Telur Ayam Omega 3" />
+          <Select
+            showSearch
+            placeholder="Pilih produk dari gudang..."
+            loading={isLoadingProducts}
+            onChange={handleProductChange}
+            optionFilterProp="children"
+            filterOption={(input, option) => 
+              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+            }
+          >
+            <Option value="NEW_PRODUCT" style={{ color: '#237804', fontWeight: 'bold' }}>
+              + Buat Produk Baru
+            </Option>
+            {products?.map(p => (
+              <Option key={p.id} value={p.id} label={p.name}>
+                {p.name} (Unit: {p.unit})
+              </Option>
+            ))}
+          </Select>
         </Form.Item>
+
+        {/* Input Tambahan Jika Produk Baru */}
+        {isNewProductMode && (
+          <div style={{ background: '#F6FFED', padding: '16px', borderRadius: '8px', border: '1px solid #B7EB8F', marginBottom: '24px' }}>
+            <Text strong style={{ color: '#237804', display: 'block', marginBottom: '12px' }}>
+              📦 Pendaftaran Produk Baru ke Gudang
+            </Text>
+            <Row gutter={16}>
+              <Col span={12}>
+                <Form.Item
+                  name="new_product_name"
+                  label="Nama Produk Baru"
+                  rules={[{ required: isNewProductMode, message: 'Nama produk baru wajib diisi' }]}
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input placeholder="Contoh: Jagung Manis" />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="new_product_unit"
+                  label="Satuan Unit"
+                  rules={[{ required: isNewProductMode, message: 'Satuan wajib diisi' }]}
+                  style={{ marginBottom: 0 }}
+                >
+                  <Input placeholder="Contoh: Kg, Liter, Ikat" />
+                </Form.Item>
+              </Col>
+            </Row>
+          </div>
+        )}
 
         <Form.Item
           name="asset"
-          label="Aset Terkait"
+          label="Aset Terkait (Sumber Panen)"
           rules={[{ required: true, message: 'Aset wajib dipilih' }]}
         >
           <Select
             showSearch
-            placeholder="Pilih aset penghasil"
+            placeholder="Pilih lahan/aset penghasil"
             loading={isLoadingAssets}
             optionFilterProp="children"
             filterOption={(input, option) => (option?.label ?? '').toLowerCase().includes(input.toLowerCase())}
@@ -404,7 +405,7 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
           <Col span={12}>
             <Form.Item
               name="quantity"
-              label="Kuantitas"
+              label="Kuantitas Hasil"
               rules={[{ required: true, message: 'Kuantitas wajib diisi' }]}
             >
               <InputNumber min={0} className="w-full" placeholder="cth: 500" />
@@ -412,20 +413,8 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
           </Col>
           <Col span={12}>
             <Form.Item
-              name="unit"
-              label="Unit"
-              rules={[{ required: true, message: 'Unit wajib diisi' }]}
-            >
-              <Input placeholder="cth: Kg, Liter, Ekor" />
-            </Form.Item>
-          </Col>
-        </Row>
-        
-        <Row gutter={16}>
-          <Col span={12}>
-            <Form.Item
               name="unit_price"
-              label="Harga per Unit (Rp)"
+              label="Estimasi Harga Satuan (Rp)"
               rules={[{ required: true, message: 'Harga wajib diisi' }]}
             >
               <InputNumber
@@ -433,32 +422,35 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
                 min={0}
-                placeholder="Masukkan harga jual per unit"
+                placeholder="0"
               />
             </Form.Item>
           </Col>
+        </Row>
+        
+        <Row gutter={16}>
           <Col span={12}>
             <Form.Item
               name="date"
-              label="Tanggal Produksi"
+              label="Tanggal Panen"
               rules={[{ required: true, message: 'Tanggal harus dipilih!' }]}
             >
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY"/>
             </Form.Item>
           </Col>
+          <Col span={12}>
+            <Form.Item
+              name="status"
+              label="Status Barang"
+              rules={[{ required: true, message: 'Status wajib dipilih' }]}
+            >
+              <Select placeholder="Pilih status">
+                <Option value="stok">Masuk Stok (Gudang)</Option>
+                <Option value="terjual">Langsung Terjual</Option>
+              </Select>
+            </Form.Item>
+          </Col>
         </Row>
-
-        {/* [REVISI] Status sekarang bisa diakses oleh siapa saja yang membuka modal (Admin & Operator) */}
-        <Form.Item
-          name="status"
-          label="Status"
-          rules={[{ required: true, message: 'Status wajib dipilih' }]}
-        >
-          <Select placeholder="Pilih status produksi">
-            <Option value="stok">Stok</Option>
-            <Option value="terjual">Terjual</Option>
-          </Select>
-        </Form.Item>
 
         <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
           <Space>
@@ -469,7 +461,7 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
               loading={isSubmitting}
               style={{ backgroundColor: '#237804', borderColor: '#237804' }}
             >
-              {isEditMode ? 'Simpan Perubahan' : 'Tambah Data'}
+              {isEditMode ? 'Simpan Perubahan' : 'Simpan Data'}
             </Button>
           </Space>
         </Form.Item>
@@ -493,48 +485,41 @@ function ProductionManagementContent() {
   const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
 
-  // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  
-  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
-  const isOperator = userRole === 'Operator';
-  // canEdit digunakan untuk membuka modal. Jika modal terbuka, user bisa edit semua field (termasuk status)
-  const canEdit = isAdmin || isOperator;
+  const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
-  // [LOGIKA JUDUL DINAMIS]
   let titleText = "Laporan Hasil Produksi";
   let subText = "Pantau hasil panen dan nilai produksi dari aset.";
 
-  if (isAdmin) {
+  if (canEdit) {
     titleText = "Manajemen Produksi";
     subText = "Kelola hasil produksi ternak dan lahan";
-  } else if (isOperator) {
-    titleText = "Catatan Produksi";
-    subText = "Input hasil panen harian dan update status penjualan.";
   }
 
-  const statsParams = useMemo(() => ({
-    asset: selectedAsset === 'all' ? undefined : selectedAsset,
-  }), [selectedAsset]);
+  // --- QUERY DATA ---
+  
+  // 1. Ambil Produk (Untuk Modal & Filter jika perlu)
+  const { data: products, isLoading: isLoadingProducts } = useQuery({
+    queryKey: ['products'],
+    queryFn: getProducts
+  });
 
-  const filterParams = useMemo(() => ({
-    asset: selectedAsset === 'all' ? undefined : selectedAsset,
-    search: searchTerm || undefined,
-    type: selectedType === 'all' ? undefined : selectedType,
-    status: selectedStatus === 'all' ? undefined : selectedStatus,
-  }), [selectedAsset, searchTerm, selectedType, selectedStatus]);
-
+  // 2. Ambil Aset (Untuk Filter & Modal)
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets
   });
   
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['productionStats', statsParams],
-    queryFn: () => getProductionStats(statsParams),
-  });
-  
+  // 3. Ambil Produksi (Data Utama)
+  // Filter akan dilakukan di client side atau backend tergantung API.
+  // Di sini kita kirim params, jika backend support filtering.
+  const filterParams = useMemo(() => ({
+    asset: selectedAsset === 'all' ? undefined : selectedAsset,
+    search: searchTerm || undefined,
+    // type: selectedType, // Jika backend support filter by product type
+  }), [selectedAsset, searchTerm]);
+
   const { data: productions, isLoading: isLoadingProductions, isError, error } = useQuery({
     queryKey: ['productions', filterParams],
     queryFn: () => getProductions(filterParams),
@@ -545,12 +530,49 @@ function ProductionManagementContent() {
     onSuccess: () => {
       message.success('Data produksi berhasil dihapus');
       queryClient.invalidateQueries({ queryKey: ['productions'] });
-      queryClient.invalidateQueries({ queryKey: ['productionStats'] });
     },
     onError: (err) => {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`);
     }
   });
+
+  // --- CLIENT SIDE FILTERING & STATS CALCULATION ---
+  // (Karena API Reporting sudah dihapus)
+  
+  const filteredProductions = useMemo(() => {
+      if (!productions) return [];
+      return productions.filter(p => {
+          // Filter Status
+          if (selectedStatus !== 'all' && p.status !== selectedStatus) return false;
+          // Filter Aset (Jika backend belum filter)
+          if (selectedAsset !== 'all' && p.asset !== parseInt(selectedAsset)) return false;
+          // Filter Search (Nama Produk)
+          if (searchTerm) {
+              const pName = p.product_details?.name || p.name || '';
+              if (!pName.toLowerCase().includes(searchTerm.toLowerCase())) return false;
+          }
+          return true;
+      });
+  }, [productions, selectedStatus, selectedAsset, searchTerm]);
+
+  const stats = useMemo(() => {
+      if (!filteredProductions) return { total_produksi: 0, nilai_total: 0, terjual: 0, stok: 0 };
+      
+      return filteredProductions.reduce((acc, curr) => {
+          const val = (parseFloat(curr.quantity) * parseFloat(curr.unit_price)) || 0;
+          
+          acc.total_produksi += parseFloat(curr.quantity);
+          acc.nilai_total += val;
+          
+          if (curr.status === 'terjual') acc.terjual += val;
+          if (curr.status === 'stok') acc.stok += val;
+          
+          return acc;
+      }, { total_produksi: 0, nilai_total: 0, terjual: 0, stok: 0 });
+  }, [filteredProductions]);
+
+
+  // --- HANDLERS ---
 
   const showAddModal = () => {
     setEditingProduction(null);
@@ -560,17 +582,12 @@ function ProductionManagementContent() {
   
   const showEditModal = (production) => {
     setEditingProduction(production);
-    form.setFieldsValue({
-      ...production,
-      date: moment(production.date),
-      quantity: parseFloat(production.quantity),
-      unit_price: parseFloat(production.unit_price),
-    });
     setIsModalOpen(true);
   };
   
   const handleViewDetail = (id) => {
-    router.push(`/admin/produksi/${id}`);
+    // router.push(`/admin/produksi/${id}`); 
+    message.info("Fitur detail sedang dikembangkan");
   };
   
   const handleCancel = () => {
@@ -579,16 +596,11 @@ function ProductionManagementContent() {
     form.resetFields();
   };
   
-  const isLoadingInitialData = isLoadingProductions || isLoadingAssets;
+  const isLoadingInitialData = isLoadingProductions || isLoadingAssets || isLoadingProducts;
   
   return (
     <>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px',
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>
             {titleText}
@@ -598,21 +610,12 @@ function ProductionManagementContent() {
           </Text>
         </div>
         
-        {/* Tombol Tambah */}
         {canEdit && (
            <Button
              type="primary"
              icon={<PlusCircleOutlined />}
              size="large"
-             style={{
-               backgroundColor: '#237804',
-               borderColor: '#237804',
-               borderRadius: '24px',
-               height: '40px',
-               padding: '8px 16px',
-               boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-               fontSize: '16px',
-             }}
+             style={{ backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px', height: '40px', padding: '8px 16px', fontSize: '16px' }}
              onClick={showAddModal}
            >
              Tambah Produksi
@@ -621,14 +624,7 @@ function ProductionManagementContent() {
       </div>
 
       <div style={{ marginBottom: '24px' }}>
-        <Text style={{
-          fontSize: '20px',
-          fontWeight: 500,
-          display: 'block',
-          marginBottom: '8px',
-          color: '#111928',
-          lineHeight: '24px',
-        }}>
+        <Text style={{ fontSize: '20px', fontWeight: 500, display: 'block', marginBottom: '8px', color: '#111928' }}>
           Filter Asset
         </Text>
         <Select
@@ -644,127 +640,39 @@ function ProductionManagementContent() {
         </Select>
       </div>
 
-      <div style={{
-        display: 'flex',
-        gap: '18px',
-        marginBottom: '24px',
-      }}>
+      <div style={{ display: 'flex', gap: '18px', marginBottom: '24px' }}>
         <div style={{ flex: 1 }}>
-          <StatCard
-            title="Total Produksi"
-            value={stats?.total_produksi || 0}
-            icon={<LuWheat />}
-            loading={isLoadingStats}
-            iconColor="#7CB305"
-          />
+          <StatCard title="Total Volume" value={stats.total_produksi} icon={<LuWheat />} loading={isLoadingProductions} iconColor="#7CB305" />
         </div>
         <div style={{ flex: 1 }}>
-          <StatCard
-            title="Nilai Total"
-            value={stats?.nilai_total || 0}
-            icon={<BiMoneyWithdraw />}
-            loading={isLoadingStats}
-            format="rupiah"
-            iconColor="#CF1322"
-          />
+          <StatCard title="Nilai Total" value={stats.nilai_total} icon={<BiMoneyWithdraw />} loading={isLoadingProductions} format="rupiah" iconColor="#CF1322" />
         </div>
       </div>
 
-      <div style={{
-        display: 'flex',
-        gap: '18px',
-        marginBottom: '24px',
-      }}>
+      <div style={{ display: 'flex', gap: '18px', marginBottom: '24px' }}>
         <div style={{ flex: 1 }}>
-          <StatCard
-            title="Terjual"
-            value={stats?.terjual || 0}
-            icon={<FaArrowTrendUp />}
-            loading={isLoadingStats}
-            format="rupiah"
-            iconColor="#1C64F2"
-          />
+          <StatCard title="Nilai Terjual" value={stats.terjual} icon={<FaArrowTrendUp />} loading={isLoadingProductions} format="rupiah" iconColor="#1C64F2" />
         </div>
         <div style={{ flex: 1 }}>
-          <StatCard
-            title="Stok"
-            value={stats?.stok || 0}
-            icon={<BsBox2Fill />}
-            loading={isLoadingStats}
-            format="rupiah"
-            iconColor="#9061F9"
-          />
+          <StatCard title="Nilai Stok" value={stats.stok} icon={<BsBox2Fill />} loading={isLoadingProductions} format="rupiah" iconColor="#9061F9" />
         </div>
       </div>
 
-      <Card style={{
-        marginBottom: 24,
-        border: '1px solid #E5E7EB',
-        borderRadius: '12px',
-        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
-      }}>
-        <Title level={4} style={{
-          marginBottom: '20px',
-          fontSize: '24px',
-          fontWeight: 500,
-          color: '#111928',
-        }}>
+      <Card style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1)' }}>
+        <Title level={4} style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 500, color: '#111928' }}>
           Pencarian & Filter
         </Title>
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'space-between' }}>
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            flex: 1,
-            maxWidth: '412px',
-            background: '#FFFFFF',
-            border: '1px solid #D9D9D9',
-            borderRadius: '8px',
-            overflow: 'hidden',
-          }}>
+          <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: '412px', background: '#FFFFFF', border: '1px solid #D9D9D9', borderRadius: '8px', overflow: 'hidden' }}>
             <Input
               placeholder="Cari Produk..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                border: 'none',
-                flex: 1,
-                padding: '8px 12px',
-                fontSize: '16px',
-                color: searchTerm ? 'rgba(0, 0, 0, 0.85)' : '#727272',
-              }}
-              suffix={searchTerm && <CloseCircleOutlined
-                style={{ color: 'rgba(0, 0, 0, 0.25)', cursor: 'pointer' }}
-                onClick={() => setSearchTerm('')}
-              />}
+              style={{ border: 'none', flex: 1, padding: '8px 12px', fontSize: '16px' }}
+              suffix={searchTerm && <CloseCircleOutlined style={{ color: 'rgba(0, 0, 0, 0.25)', cursor: 'pointer' }} onClick={() => setSearchTerm('')} />}
             />
-            <Button
-              type="primary"
-              icon={<SearchOutlined />}
-              style={{
-                background: '#237804',
-                border: '1px solid #237804',
-                borderRadius: '0px 2px 2px 0px',
-                height: '40px',
-                width: '46px',
-                boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)',
-              }}
-            />
+            <Button type="primary" icon={<SearchOutlined />} style={{ background: '#237804', border: '1px solid #237804', borderRadius: '0px 2px 2px 0px', height: '40px', width: '46px' }} />
           </div>
-          
-          <Select
-            value={selectedType}
-            size="large"
-            style={{ width: 200, height: '40px' }}
-            onChange={setSelectedType}
-            placeholder="Semua Tipe"
-            suffixIcon={<ChevronDown size={12} />}
-          >
-            <Option value="all">Semua Tipe</Option>
-            {Object.entries(ASSET_TYPE_MAP).map(([val, {label}]) =>
-              <Option key={val} value={val}>{label}</Option>
-            )}
-          </Select>
           
           <Select
             value={selectedStatus}
@@ -782,61 +690,36 @@ function ProductionManagementContent() {
         </div>
       </Card>
 
-      <Card style={{
-        marginBottom: 24,
-        border: '1px solid #E5E7EB',
-        borderRadius: '8px',
-        boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-      }}>
-        <Title level={4} style={{
-          marginBottom: '20px',
-          fontSize: '22px',
-          fontWeight: 700,
-          color: '#111928',
-        }}>
+      <Card style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+        <Title level={4} style={{ marginBottom: '20px', fontSize: '22px', fontWeight: 700, color: '#111928' }}>
           Daftar Produksi
         </Title>
 
         {isLoadingInitialData && (
-          <div style={{ textAlign: 'center', padding: '48px' }}>
-            <Spin size="large" />
-          </div>
+          <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>
         )}
         
         {isError && !isLoadingInitialData && (
-          <Alert
-            message="Error Memuat Data"
-            description={error?.message}
-            type="error"
-            showIcon
-          />
+          <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />
         )}
         
         {!isLoadingInitialData && !isError && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            {productions && productions.length > 0 ? (
-              productions.map(prod => (
+            {filteredProductions && filteredProductions.length > 0 ? (
+              filteredProductions.map(prod => (
                 <ProductionCard
                   key={prod.id}
                   production={prod}
                   onEditClick={showEditModal}
                   onDetailClick={handleViewDetail}
                   onDelete={deleteMutation.mutate}
-                  canEdit={canEdit} // Pass permission
+                  canEdit={canEdit}
                 />
               ))
             ) : (
-              <div style={{
-                border: '1px dashed #d9d9d9',
-                borderRadius: '8px',
-                padding: '32px',
-                textAlign: 'center',
-              }}>
-                <Text type="secondary" style={{
-                  fontSize: '16px',
-                  color: '#727272',
-                }}>
-                  Tidak ada data produksi ditemukan untuk filter ini.
+              <div style={{ border: '1px dashed #d9d9d9', borderRadius: '8px', padding: '32px', textAlign: 'center' }}>
+                <Text type="secondary" style={{ fontSize: '16px', color: '#727272' }}>
+                  Tidak ada data produksi ditemukan.
                 </Text>
               </div>
             )}
@@ -851,7 +734,8 @@ function ProductionManagementContent() {
         form={form}
         assets={assets}
         isLoadingAssets={isLoadingAssets}
-        // isAdmin tidak lagi dibutuhkan untuk kontrol field status
+        products={products}
+        isLoadingProducts={isLoadingProducts}
       />
     </>
   );
@@ -859,7 +743,6 @@ function ProductionManagementContent() {
 
 export default function ProductionPage() {
   return (
-    // [RBAC] Semua role boleh masuk (Investor/Viewer Read Only)
     <ProtectedRoute roles={['Superadmin', 'Admin', 'Operator', 'Investor', 'Viewer']}>
       <ProductionManagementContent />
     </ProtectedRoute>
