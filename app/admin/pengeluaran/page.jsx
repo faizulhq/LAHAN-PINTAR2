@@ -18,12 +18,7 @@ import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
-// HAPUS IMPORT YANG SUDAH TIDAK ADA DI BACKEND
-// import { getProjects } from '@/lib/api/project';
-// import { getFundingSources } from '@/lib/api/funding_source';
-// import { getFinancialReport } from '@/lib/api/reporting'; 
 import { getAssets } from '@/lib/api/asset';
-import { getFundings } from '@/lib/api/funding';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -36,29 +31,24 @@ const formatRupiah = (value) =>
 const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
 const EXPENSE_CATEGORIES = {
-  'Proyek': 'Proyek', // Tetap biarkan stringnya jika data lama masih ada
-  'Operasional': 'Operasional',
-  'Pembelian': 'Pembelian',
-  'Gaji': 'Gaji',
-  'Lainnya': 'Lainnya',
+  'OPERATIONAL': 'Operational Cost',
+  'SALARY': 'Salary/Wages',
+  'ASSET_PURCHASE': 'Asset Purchase',
+  'TAX': 'Tax & Legal',
+  'OTHERS': 'Others',
 };
 
 // Fungsi Helper Hitung Total Per Kategori
 const calculateCategoryTotals = (expenses) => {
-  if (!expenses) return { Operasional: 0, Proyek: 0, Pembelian: 0 };
+  if (!expenses) return { OPERATIONAL: 0, SALARY: 0, ASSET_PURCHASE: 0, OTHERS: 0 };
   
-  const totals = { Operasional: 0, Proyek: 0, Pembelian: 0 };
+  const totals = { OPERATIONAL: 0, SALARY: 0, ASSET_PURCHASE: 0, OTHERS: 0 };
   
   expenses.forEach(exp => {
     const amount = parseFloat(exp.amount) || 0;
-    const category = exp.category || 'Operasional';
-    
-    if (totals[category] !== undefined) {
-      totals[category] += amount;
-    } else {
-        // Handle kategori lain agar tidak error
-        totals['Operasional'] += amount; 
-    }
+    // Fallback ke OPERATIONAL jika kategori tidak dikenali
+    const category = totals[exp.category] !== undefined ? exp.category : 'OPERATIONAL';
+    totals[category] += amount;
   });
   
   return totals;
@@ -72,7 +62,7 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
 
   return (
     <Card 
-      bodyStyle={{ padding: '24px' }} 
+      styles={{ body: { padding: '24px' } }} // FIXED: bodyStyle deprecated
       style={{
         background: '#FFFFFF',
         border: '1px solid #F0F0F0',
@@ -102,9 +92,9 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   
   const getCategoryColor = () => {
     switch (expense.category) {
-      case 'Operasional': return { background: '#E1EFFE', color: '#1E429F' };
-      case 'Proyek': return { background: '#D5F5E3', color: '#27AE60' };
-      case 'Pembelian': return { background: '#FFE1E1', color: '#E74C3C' };
+      case 'OPERATIONAL': return { background: '#E1EFFE', color: '#1E429F' };
+      case 'ASSET_PURCHASE': return { background: '#D5F5E3', color: '#27AE60' };
+      case 'SALARY': return { background: '#FFE1E1', color: '#E74C3C' };
       default: return { background: '#F3F4F6', color: '#6B7280' };
     }
   };
@@ -113,7 +103,7 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   
   return (
     <Card 
-      bodyStyle={{ padding: '20px' }}
+      styles={{ body: { padding: '20px' } }} // FIXED: bodyStyle deprecated
       style={{
         marginBottom: '16px',
         border: '1px solid #E5E7EB',
@@ -135,32 +125,21 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
             }}>
               {categoryLabel}
             </Tag>
-            {/* Tampilkan Nama Aset jika ada */}
-            {expense.asset_details && (
-                <Tag color="orange">{expense.asset_details.name}</Tag>
-            )}
           </Space>
           
-          <Title level={4} style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 600, color: '#111928' }}>
-            {expense.description}
+          {/* Tampilkan Title sebagai Judul Utama */}
+          <Title level={4} style={{ margin: '0 0 5px 0', fontSize: '20px', fontWeight: 600, color: '#111928' }}>
+            {expense.title} 
           </Title>
+          <Text style={{ fontSize: '14px', color: '#555', display: 'block', marginBottom: '10px' }}>
+            {expense.description}
+          </Text>
           
           <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928', display: 'block', marginBottom: '20px' }}>
-            Tanggal: {formatDate(expense.date)}
+            Tanggal: {formatDate(expense.date)} • Penerima: {expense.recipient || '-'}
           </Text>
           
           <Space>
-            {/* Tombol Detail sementara dimatikan navigasinya jika halaman detail [id] belum disesuaikan */}
-            {/* <Button 
-              style={{ 
-                minWidth: '128px', height: '40px', border: '1px solid #237804', borderRadius: '8px',
-                color: '#237804', fontSize: '14px', fontWeight: 500 
-              }} 
-              onClick={() => onDetailClick(expense.id)}
-            >
-              Detail
-            </Button> */}
-            
             {canEdit && (
               <Button 
                 style={{ 
@@ -179,13 +158,19 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
           <Text style={{ fontSize: '24px', fontWeight: 700, color: '#CF1322', display: 'block' }}>
             - {formatRupiah(expense.amount)}
           </Text>
+          {/* Tampilkan link bukti jika ada */}
+          {expense.proof_image && (
+             <a href={expense.proof_image} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 8, color: '#1E429F' }}>
+                <LinkOutlined /> Lihat Bukti
+             </a>
+          )}
         </div>
       </div>
     </Card>
   );
 };
 
-const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
+const ExpenseModal = ({ visible, onClose, initialData, form }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEditMode = Boolean(initialData);
@@ -194,7 +179,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
     onSuccess: () => {
       message.success(isEditMode ? 'Pengeluaran berhasil diperbarui' : 'Pengeluaran berhasil ditambahkan');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
-      // queryClient.invalidateQueries({ queryKey: ['financialReport'] }); // Sudah tidak ada
       onClose();
     },
     onError: (err) => {
@@ -211,12 +195,12 @@ const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
     if (visible) {
       if (isEditMode && initialData) {
         form.setFieldsValue({
+          title: initialData.title,
           category: initialData.category,
           amount: parseFloat(initialData.amount),
           date: moment(initialData.date),
           description: initialData.description,
-          asset: initialData.asset, // Ganti project_id ke asset
-          proof_url: initialData.proof_url,
+          recipient: initialData.recipient,
         });
       } else {
         form.resetFields();
@@ -226,11 +210,12 @@ const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
 
   const onFinish = (values) => {
     setIsSubmitting(true);
+    // Kita gunakan FormData agar support upload file di masa depan (walau skrg UI-nya Text)
+    // Untuk API JSON biasa, object juga bisa. Di sini kita sesuaikan ke object dulu.
+    
     const payload = {
       ...values,
       date: values.date.format('YYYY-MM-DD'),
-      proof_url: values.proof_url || null,
-      project_id: null, // Paksa null karena tabel project dihapus
     };
     
     if (isEditMode) {
@@ -247,9 +232,13 @@ const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
       onCancel={onClose}
       footer={null}
       width={700}
-      destroyOnClose
+      destroyOnClose={true} // FIXED: Explicit boolean
     >
       <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
+        <Form.Item name="title" label="Judul Pengeluaran" rules={[{ required: true, message: 'Judul harus diisi!' }]}>
+          <Input placeholder="Contoh: Beli Pakan Ayam" size="large" />
+        </Form.Item>
+
         <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori harus dipilih!' }]}>
           <Select placeholder="Pilih kategori pengeluaran" size="large">
             {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
@@ -277,25 +266,17 @@ const ExpenseModal = ({ visible, onClose, initialData, form, assets }) => {
             </Form.Item>
           </Col>
         </Row>
+        
+        <Form.Item name="recipient" label="Penerima Dana (Opsional)">
+          <Input placeholder="Siapa yang menerima uang?" size="large" />
+        </Form.Item>
 
-        <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi harus diisi!' }]}>
+        <Form.Item name="description" label="Deskripsi Detail">
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
-
-        {/* INPUT ASSET SEBAGAI PENGGANTI PROJECT */}
-        <Form.Item name="asset" label="Aset Lahan Terkait (Opsional)">
-          <Select placeholder="Pilih aset (kosongkan untuk operasional pusat)" showSearch optionFilterProp="children" size="large" allowClear>
-            {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
-          </Select>
-        </Form.Item>
-
-        <Form.Item 
-          name="proof_url" 
-          label="URL Bukti (Opsional)"
-          rules={[{ type: 'url', message: 'Masukkan URL yang valid' }]}
-        >
-          <Input prefix={<LinkOutlined />} placeholder="https://..." size="large" />
-        </Form.Item>
+        
+        {/* TODO: Ganti input URL manual ini dengan Upload File Component di iterasi berikutnya */}
+        <Alert message="Fitur Upload Bukti Gambar akan segera tersedia." type="info" showIcon style={{marginBottom: 16}} />
 
         <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
           <Space>
@@ -322,51 +303,26 @@ function ExpenseManagementContent() {
   const [editingExpense, setEditingExpense] = useState(null);
   const [form] = Form.useForm();
   
-  const [selectedAsset, setSelectedAsset] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
 
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
   const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
-  const isOperator = userRole === 'Operator';
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
-  let headerTitle = "Laporan Pengeluaran";
-  let headerDesc = "Lihat rincian penggunaan biaya operasional.";
-
-  if (isAdmin) {
-    headerTitle = "Manajemen Pengeluaran";
-    headerDesc = "Kelola semua pengeluaran operasional dan pembelian";
-  }
-
-  // --- HAPUS QUERY KE REPORTING API (KARENA SUDAH DIHAPUS) ---
-  // Ganti dengan data dummy atau null agar tidak error saat render awal
-  const isLoadingReport = false;
-
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({ queryKey: ['assets'], queryFn: getAssets });
-  // const { data: projects } ... HAPUS
   const { data: expenses, isLoading: isLoadingExpenses, isError, error } = useQuery({ 
     queryKey: ['expenses'], 
     queryFn: getExpenses 
-  });
-  // const { data: fundings } ... HAPUS RELASI KE FUNDING SOURCE
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteExpense,
-    onSuccess: () => {
-      message.success('Pengeluaran berhasil dihapus');
-      queryClient.invalidateQueries({ queryKey: ['expenses'] });
-    },
-    onError: (err) => message.error(`Error: ${err.response?.data?.detail || err.message}`),
   });
 
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
     return expenses.filter(e => {
-      const matchesSearch = e.description.toLowerCase().includes(searchTerm.toLowerCase());
+      // Cari di deskripsi atau judul
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = (e.description || '').toLowerCase().includes(term) || (e.title || '').toLowerCase().includes(term);
       const matchesCategory = selectedCategory === 'all' || e.category === selectedCategory;
-      // const matchesAsset = ... (Logic filter aset bisa diaktifkan kembali jika backend support filter by asset di endpoint expense)
       return matchesSearch && matchesCategory;
     });
   }, [expenses, searchTerm, selectedCategory]);
@@ -382,18 +338,12 @@ function ExpenseManagementContent() {
     setIsModalOpen(true); 
   };
 
-  const handleViewDetail = (expenseId) => {
-    // router.push(`/admin/pengeluaran/${expenseId}`); 
-    message.info("Fitur detail sedang diperbarui");
-  };
-
   const handleCancel = () => { 
     setIsModalOpen(false); 
     setEditingExpense(null); 
     form.resetFields(); 
   };
 
-  // --- HITUNG STATISTIK CLIENT SIDE (PENGGANTI API REPORTING) ---
   const totalPengeluaran = useMemo(() => {
       return filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   }, [filteredExpenses]);
@@ -405,10 +355,10 @@ function ExpenseManagementContent() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px' }}>
-            {headerTitle}
+            Manajemen Pengeluaran
           </Title>
           <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272' }}>
-            {headerDesc}
+            Kelola semua pengeluaran operasional Integrated Estate.
           </Text>
         </div>
         
@@ -428,28 +378,11 @@ function ExpenseManagementContent() {
         )}
       </div>
 
-      <div style={{ marginBottom: '24px' }}>
-        <Text style={{ fontSize: '20px', fontWeight: 500, color: '#111928', display: 'block', marginBottom: '8px' }}>
-          Filter Asset
-        </Text>
-        <Select
-          value={selectedAsset}
-          onChange={setSelectedAsset}
-          loading={isLoadingAssets}
-          suffixIcon={<ChevronDown size={12} />}
-          style={{ width: 200, height: '40px' }}
-          size="large"
-        >
-          <Option value="all">Semua Asset</Option>
-          {assets?.map(a => <Option key={a.id} value={a.id}>{a.name}</Option>)}
-        </Select>
-      </div>
-
       <Row gutter={[18, 18]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12}>
           <StatCard 
             title="Total Pengeluaran" 
-            value={totalPengeluaran} // Menggunakan hasil hitungan manual
+            value={totalPengeluaran} 
             icon={<GiPayMoney />}
             loading={isLoadingExpenses}
             iconColor="#0958D9"
@@ -458,7 +391,7 @@ function ExpenseManagementContent() {
         <Col xs={24} sm={12}>
           <StatCard 
             title="Operasional" 
-            value={categoryTotals.Operasional}
+            value={categoryTotals.OPERATIONAL}
             icon={<FaMoneyBillWave />}
             loading={isLoadingExpenses}
             iconColor="#1E429F"
@@ -466,8 +399,8 @@ function ExpenseManagementContent() {
         </Col>
         <Col xs={24} sm={12}>
           <StatCard 
-            title="Proyek/Aset" 
-            value={categoryTotals.Proyek}
+            title="Pembelian Aset" 
+            value={categoryTotals.ASSET_PURCHASE}
             icon={<BiMoneyWithdraw />}
             loading={isLoadingExpenses}
             iconColor="#27AE60"
@@ -475,8 +408,8 @@ function ExpenseManagementContent() {
         </Col>
         <Col xs={24} sm={12}>
           <StatCard 
-            title="Pembelian" 
-            value={categoryTotals.Pembelian}
+            title="Gaji" 
+            value={categoryTotals.SALARY}
             icon={<GiPayMoney />}
             loading={isLoadingExpenses}
             iconColor="#E74C3C"
@@ -484,14 +417,14 @@ function ExpenseManagementContent() {
         </Col>
       </Row>
 
-      <Card style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '12px' }}>
+      <Card styles={{ body: { padding: '24px' } }} style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '12px' }}>
         <Title level={4} style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 500, color: '#111928' }}>
           Pencarian & Filter
         </Title>
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: '412px', background: '#FFFFFF', border: '1px solid #D9D9D9', borderRadius: '8px', overflow: 'hidden' }}>
             <Input
-              placeholder="Cari Deskripsi..."
+              placeholder="Cari Judul atau Deskripsi..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ border: 'none', flex: 1, padding: '8px 12px', fontSize: '16px' }}
@@ -516,12 +449,12 @@ function ExpenseManagementContent() {
         </div>
       </Card>
 
-      <Card style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '8px' }}>
+      <Card styles={{ body: { padding: '24px' } }} style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '8px' }}>
         <Title level={4} style={{ marginBottom: '20px', fontSize: '22px', fontWeight: 700, color: '#111928' }}>
           Daftar Pengeluaran
         </Title>
 
-        {(isLoadingExpenses || isLoadingAssets) && (
+        {(isLoadingExpenses) && (
           <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>
         )}
         
@@ -537,7 +470,6 @@ function ExpenseManagementContent() {
                   key={exp.id} 
                   expense={exp}
                   onEditClick={showEditModal}
-                  onDetailClick={handleViewDetail}
                   canEdit={canEdit}
                 />
               ))
@@ -557,7 +489,6 @@ function ExpenseManagementContent() {
         onClose={handleCancel}
         initialData={editingExpense}
         form={form}
-        assets={assets}
       />
     </>
   );
