@@ -4,10 +4,11 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker, Input, Typography, Flex, Space,
-  message, Spin, Alert, Card, Row, Col, Skeleton, Tag
+  message, Spin, Alert, Card, Row, Col, Skeleton, Tag, Upload
 } from 'antd';
 import {
-  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined
+  PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined,
+  UploadOutlined, WarningOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
 import { FaMoneyBillWave } from 'react-icons/fa6';
@@ -46,7 +47,6 @@ const calculateCategoryTotals = (expenses) => {
   
   expenses.forEach(exp => {
     const amount = parseFloat(exp.amount) || 0;
-    // Fallback ke OPERATIONAL jika kategori tidak dikenali
     const category = totals[exp.category] !== undefined ? exp.category : 'OPERATIONAL';
     totals[category] += amount;
   });
@@ -62,7 +62,7 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
 
   return (
     <Card 
-      styles={{ body: { padding: '24px' } }} // FIXED: bodyStyle deprecated
+      styles={{ body: { padding: '24px' } }}
       style={{
         background: '#FFFFFF',
         border: '1px solid #F0F0F0',
@@ -103,7 +103,7 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   
   return (
     <Card 
-      styles={{ body: { padding: '20px' } }} // FIXED: bodyStyle deprecated
+      styles={{ body: { padding: '20px' } }}
       style={{
         marginBottom: '16px',
         border: '1px solid #E5E7EB',
@@ -127,7 +127,6 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
             </Tag>
           </Space>
           
-          {/* Tampilkan Title sebagai Judul Utama */}
           <Title level={4} style={{ margin: '0 0 5px 0', fontSize: '20px', fontWeight: 600, color: '#111928' }}>
             {expense.title} 
           </Title>
@@ -158,7 +157,7 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
           <Text style={{ fontSize: '24px', fontWeight: 700, color: '#CF1322', display: 'block' }}>
             - {formatRupiah(expense.amount)}
           </Text>
-          {/* Tampilkan link bukti jika ada */}
+          
           {expense.proof_image && (
              <a href={expense.proof_image} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 8, color: '#1E429F' }}>
                 <LinkOutlined /> Lihat Bukti
@@ -201,6 +200,8 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           date: moment(initialData.date),
           description: initialData.description,
           recipient: initialData.recipient,
+          // Reset filelist agar bersih saat buka edit
+          proof_image: [] 
         });
       } else {
         form.resetFields();
@@ -210,18 +211,32 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
 
   const onFinish = (values) => {
     setIsSubmitting(true);
-    // Kita gunakan FormData agar support upload file di masa depan (walau skrg UI-nya Text)
-    // Untuk API JSON biasa, object juga bisa. Di sini kita sesuaikan ke object dulu.
     
-    const payload = {
-      ...values,
-      date: values.date.format('YYYY-MM-DD'),
-    };
+    // Gunakan FormData untuk mengirim Data + File
+    const formData = new FormData();
+    formData.append('title', values.title);
+    formData.append('category', values.category);
+    formData.append('amount', values.amount);
+    formData.append('date', values.date.format('YYYY-MM-DD'));
+    formData.append('description', values.description || '');
+    formData.append('recipient', values.recipient || '');
+
+    // [REAL IMPLEMENTATION] Handle File Upload
+    if (values.proof_image && values.proof_image.fileList && values.proof_image.fileList.length > 0) {
+        // Ambil file asli dari objek antd upload
+        if (values.proof_image.fileList[0].originFileObj) {
+            formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
+        }
+    } else if (values.proof_image && Array.isArray(values.proof_image) && values.proof_image.length > 0) {
+         if (values.proof_image[0].originFileObj) {
+            formData.append('proof_image', values.proof_image[0].originFileObj);
+        }
+    }
     
     if (isEditMode) {
-      updateMutation.mutate({ id: initialData.id, data: payload });
+      updateMutation.mutate({ id: initialData.id, data: formData });
     } else {
-      createMutation.mutate(payload);
+      createMutation.mutate(formData);
     }
   };
 
@@ -232,7 +247,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
       onCancel={onClose}
       footer={null}
       width={700}
-      destroyOnClose={true} // FIXED: Explicit boolean
+      destroyOnClose={true}
     >
       <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
         <Form.Item name="title" label="Judul Pengeluaran" rules={[{ required: true, message: 'Judul harus diisi!' }]}>
@@ -275,8 +290,26 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
         
-        {/* TODO: Ganti input URL manual ini dengan Upload File Component di iterasi berikutnya */}
-        <Alert message="Fitur Upload Bukti Gambar akan segera tersedia." type="info" showIcon style={{marginBottom: 16}} />
+        {/* [REAL FEATURE] Upload Bukti Pembayaran */}
+        <Form.Item 
+            label="Bukti Pembayaran / Struk" 
+            name="proof_image"
+            valuePropName="fileList" 
+            getValueFromEvent={(e) => Array.isArray(e) ? e : e?.fileList}
+        >
+            <Upload beforeUpload={() => false} maxCount={1} listType="picture">
+                <Button icon={<UploadOutlined />}>Upload File</Button>
+            </Upload>
+        </Form.Item>
+
+        {/* Preview Gambar Lama saat Edit */}
+        {isEditMode && initialData?.proof_image && (
+            <div style={{ marginTop: -12, marginBottom: 24 }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                    File saat ini: <a href={initialData.proof_image} target="_blank" rel="noopener noreferrer">Lihat Bukti</a>
+                </Text>
+            </div>
+        )}
 
         <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
           <Space>
@@ -304,7 +337,7 @@ function ExpenseManagementContent() {
   const [form] = Form.useForm();
   
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [selectedCategory, setSelectedCategory] = useState('all'); // Filter State
 
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
@@ -319,10 +352,13 @@ function ExpenseManagementContent() {
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
     return expenses.filter(e => {
-      // Cari di deskripsi atau judul
+      // Filter Search
       const term = searchTerm.toLowerCase();
       const matchesSearch = (e.description || '').toLowerCase().includes(term) || (e.title || '').toLowerCase().includes(term);
+      
+      // Filter Kategori
       const matchesCategory = selectedCategory === 'all' || e.category === selectedCategory;
+      
       return matchesSearch && matchesCategory;
     });
   }, [expenses, searchTerm, selectedCategory]);

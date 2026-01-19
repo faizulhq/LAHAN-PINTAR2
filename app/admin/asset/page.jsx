@@ -3,10 +3,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Row, Col, Card, Input, Select, Button, Typography, Space, Tag, Flex,
-  Modal, Form, DatePicker, InputNumber, message, Spin, Alert, Skeleton
+  Modal, Form, DatePicker, InputNumber, message, Spin, Skeleton
 } from 'antd';
 import {
-  PlusCircleOutlined, SearchOutlined, DollarCircleFilled
+  PlusCircleOutlined, DollarCircleFilled
 } from '@ant-design/icons';
 import { PiFileTextFill } from 'react-icons/pi';
 import { MdLocationPin } from 'react-icons/md';
@@ -16,14 +16,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
-// HAPUS IMPORT getOwners, createOwner
 import { getAssets, createAsset, updateAsset, deleteAsset } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-// ==================== CONSTANTS ====================
 const ASSET_TYPE_PROPS = {
   'bangunan': { text: 'Bangunan', color: 'blue' },
   'lahan': { text: 'Lahan', color: 'red' },
@@ -31,18 +29,19 @@ const ASSET_TYPE_PROPS = {
   'alat': { text: 'Alat', color: 'purple' },
 };
 
+// Sinkronisasi dengan Backend models.py
 const OWNERSHIP_STATUS_CHOICES = {
-  'full_ownership': 'Milik Penuh (SHM)',
-  'partial_ownership': 'Kerjasama / Bagi Hasil',
-  'leashold': 'Sewa (Leasehold)',
+  'full_ownership': 'Full Ownership',
+  'partial_ownership': 'Partial Ownership',
+  'investor_owned': 'Investor Owned',
+  'leashold': 'Leased (Sewa)',
+  'under_construction': 'Under Construction',
+  'personal_ownership': 'Personal Ownership',
 };
 
-// ==================== HELPER FUNCTIONS ====================
 const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
 const formatRupiah = (value) => value != null ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
 const getAssetTypeProps = (type) => ASSET_TYPE_PROPS[type] || { text: type, color: 'default' };
-
-// ==================== COMPONENTS ====================
 
 const StatCard = ({ title, value, icon, loading, format = "number", iconColor }) => {
   const displayValue = () => {
@@ -52,7 +51,7 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
   };
 
   return (
-    <Card bodyStyle={{ padding: '16px' }} style={{ borderRadius: '12px', border: '1px solid #F0F0F0', boxShadow: '0px 1px 4px rgba(0,0,0,0.05)' }}>
+    <Card styles={{ body: { padding: '16px' } }} style={{ borderRadius: '12px', border: '1px solid #F0F0F0', boxShadow: '0px 1px 4px rgba(0,0,0,0.05)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
         <div style={{ flexShrink: 0, color: iconColor || '#7CB305', fontSize: '34px', display: 'flex', alignItems: 'center' }}>
           {icon}
@@ -66,7 +65,7 @@ const StatCard = ({ title, value, icon, loading, format = "number", iconColor })
   );
 };
 
-const AssetCard = ({ asset, onDetail, onEdit, onDelete, canEdit }) => {
+const AssetCard = ({ asset, onDetail, onEdit, canEdit }) => {
   const typeProps = getAssetTypeProps(asset.type);
 
   return (
@@ -102,7 +101,6 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete, canEdit }) => {
       </Space>
 
       <Flex gap={20} style={{ paddingTop: '24px' }}>
-        {/* Detail sementara dimatikan navigasinya kalau halaman detail belum ready */}
         <Button 
           style={{ flex: 1, height: '40px', border: '1px solid #237804', borderRadius: '8px', color: '#237804' }}
           onClick={() => onDetail(asset)}
@@ -122,104 +120,119 @@ const AssetCard = ({ asset, onDetail, onEdit, onDelete, canEdit }) => {
   );
 };
 
-const AssetFormModal = ({ open, editingAsset, form, onCancel, onSubmit, isSubmitting }) => (
-  <Modal
-    title={editingAsset ? 'Edit Aset' : 'Tambah Aset Baru'}
-    open={open}
-    onCancel={onCancel}
-    footer={null}
-    width={600}
-    destroyOnClose
-  >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
-      <Form.Item label="Nama Aset" name="name" rules={[{ required: true }]}>
-        <Input placeholder="Contoh: Lahan Jagung Blok A" />
-      </Form.Item>
+const AssetFormModal = ({ open, editingAsset, form, onCancel, onSubmit, isSubmitting }) => {
+  // Reset form hanya saat modal benar-benar terbuka
+  useEffect(() => {
+    if (open) {
+      if (editingAsset) {
+        form.setFieldsValue({
+          ...editingAsset,
+          acquisition_date: editingAsset.acquisition_date ? moment(editingAsset.acquisition_date) : null,
+          landowner: editingAsset.landowner || '' 
+        });
+      } else {
+        form.resetFields();
+      }
+    }
+  }, [open, editingAsset, form]);
 
-      <Row gutter={16}>
-        <Col span={12}>
-            <Form.Item label="Tipe Aset" name="type" rules={[{ required: true }]}>
-                <Select placeholder="Pilih tipe">
-                {Object.entries(ASSET_TYPE_PROPS).map(([value, { text }]) => (
-                    <Option key={value} value={value}>{text}</Option>
-                ))}
-                </Select>
-            </Form.Item>
-        </Col>
-        <Col span={12}>
-            <Form.Item label="Status Kepemilikan" name="ownership_status" rules={[{ required: true }]}>
-                <Select placeholder="Pilih status">
-                {Object.entries(OWNERSHIP_STATUS_CHOICES).map(([value, text]) => (
-                    <Option key={value} value={value}>{text}</Option>
-                ))}
-                </Select>
-            </Form.Item>
-        </Col>
-      </Row>
+  return (
+    <Modal
+      title={editingAsset ? 'Edit Aset' : 'Tambah Aset Baru'}
+      open={open}
+      onCancel={onCancel}
+      footer={null}
+      width={600}
+      destroyOnClose={true}
+    >
+      <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
+        <Form.Item label="Nama Aset" name="name" rules={[{ required: true }]}>
+          <Input placeholder="Contoh: Lahan Jagung Blok A" />
+        </Form.Item>
 
-      <Form.Item label="Lokasi" name="location" rules={[{ required: true }]}>
-        <Input placeholder="Alamat atau Koordinat" />
-      </Form.Item>
+        <Row gutter={16}>
+          <Col span={12}>
+              <Form.Item label="Tipe Aset" name="type" rules={[{ required: true }]}>
+                  <Select placeholder="Pilih tipe">
+                  {Object.entries(ASSET_TYPE_PROPS).map(([value, { text }]) => (
+                      <Option key={value} value={value}>{text}</Option>
+                  ))}
+                  </Select>
+              </Form.Item>
+          </Col>
+          <Col span={12}>
+              <Form.Item label="Status Kepemilikan" name="ownership_status" rules={[{ required: true }]}>
+                  <Select placeholder="Pilih status">
+                  {Object.entries(OWNERSHIP_STATUS_CHOICES).map(([value, text]) => (
+                      <Option key={value} value={value}>{text}</Option>
+                  ))}
+                  </Select>
+              </Form.Item>
+          </Col>
+        </Row>
 
-      <Row gutter={16}>
-        <Col span={12}>
-            <Form.Item label="Ukuran (m²)" name="size" rules={[{ required: true }]}>
-                <InputNumber style={{ width: '100%' }} min={0} />
-            </Form.Item>
-        </Col>
-        <Col span={12}>
-            <Form.Item label="Nilai Estimasi (Rp)" name="value" rules={[{ required: true }]}>
-                <InputNumber 
-                style={{ width: '100%' }} 
-                min={0}
-                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
-                />
-            </Form.Item>
-        </Col>
-      </Row>
+        <Form.Item label="Lokasi" name="location" rules={[{ required: true }]}>
+          <Input placeholder="Alamat atau Koordinat" />
+        </Form.Item>
 
-      <Form.Item label="Tanggal Akuisisi" name="acquisition_date" rules={[{ required: true }]}>
-        <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
-      </Form.Item>
+        <Row gutter={16}>
+          <Col span={12}>
+              <Form.Item label="Ukuran (m²)" name="size" rules={[{ required: true }]}>
+                  <InputNumber style={{ width: '100%' }} min={0} />
+              </Form.Item>
+          </Col>
+          <Col span={12}>
+              <Form.Item label="Nilai Estimasi (Rp)" name="value" rules={[{ required: true }]}>
+                  <InputNumber 
+                  style={{ width: '100%' }} 
+                  min={0}
+                  formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                  parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+                  />
+              </Form.Item>
+          </Col>
+        </Row>
 
-      {/* PERUBAHAN UTAMA: INPUT TEXT UNTUK PEMILIK */}
-      <Form.Item 
-        label="Nama Pemilik Lahan (Landowner)" 
-        name="landowner_name"
-        rules={[{ required: true, message: 'Nama pemilik wajib diisi' }]}
-        tooltip="Nama orang/pihak yang memiliki lahan ini (untuk catatan bagi hasil sewa)."
-      >
-        <Input placeholder="Contoh: Bapak H. Udin" />
-      </Form.Item>
+        <Form.Item label="Tanggal Akuisisi" name="acquisition_date" rules={[{ required: true }]}>
+          <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+        </Form.Item>
 
-      <Form.Item 
-        label="% Bagi Hasil Pemilik (Sewa)" 
-        name="landowner_share_percentage"
-        initialValue={10}
-        rules={[{ required: true }]}
-      >
-        <InputNumber 
-          style={{ width: '100%' }} 
-          min={0} max={100} 
-          formatter={value => `${value}%`} 
-          parser={value => value.replace('%', '')} 
-        />
-      </Form.Item>
+        <Form.Item 
+          label="Nama Pemilik Lahan (Landowner)" 
+          name="landowner" 
+          rules={[{ required: false }]}
+          tooltip="Nama orang/pihak yang memiliki lahan ini (jika sewa/kerjasama)."
+        >
+          <Input placeholder="Contoh: Bapak H. Udin" />
+        </Form.Item>
 
-      <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
-        <Space>
-          <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ background: '#237804' }}>
-            {editingAsset ? 'Perbarui' : 'Simpan'}
-          </Button>
-        </Space>
-      </Form.Item>
-    </Form>
-  </Modal>
-);
+        <Form.Item 
+          label="% Bagi Hasil Pemilik" 
+          name="landowner_share_percentage"
+          initialValue={10}
+          rules={[{ required: true }]}
+        >
+          <InputNumber 
+            style={{ width: '100%' }} 
+            min={0} max={100} 
+            formatter={value => `${value}%`} 
+            parser={value => value.replace('%', '')} 
+          />
+        </Form.Item>
 
-// ==================== MAIN COMPONENT ====================
+        <Form.Item style={{ textAlign: 'right', marginTop: 32 }}>
+          <Space>
+            <Button onClick={onCancel}>Batal</Button>
+            <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ background: '#237804' }}>
+              {editingAsset ? 'Perbarui' : 'Simpan'}
+            </Button>
+          </Space>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+};
+
 function AssetManagementContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -236,7 +249,7 @@ function AssetManagementContent() {
   const pageTitle = canEdit ? "Manajemen Aset" : "Daftar Aset";
   const pageDesc = canEdit ? "Kelola aset fisik lahan dan peralatan." : "Daftar aset yang dikelola.";
 
-  const { data: assets, isLoading: isLoadingAssets, isError: isErrorAssets, error: errorAssets } = useQuery({
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['assets'],
     queryFn: getAssets,
   });
@@ -245,11 +258,10 @@ function AssetManagementContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       setIsModalOpen(false);
-      form.resetFields();
       setEditingAsset(null);
       message.success('Data aset berhasil disimpan');
     },
-    onError: (err) => message.error('Gagal menyimpan data')
+    onError: (err) => message.error('Gagal menyimpan data: ' + (err.response?.data?.detail || err.message))
   };
 
   const createMutation = useMutation({ mutationFn: createAsset, ...mutationConfig });
@@ -264,26 +276,34 @@ function AssetManagementContent() {
 
   const handleAddAsset = () => {
     setEditingAsset(null);
-    form.resetFields();
     setIsModalOpen(true);
   };
 
   const handleEditAsset = (asset) => {
     setEditingAsset(asset);
-    form.setFieldsValue({
-      ...asset,
-      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
-      // Mapping field manual jika backend beda nama
-      landowner_name: asset.landowner_name || asset.landowner || '' 
-    });
     setIsModalOpen(true);
   };
 
+  // [FIX] Convert data ke FormData sebelum kirim ke API
   const handleFormSubmit = async (values) => {
-    const formData = {
-      ...values,
-      acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
-    };
+    const formData = new FormData();
+    
+    formData.append('name', values.name);
+    formData.append('type', values.type);
+    formData.append('ownership_status', values.ownership_status);
+    formData.append('location', values.location);
+    formData.append('size', values.size || 0);
+    formData.append('value', values.value || 0);
+    
+    if (values.acquisition_date) {
+      formData.append('acquisition_date', values.acquisition_date.format('YYYY-MM-DD'));
+    }
+
+    formData.append('landowner', values.landowner || '');
+    formData.append('landowner_share_percentage', values.landowner_share_percentage || 0);
+
+    // Jika nanti ada upload file:
+    // if (values.image) formData.append('image', values.image.file);
 
     if (editingAsset) {
       updateMutation.mutate({ id: editingAsset.id, data: formData });

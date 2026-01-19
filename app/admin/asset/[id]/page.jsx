@@ -6,8 +6,8 @@ import {
   Modal, Form, Input, Select, DatePicker, InputNumber, Upload, message, Popconfirm
 } from 'antd';
 import {
-  ArrowLeftOutlined, EditOutlined, DollarCircleFilled, UploadOutlined, PlusOutlined,
-  UserOutlined, PhoneOutlined, BankOutlined, DeleteOutlined
+  ArrowLeftOutlined, EditOutlined, DollarCircleFilled, UploadOutlined,
+  DeleteOutlined, UserOutlined
 } from '@ant-design/icons';
 import { MdLocationPin } from 'react-icons/md';
 import { TbArrowsMaximize } from 'react-icons/tb';
@@ -15,8 +15,9 @@ import { BiSolidCalendar } from 'react-icons/bi';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
-import useAuthStore from '@/lib/store/authStore'; // [RBAC]
-import { getAssets, getOwners, updateAsset, createOwner, deleteAsset } from '@/lib/api/asset';
+import useAuthStore from '@/lib/store/authStore';
+// [FIX] Hapus getOwners/createOwner karena sudah tidak dipakai
+import { getAssets, updateAsset, deleteAsset } from '@/lib/api/asset';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -68,49 +69,10 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
   </Card>
 );
 
-// ==================== OWNER FORM MODAL ====================
-const OwnerFormModal = ({ open, onCancel, onSubmit, isSubmitting, form }) => (
-  <Modal
-    title="Tambah Pemilik Lahan Baru"
-    open={open}
-    onCancel={onCancel}
-    footer={null}
-    width={500}
-    zIndex={1001}
-    destroyOnClose
-  >
-    <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }}>
-      <Form.Item label="Nama Pemilik" name="nama" rules={[{ required: true, message: 'Nama wajib diisi' }]}>
-        <Input prefix={<UserOutlined />} placeholder="Masukkan nama lengkap" />
-      </Form.Item>
-      <Form.Item label="Kontak (HP/Email)" name="kontak" rules={[{ required: true, message: 'Kontak wajib diisi' }]}>
-        <Input prefix={<PhoneOutlined />} placeholder="cth: 08123456789" />
-      </Form.Item>
-      <Form.Item label="Alamat" name="alamat">
-        <Input.TextArea placeholder="Masukkan alamat lengkap" rows={3} />
-      </Form.Item>
-      <Form.Item label="Bank" name="bank">
-        <Input prefix={<BankOutlined />} placeholder="cth: BCA, Mandiri, BRI" />
-      </Form.Item>
-      <Form.Item label="No. Rekening" name="no_rekening">
-        <Input placeholder="Masukkan nomor rekening" />
-      </Form.Item>
-      <Form.Item style={{ textAlign: 'right', marginTop: 16, marginBottom: 0 }}>
-        <Space>
-          <Button onClick={onCancel}>Batal</Button>
-          <Button type="primary" htmlType="submit" loading={isSubmitting}>
-            Simpan Pemilik
-          </Button>
-        </Space>
-      </Form.Item>
-    </Form>
-  </Modal>
-);
-
 // ==================== ASSET FORM MODAL ====================
 const AssetFormModal = ({ 
-  open, asset, form, owners, isLoadingOwners, 
-  onCancel, onSubmit, isSubmitting, onAddOwner 
+  open, asset, form, 
+  onCancel, onSubmit, isSubmitting 
 }) => (
   <Modal
     title="Edit Aset"
@@ -123,7 +85,8 @@ const AssetFormModal = ({
   >
     <Form form={form} layout="vertical" onFinish={onSubmit} style={{ marginTop: 24 }} initialValues={{
         ...asset,
-        acquisition_date: asset?.acquisition_date ? moment(asset.acquisition_date) : null
+        acquisition_date: asset?.acquisition_date ? moment(asset.acquisition_date) : null,
+        // Pastikan field image di-handle jika perlu (biasanya upload butuh perlakuan khusus)
     }}>
       <Form.Item label="Nama Aset" name="name" rules={[{ required: true, message: 'Nama aset wajib diisi' }]}>
         <Input placeholder="Masukkan nama aset" />
@@ -172,32 +135,13 @@ const AssetFormModal = ({
         </Select>
       </Form.Item>
 
+      {/* [FIX] Ubah jadi Input Text Biasa */}
       <Form.Item 
         label="Pemilik Lahan" 
         name="landowner"
-        tooltip="Pemilik fisik lahan/aset yang akan dapat bagi hasil"
+        tooltip="Nama pemilik fisik lahan"
       >
-        <Select 
-          placeholder="Pilih pemilik lahan" 
-          allowClear 
-          loading={isLoadingOwners}
-          showSearch
-          optionFilterProp="children"
-          dropdownRender={menu => (
-            <>
-              {menu}
-              <Button type="link" block icon={<PlusOutlined />} onClick={onAddOwner}>
-                Tambah Pemilik Baru
-              </Button>
-            </>
-          )}
-        >
-          {owners?.map(owner => (
-            <Option key={owner.id} value={owner.id}>
-              {owner.nama} {owner.kontak && `(${owner.kontak})`}
-            </Option>
-          ))}
-        </Select>
+        <Input prefix={<UserOutlined />} placeholder="Contoh: Bapak H. Udin" />
       </Form.Item>
 
       <Form.Item 
@@ -216,15 +160,19 @@ const AssetFormModal = ({
         />
       </Form.Item>
 
+      {/* [FIX] Ganti Document URL jadi Upload Image sesuai backend */}
       <Form.Item 
-        label="URL Dokumen" 
-        name="document_url"
-        tooltip="Link Google Drive, Dropbox, atau URL dokumen lainnya"
+        label="Foto / Dokumen" 
+        name="image"
+        valuePropName="fileList"
+        getValueFromEvent={(e) => {
+            if (Array.isArray(e)) return e;
+            return e && e.fileList;
+        }}
       >
-        <Input 
-          placeholder="https://drive.google.com/file/d/..." 
-          prefix={<UploadOutlined />}
-        />
+        <Upload beforeUpload={() => false} maxCount={1} listType="picture">
+            <Button icon={<UploadOutlined />}>Upload Gambar</Button>
+        </Upload>
       </Form.Item>
 
       <Form.Item style={{marginBottom: 0}}>
@@ -248,9 +196,7 @@ function AssetDetailContent() {
 
   // State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isOwnerModalOpen, setIsOwnerModalOpen] = useState(false);
   const [form] = Form.useForm();
-  const [ownerForm] = Form.useForm();
 
   // [RBAC] Cek Role
   const user = useAuthStore((state) => state.user);
@@ -263,17 +209,10 @@ function AssetDetailContent() {
     queryFn: getAssets,
   });
 
-  const { data: owners, isLoading: isLoadingOwners } = useQuery({
-    queryKey: ['owners'],
-    queryFn: getOwners,
-    enabled: canEdit // Hanya fetch owner jika user berhak edit
-  });
-
   const asset = assets?.find(a => a.id === parseInt(assetId));
-  const owner = owners?.find(o => o.id === asset?.landowner);
   
   const typeProps = asset ? getAssetTypeProps(asset.type) : null;
-  const isLoading = isLoadingAssets || isLoadingOwners;
+  const isLoading = isLoadingAssets;
 
   // Mutations
   const updateMutation = useMutation({
@@ -282,7 +221,6 @@ function AssetDetailContent() {
       message.success('Aset berhasil diperbarui');
       queryClient.invalidateQueries({ queryKey: ['assets'] });
       setIsModalOpen(false);
-      form.resetFields();
     },
     onError: (err) => {
       message.error(`Error: ${err.response?.data?.detail || err.message || 'Terjadi kesalahan'}`);
@@ -301,46 +239,47 @@ function AssetDetailContent() {
     }
   });
 
-  const createOwnerMutation = useMutation({
-    mutationFn: createOwner,
-    onSuccess: (newOwner) => {
-      message.success(`Pemilik Lahan "${newOwner.nama}" berhasil ditambahkan`);
-      queryClient.invalidateQueries({ queryKey: ['owners'] });
-      setIsOwnerModalOpen(false);
-      ownerForm.resetFields();
-      form.setFieldsValue({ landowner: newOwner.id });
-    },
-    onError: (err) => {
-      message.error('Gagal menambahkan pemilik');
-    }
-  });
-
   // Handlers
   const handleEdit = () => {
     if (!asset) return;
     form.setFieldsValue({
       ...asset,
-      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null
+      acquisition_date: asset.acquisition_date ? moment(asset.acquisition_date) : null,
+      landowner: asset.landowner || '' 
     });
     setIsModalOpen(true);
   };
 
+  // [FIX] Convert ke FormData agar diterima Backend (Multipart)
   const handleFormSubmit = (values) => {
-    const formData = {
-      ...values,
-      acquisition_date: values.acquisition_date ? values.acquisition_date.format('YYYY-MM-DD') : null,
-    };
-    if (!formData.landowner) formData.landowner = null;
+    const formData = new FormData();
+    
+    formData.append('name', values.name);
+    formData.append('type', values.type);
+    formData.append('ownership_status', values.ownership_status);
+    formData.append('location', values.location);
+    formData.append('size', values.size || 0);
+    formData.append('value', values.value || 0);
+    
+    if (values.acquisition_date) {
+        formData.append('acquisition_date', values.acquisition_date.format('YYYY-MM-DD'));
+    }
+
+    // Kirim text landowner
+    formData.append('landowner', values.landowner || '');
+    formData.append('landowner_share_percentage', values.landowner_share_percentage || 0);
+
+    // Kirim file jika ada
+    if (values.image && values.image.length > 0) {
+        formData.append('image', values.image[0].originFileObj);
+    }
+
     updateMutation.mutate({ id: asset.id, data: formData });
   };
 
   const handleDelete = () => {
     deleteMutation.mutate(asset.id);
   };
-
-  const handleShowOwnerModal = () => setIsOwnerModalOpen(true);
-  const handleCancelOwnerModal = () => setIsOwnerModalOpen(false);
-  const handleOwnerFormSubmit = (values) => createOwnerMutation.mutate(values);
 
   // Render Loading
   if (isLoading) return <div style={{ textAlign: 'center', padding: 50 }}><Spin size="large" /></div>;
@@ -408,18 +347,24 @@ function AssetDetailContent() {
           <Card title="Informasi Detail" style={{ border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
             <Descriptions bordered column={1} size="middle">
               <Descriptions.Item label="Status Kepemilikan"><Text style={{ fontWeight: 500 }}>{OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}</Text></Descriptions.Item>
-              <Descriptions.Item label="Pemilik Lahan"><Text style={{ fontWeight: 500 }}>{owner?.nama || '-'}</Text></Descriptions.Item>
-              <Descriptions.Item label="Kontak Pemilik"><Text style={{ fontWeight: 500 }}>{owner?.kontak || '-'}</Text></Descriptions.Item>
+              <Descriptions.Item label="Pemilik Lahan"><Text style={{ fontWeight: 500 }}>{asset.landowner || '-'}</Text></Descriptions.Item>
               <Descriptions.Item label="% Bagi Hasil Pemilik"><Text style={{ fontWeight: 500, color: '#7CB305' }}>{asset.landowner_share_percentage ? `${asset.landowner_share_percentage}%` : '-'}</Text></Descriptions.Item>
-              <Descriptions.Item label="Dokumen">{asset.document_url ? <a href={asset.document_url} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500, color: '#1890ff' }}>Lihat Dokumen</a> : <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>}</Descriptions.Item>
+              <Descriptions.Item label="Dokumen">
+                {asset.image ? 
+                    <a href={asset.image} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500, color: '#1890ff' }}>Lihat Foto/Dokumen</a> 
+                    : <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>
+                }
+              </Descriptions.Item>
             </Descriptions>
           </Card>
         </Col>
 
         <Col xs={24} lg={8}>
           <Space direction="vertical" style={{ width: '100%' }} size={24}>
-            <InfoCard icon={<DollarCircleFilled />} label="Total Investasi" value={formatRupiah(asset.total_investment || 0)} iconColor="#7CB305" />
+            {/* Value dan Size sudah ada, tambahkan card lain jika perlu */}
+            <InfoCard icon={<DollarCircleFilled />} label="Nilai Aset" value={formatRupiah(asset.value || 0)} iconColor="#7CB305" />
             <InfoCard icon={<TbArrowsMaximize />} label="Luas Total" value={`${asset.size} m²`} iconColor="#D46B08" />
+            
             <Card title="Informasi Tambahan" style={{ border: '1px solid #E5E7EB', borderRadius: '12px', boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
                 <Flex justify="space-between"><Text style={{ color: '#6B7280' }}>ID Aset</Text><Text style={{ fontWeight: 600 }}>#{asset.id}</Text></Flex>
@@ -431,8 +376,7 @@ function AssetDetailContent() {
         </Col>
       </Row>
 
-      {canEdit && <AssetFormModal open={isModalOpen} asset={asset} form={form} owners={owners} isLoadingOwners={isLoadingOwners} onCancel={() => setIsModalOpen(false)} onSubmit={handleFormSubmit} isSubmitting={updateMutation.isPending} onAddOwner={handleShowOwnerModal} />}
-      <OwnerFormModal open={isOwnerModalOpen} form={ownerForm} onCancel={handleCancelOwnerModal} onSubmit={handleOwnerFormSubmit} isSubmitting={createOwnerMutation.isPending} />
+      {canEdit && <AssetFormModal open={isModalOpen} asset={asset} form={form} onCancel={() => setIsModalOpen(false)} onSubmit={handleFormSubmit} isSubmitting={updateMutation.isPending} />}
     </div>
   );
 }

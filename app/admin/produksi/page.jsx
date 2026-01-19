@@ -247,15 +247,44 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
 
   const createMutation = useMutation({ mutationFn: createProduction, ...mutationOptions });
   const updateMutation = useMutation({ mutationFn: ({ id, data }) => patchProduction(id, data), ...mutationOptions });
-  const createProductMutation = useMutation({ mutationFn: createProduct });
+  
+  // [NEW] Mutation khusus untuk menyimpan produk saja
+  const createProductMutation = useMutation({ 
+      mutationFn: createProduct,
+      onSuccess: (newProduct) => {
+          message.success('Produk baru berhasil disimpan!');
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          // Auto-select produk yang baru dibuat di dropdown form utama
+          form.setFieldValue('product', newProduct.id); 
+          setIsNewProductMode(false); // Tutup form nested
+      },
+      onError: (err) => message.error('Gagal menyimpan produk: ' + (err.response?.data?.detail || err.message))
+  });
 
   // Handle Dropdown Produk Change
   const handleProductChange = (value) => {
     if (value === 'NEW_PRODUCT') {
       setIsNewProductMode(true);
+      // Reset field product agar tidak terpilih 'NEW_PRODUCT' secara value
+      form.setFieldValue('product', null);
     } else {
       setIsNewProductMode(false);
     }
+  };
+
+  // [NEW] Handler Tombol "Simpan Produk" di Nested Form
+  const handleSaveNewProduct = async () => {
+      try {
+          // Validasi manual field produk baru
+          const values = await form.validateFields(['new_product_name', 'new_product_unit']);
+          createProductMutation.mutate({
+              name: values.new_product_name,
+              unit: values.new_product_unit,
+              current_stock: 0
+          });
+      } catch (error) {
+          // Validation failed
+      }
   };
 
   useEffect(() => {
@@ -282,23 +311,10 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
   const onFinish = async (values) => {
     setIsSubmitting(true);
     try {
-      let finalProductId = values.product;
-
-      // 1. Flow Buat Produk Baru
-      if (isNewProductMode) {
-        const newProductRes = await createProductMutation.mutateAsync({
-          name: values.new_product_name,
-          unit: values.new_product_unit,
-          current_stock: 0 
-        });
-        finalProductId = newProductRes.id;
-        message.success('Master produk baru dibuat');
-      }
-
-      // 2. Simpan Produksi
+      // 2. Simpan Produksi (Hanya data produksi, produk diasumsikan sudah ada ID-nya)
       const payload = {
         asset: values.asset,
-        product: finalProductId, 
+        product: values.product, // ID Produk yang dipilih
         quantity: values.quantity,
         unit_price: values.unit_price,
         date: values.date.format('YYYY-MM-DD'),
@@ -326,65 +342,85 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
       width={700}
       destroyOnClose
     >
+      {/* Nested Modal Form for New Product */}
+      <Modal
+          title="Tambah Master Produk Baru"
+          open={isNewProductMode}
+          onCancel={() => setIsNewProductMode(false)}
+          footer={[
+              <Button key="cancel" onClick={() => setIsNewProductMode(false)}>Batal</Button>,
+              <Button key="save" type="primary" onClick={handleSaveNewProduct} loading={createProductMutation.isPending} style={{background: '#237804', borderColor: '#237804'}}>Simpan Produk</Button>
+          ]}
+          width={500}
+          zIndex={1002} // Ensure it's above the main modal
+      >
+          <Form form={form} layout="vertical" component={false}> {/* component=false agar tidak double form tag */}
+             <div style={{ background: '#F6FFED', padding: '16px', borderRadius: '8px', border: '1px solid #B7EB8F', marginBottom: '24px' }}>
+                <Text strong style={{ color: '#237804', display: 'block', marginBottom: '12px' }}>
+                  📦 Pendaftaran Produk Baru ke Gudang
+                </Text>
+                <Row gutter={16}>
+                  <Col span={24}>
+                    <Form.Item
+                      name="new_product_name"
+                      label="Nama Produk Baru"
+                      rules={[{ required: isNewProductMode, message: 'Nama produk baru wajib diisi' }]}
+                    >
+                      <Input placeholder="Contoh: Jagung Manis" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={24}>
+                    <Form.Item
+                      name="new_product_unit"
+                      label="Satuan Unit"
+                      rules={[{ required: isNewProductMode, message: 'Satuan wajib diisi' }]}
+                    >
+                      <Input placeholder="Contoh: Kg, Liter, Ikat" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+              </div>
+          </Form>
+      </Modal>
+
       <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
         
         {/* Dropdown Produk */}
         <Form.Item
-          name="product"
           label="Pilih Produk Hasil Panen"
-          rules={[{ required: true, message: 'Produk wajib dipilih' }]}
+          style={{marginBottom: 0}} // Remove margin to group with button
         >
-          <Select
-            showSearch
-            placeholder="Pilih produk dari gudang..."
-            loading={isLoadingProducts}
-            onChange={handleProductChange}
-            optionFilterProp="children"
-            filterOption={(input, option) => 
-              (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-            }
-          >
-            <Option value="NEW_PRODUCT" style={{ color: '#237804', fontWeight: 'bold' }}>
-              + Buat Produk Baru
-            </Option>
-            {products?.map(p => (
-              <Option key={p.id} value={p.id} label={p.name}>
-                {p.name} (Unit: {p.unit})
-              </Option>
-            ))}
-          </Select>
+             <div style={{ display: 'flex', gap: '8px' }}>
+                <Form.Item
+                    name="product"
+                    rules={[{ required: true, message: 'Produk wajib dipilih' }]}
+                    style={{ flex: 1 }}
+                >
+                    <Select
+                        showSearch
+                        placeholder="Pilih produk dari gudang..."
+                        loading={isLoadingProducts}
+                        // onChange={handleProductChange} // Tidak perlu handle change khusus selain update value
+                        optionFilterProp="children"
+                        filterOption={(input, option) => 
+                        (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
+                    >
+                        {products?.map(p => (
+                        <Option key={p.id} value={p.id} label={p.name}>
+                            {p.name} (Unit: {p.unit})
+                        </Option>
+                        ))}
+                    </Select>
+                </Form.Item>
+                <Button 
+                    icon={<PlusOutlined />} 
+                    onClick={() => setIsNewProductMode(true)}
+                    style={{ background: '#F6FFED', borderColor: '#B7EB8F', color: '#237804' }}
+                    title="Buat Produk Baru"
+                />
+             </div>
         </Form.Item>
-
-        {/* Input Tambahan Jika Produk Baru */}
-        {isNewProductMode && (
-          <div style={{ background: '#F6FFED', padding: '16px', borderRadius: '8px', border: '1px solid #B7EB8F', marginBottom: '24px' }}>
-            <Text strong style={{ color: '#237804', display: 'block', marginBottom: '12px' }}>
-              📦 Pendaftaran Produk Baru ke Gudang
-            </Text>
-            <Row gutter={16}>
-              <Col span={12}>
-                <Form.Item
-                  name="new_product_name"
-                  label="Nama Produk Baru"
-                  rules={[{ required: isNewProductMode, message: 'Nama produk baru wajib diisi' }]}
-                  style={{ marginBottom: 0 }}
-                >
-                  <Input placeholder="Contoh: Jagung Manis" />
-                </Form.Item>
-              </Col>
-              <Col span={12}>
-                <Form.Item
-                  name="new_product_unit"
-                  label="Satuan Unit"
-                  rules={[{ required: isNewProductMode, message: 'Satuan wajib diisi' }]}
-                  style={{ marginBottom: 0 }}
-                >
-                  <Input placeholder="Contoh: Kg, Liter, Ikat" />
-                </Form.Item>
-              </Col>
-            </Row>
-          </div>
-        )}
 
         <Form.Item
           name="asset"
@@ -439,16 +475,10 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item
-              name="status"
-              label="Status Barang"
-              rules={[{ required: true, message: 'Status wajib dipilih' }]}
-            >
-              <Select placeholder="Pilih status">
-                <Option value="stok">Masuk Stok (Gudang)</Option>
-                <Option value="terjual">Langsung Terjual</Option>
-              </Select>
-            </Form.Item>
+            {/* Field Status Barang DIHAPUS sesuai request */}
+            {/* Default value 'stok' akan dikirim di onFinish jika diperlukan, 
+                atau set initialValue 'stok' secara hidden */}
+            <Form.Item name="status" hidden initialValue="stok"><Input /></Form.Item>
           </Col>
         </Row>
 
@@ -461,7 +491,7 @@ const ProductionModal = ({ visible, onClose, initialData, form, assets, isLoadin
               loading={isSubmitting}
               style={{ backgroundColor: '#237804', borderColor: '#237804' }}
             >
-              {isEditMode ? 'Simpan Perubahan' : 'Simpan Data'}
+              {isEditMode ? 'Simpan Perubahan' : 'Simpan Produksi'}
             </Button>
           </Space>
         </Form.Item>
@@ -482,7 +512,6 @@ function ProductionManagementContent() {
   
   const [selectedAsset, setSelectedAsset] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedType, setSelectedType] = useState('all');
   const [selectedStatus, setSelectedStatus] = useState('all');
 
   const user = useAuthStore((state) => state.user);
