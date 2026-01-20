@@ -1,31 +1,36 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   Row, Col, Card, Statistic, Typography,
-  Divider, Spin, Alert, Flex, Progress, Tag, Skeleton
+  Divider, Spin, Alert, Flex, Progress, Tag
 } from 'antd';
 import {
   ContainerOutlined, DollarCircleOutlined, RiseOutlined, 
   WalletOutlined, ShoppingOutlined, ExperimentOutlined,
-  ArrowRightOutlined, ShopOutlined, BarChartOutlined
+  ArrowRightOutlined, ShopOutlined, BarChartOutlined,
+  PieChartOutlined
 } from '@ant-design/icons';
-import { GiReceiveMoney, GiPayMoney } from 'react-icons/gi';
+// Import icon dari library yang benar
+import { GiReceiveMoney, GiPayMoney } from 'react-icons/gi'; 
 import { useQuery } from '@tanstack/react-query';
-// Import Recharts untuk Grafik
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell } from 'recharts';
 
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 import { getDashboardData } from '@/lib/api/dashboard';
-// import { getFinancialReport } from '@/lib/api/reporting'; // <-- HAPUS INI KARENA SUDAH DIHAPUS
 import { useRouter } from 'next/navigation';
 
 const { Title, Text } = Typography;
 
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
-  return `Rp ${Number(value).toLocaleString('id-ID')}`;
+  return `Rp ${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
+};
+
+const formatNumber = (value) => {
+    if (value == null) return '0';
+    return Number(value).toLocaleString('id-ID');
 };
 
 const calculateSafePercent = (value, total) => {
@@ -45,14 +50,14 @@ const OperatorDashboard = ({ dashboardData, user }) => {
       </div>
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12}>
-           <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #1890ff' }}>
-             <Statistic title="Aset Dikelola" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
-           </Card>
+            <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #1890ff' }}>
+              <Statistic title="Aset Dikelola" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
+            </Card>
         </Col>
         <Col xs={24} sm={12}>
-           <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #52c41a' }}>
-             <Statistic title="Nilai Produksi Tercatat" value={formatRupiah(dashboardData?.total_yield)} prefix={<RiseOutlined />} valueStyle={{ color: '#237804' }}/>
-           </Card>
+            <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #52c41a' }}>
+              <Statistic title="Nilai Produksi" value={formatRupiah(dashboardData?.total_yield)} prefix={<RiseOutlined />} valueStyle={{ color: '#237804' }}/>
+            </Card>
         </Col>
       </Row>
       <Title level={4}>Aksi Cepat</Title>
@@ -75,7 +80,6 @@ const OperatorDashboard = ({ dashboardData, user }) => {
             </Flex>
           </Card>
         </Col>
-        {/* HAPUS/GANTI LINK PROYEK JIKA SUDAH DIHAPUS, ATAU GANTI KE ASET */}
         <Col xs={24} sm={12} md={8}>
           <Card hoverable style={{ background: '#fff7e6', borderColor: '#ffd591' }} onClick={() => router.push('/admin/asset')}>
             <Flex align="center" gap={16}>
@@ -121,40 +125,23 @@ const InvestorDashboard = ({ dashboardData }) => {
           </Card>
         </Col>
       </Row>
-      <Card title="Rincian Kepemilikan Aset" style={{ marginTop: 24, borderRadius: 12 }}>
-        {dashboardData?.ownership_percentage && dashboardData.ownership_percentage.length > 0 ? (
-            dashboardData.ownership_percentage.map((owner, index) => (
-               <div key={index} style={{ marginBottom: 20 }}>
-                 <Flex justify="space-between" align='center' style={{ marginBottom: 4 }}>
-                   <div><Text strong style={{ fontSize: 15 }}>{owner.name}</Text><div style={{ fontSize: 12, color: '#8c8c8c' }}>Unit: {owner.units}</div></div>
-                   <Tag color="blue" style={{ fontSize: 14, padding: '4px 10px' }}>{owner.percentage ? owner.percentage.toFixed(2) : 0}% Saham</Tag>
-                 </Flex>
-                 <Progress percent={owner.percentage || 0} showInfo={false} strokeColor={{ from: '#108ee9', to: '#87d068' }} strokeWidth={8}/>
-               </div>
-            ))
-        ) : (
-            <Alert message="Data kepemilikan spesifik belum tersedia." type="info" showIcon />
-        )}
-      </Card>
     </div>
   );
 };
 
-// --- EXECUTIVE DASHBOARD (Updated Logic) ---
+// --- EXECUTIVE DASHBOARD ---
 const ExecutiveDashboard = ({ dashboardData }) => {
-  // LOGIKA BARU: Ambil data langsung dari dashboardData (Backend sudah mengirim total_revenue & total_expense)
-  const omzetAmount = dashboardData?.total_revenue || 0; // Total Penjualan
-  const expenseAmount = dashboardData?.total_expense || 0; // Total Pengeluaran
-  const labaAmount = omzetAmount - expenseAmount; // Hitung Laba Bersih
+  const omzetAmount = dashboardData?.total_revenue || 0;
+  const expenseAmount = dashboardData?.total_expense || 0;
+  const labaAmount = omzetAmount - expenseAmount;
   
   const profitMarginPercent = calculateSafePercent(Math.abs(labaAmount), omzetAmount);
   const isProfit = labaAmount >= 0;
 
-  // Data Visualisasi Grafik
   const financialData = [
-    { name: 'Omzet', value: omzetAmount, color: '#1890ff' }, // Biru
-    { name: 'Pengeluaran', value: expenseAmount, color: '#ff4d4f' }, // Merah
-    { name: 'Laba Bersih', value: labaAmount, color: '#52c41a' }, // Hijau
+    { name: 'Omzet', value: omzetAmount, color: '#1890ff' },
+    { name: 'Pengeluaran', value: expenseAmount, color: '#ff4d4f' },
+    { name: 'Laba Bersih', value: labaAmount, color: '#52c41a' },
   ];
 
   return (
@@ -164,45 +151,65 @@ const ExecutiveDashboard = ({ dashboardData }) => {
         <Text type="secondary">Ringkasan performa keseluruhan Lahan Pintar (Global State).</Text>
       </div>
 
-      {/* 1. Summary Cards */}
+      {/* HERO CARD: CASH ON HAND */}
+      <Card 
+        style={{ 
+          marginBottom: 24, 
+          background: 'linear-gradient(135deg, #1E429F 0%, #0E2A75 100%)', 
+          borderRadius: 12, border: 'none', boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+        }}
+        bodyStyle={{ padding: '24px 32px' }}
+      >
+        <Row align="middle" justify="space-between">
+          <Col>
+             <Text style={{ color: '#A3B8ED', fontSize: 16 }}>
+                <WalletOutlined /> Dana Global (Cash on Hand)
+             </Text>
+             <div style={{ color: '#FFF', fontSize: 36, fontWeight: 700, marginTop: 8 }}>
+                {formatRupiah(dashboardData?.total_cash_on_hand)}
+             </div>
+             <Text style={{ color: '#D1D5DB' }}>
+                Saldo Aktif = (Dana Masuk) - (Dana Keluar Real).
+             </Text>
+          </Col>
+          <Col>
+             <div style={{ textAlign: 'right', background: 'rgba(255,255,255,0.1)', padding: '12px 20px', borderRadius: 8 }}>
+                <Text style={{ color: '#A3B8ED', fontSize: 12 }}>Nilai Aset</Text>
+                <div style={{ color: '#FFF', fontSize: 20, fontWeight: 600 }}>
+                   {formatRupiah(dashboardData?.total_asset_value)}
+                </div>
+             </div>
+          </Col>
+        </Row>
+      </Card>
+
       <Row gutter={[24, 24]}>
-         <Col xs={24} sm={12} lg={6}>
+         <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <Statistic title="Total Aset" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
+              <Statistic title="Total Aset Fisik" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
             </Card>
          </Col>
-         <Col xs={24} sm={12} lg={6}>
+         <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <Statistic title="Total Dana Kelolaan" value={formatRupiah(dashboardData?.total_funding)} prefix={<GiReceiveMoney />} valueStyle={{ color: '#237804' }} />
             </Card>
          </Col>
-         <Col xs={24} sm={12} lg={6}>
+         <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <Statistic title="Total Pengeluaran" value={formatRupiah(expenseAmount)} prefix={<GiPayMoney />} valueStyle={{ color: '#cf1322' }} />
             </Card>
          </Col>
-         <Col xs={24} sm={12} lg={6}>
-            <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              {/* Cash on Hand diambil langsung dari dashboardData */}
-              <Statistic title="Cash on Hand" value={formatRupiah(dashboardData?.total_cash_on_hand)} prefix={<WalletOutlined />} valueStyle={{ color: dashboardData?.total_cash_on_hand < 0 ? '#cf1322' : '#1890ff' }} />
-            </Card>
-         </Col>
       </Row>
 
-      {/* 2. Charts Section */}
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-         {/* Kiri: Grafik Arus Kas */}
          <Col xs={24} lg={14}>
-            <Card title={<><BarChartOutlined /> Analisis Arus Kas & Profitabilitas</>} bordered={false} style={{ height: '100%' }}>
+            <Card title={<><BarChartOutlined /> Analisis Arus Kas</>} bordered={false} style={{ height: '100%' }}>
                <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={financialData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis tickFormatter={(value) => `${value / 1000000}jt`} />
-                    <RechartsTooltip 
-                        formatter={(value) => formatRupiah(value)} 
-                        cursor={{ fill: 'transparent' }}
-                    />
+                    <RechartsTooltip formatter={(value) => formatRupiah(value)} cursor={{ fill: 'transparent' }} />
                     <Bar dataKey="value" name="Jumlah (Rp)" radius={[4, 4, 0, 0]} barSize={60}>
                       {financialData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -210,21 +217,11 @@ const ExecutiveDashboard = ({ dashboardData }) => {
                     </Bar>
                   </BarChart>
                </ResponsiveContainer>
-               <Flex justify="center" gap={24} style={{ marginTop: 16 }}>
-                  {financialData.map((d, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 12, height: 12, background: d.color, borderRadius: 2 }} />
-                      <Text type="secondary">{d.name}: {formatRupiah(d.value)}</Text>
-                    </div>
-                  ))}
-               </Flex>
             </Card>
          </Col>
 
-         {/* Kanan: Profit Margin & Status Saham */}
          <Col xs={24} lg={10}>
             <Flex vertical gap={24} style={{ height: '100%' }}>
-                {/* Health Card */}
                 <Card title="Kesehatan Keuangan" bordered={false} style={{ flex: 1 }}>
                    <Flex justify='space-between' align='center' style={{ marginBottom: 24 }}>
                       <Text style={{ fontSize: 16 }}>Margin Laba</Text>
@@ -239,22 +236,14 @@ const ExecutiveDashboard = ({ dashboardData }) => {
                      strokeColor={isProfit ? '#52c41a' : '#f5222d'}
                      strokeWidth={12}
                    />
-                   <div style={{ marginTop: 12, textAlign: 'right' }}>
-                      <Text type="secondary">{isProfit ? 'Profit ' : 'Rugi '} Operasional: {formatRupiah(labaAmount)}</Text>
-                   </div>
                 </Card>
 
-                {/* Status Saham Global */}
                 <Card title="Status Saham Global" bordered={false} style={{ flex: 2 }}>
                    <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                       <Statistic title="Saham Tersedia" value={dashboardData?.shares_available || 0} suffix="Lembar" valueStyle={{ color: '#fa8c16' }} />
+                       <Statistic title="Saham Tersedia" value={formatNumber(dashboardData?.shares_available)} suffix="Lembar" valueStyle={{ color: '#fa8c16' }} />
                    </div>
-                   <div style={{ maxHeight: 200, overflowY: 'auto' }}>
-                       {(!dashboardData?.ownership_percentage || dashboardData.ownership_percentage.length === 0) && (
-                           <Text type="secondary" style={{ textAlign: 'center', display: 'block' }}>
-                               Belum ada data pemegang saham spesifik.
-                           </Text>
-                       )}
+                   <div style={{ textAlign: 'center' }}>
+                       <Text type="secondary">Total Saham: {formatNumber(dashboardData?.total_system_shares)}</Text>
                    </div>
                 </Card>
             </Flex>
@@ -264,27 +253,32 @@ const ExecutiveDashboard = ({ dashboardData }) => {
   );
 };
 
-// --- MAIN WRAPPER ---
 function AdminDashboardContent() {
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  
   const isOperator = userRole === 'Operator';
   const isInvestor = userRole === 'Investor';
 
-  const { data: dashboardData, isLoading: isLoadingDashboard, isError: isErrorDashboard } = useQuery({
+  const { data: rawData, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardData,
+    refetchInterval: 5000, 
   });
 
-  const isLoading = isLoadingDashboard;
+  useEffect(() => {
+    // Debug log untuk memastikan data masuk
+    console.log("Live Dashboard Data:", rawData);
+  }, [rawData]);
+
+  // Handle Array vs Object dengan benar
+  const dashboardData = Array.isArray(rawData) ? rawData[0] : (rawData || {});
 
   if (isLoading) {
     return <div style={{ padding: 100, textAlign: 'center' }}><Spin size="large" tip="Memuat Dashboard..." /></div>;
   }
   
-  if (isErrorDashboard) {
-    return <Alert message="Gagal memuat data dashboard. Mohon refresh." type="error" showIcon />;
+  if (isError) {
+    return <Alert message="Gagal memuat data dashboard." type="error" showIcon />;
   }
 
   return (
@@ -294,7 +288,6 @@ function AdminDashboardContent() {
       ) : isInvestor ? (
          <InvestorDashboard dashboardData={dashboardData} />
       ) : (
-         // Hapus prop reportData karena sudah tidak dipakai
          <ExecutiveDashboard dashboardData={dashboardData} />
       )}
     </div>
