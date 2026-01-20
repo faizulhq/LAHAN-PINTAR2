@@ -8,7 +8,7 @@ import {
 } from 'antd';
 import {
   PlusCircleOutlined, LinkOutlined, SearchOutlined, CloseCircleOutlined,
-  UploadOutlined, WarningOutlined
+  UploadOutlined, EyeOutlined, EditOutlined, DeleteOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
 import { FaMoneyBillWave } from 'react-icons/fa6';
@@ -18,8 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
-import { getExpenses, createExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
-import { getAssets } from '@/lib/api/asset';
+import { getExpenses, createExpense, updateExpense } from '@/lib/api/expense';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -39,21 +38,19 @@ const EXPENSE_CATEGORIES = {
   'OTHERS': 'Others',
 };
 
-// Fungsi Helper Hitung Total Per Kategori
+// --- HELPER FUNCTIONS ---
 const calculateCategoryTotals = (expenses) => {
   if (!expenses) return { OPERATIONAL: 0, SALARY: 0, ASSET_PURCHASE: 0, OTHERS: 0 };
-  
   const totals = { OPERATIONAL: 0, SALARY: 0, ASSET_PURCHASE: 0, OTHERS: 0 };
-  
   expenses.forEach(exp => {
     const amount = parseFloat(exp.amount) || 0;
     const category = totals[exp.category] !== undefined ? exp.category : 'OPERATIONAL';
     totals[category] += amount;
   });
-  
   return totals;
 };
 
+// --- COMPONENTS ---
 const StatCard = ({ title, value, icon, loading, iconColor }) => {
   const displayValue = () => {
     if (loading) return <Skeleton.Input active size="small" style={{ width: 120, height: 38 }} />;
@@ -71,16 +68,10 @@ const StatCard = ({ title, value, icon, loading, iconColor }) => {
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '28px' }}>
-        <div style={{ flexShrink: 0, color: iconColor, fontSize: '34px' }}>
-          {icon}
-        </div>
+        <div style={{ flexShrink: 0, color: iconColor, fontSize: '34px' }}>{icon}</div>
         <div style={{ flex: 1 }}>
-          <Text style={{ fontSize: '18px', fontWeight: 600, color: '#585858', display: 'block' }}>
-            {title}
-          </Text>
-          <Text style={{ fontSize: '31px', fontWeight: 700, color: '#111928' }}>
-            {displayValue()}
-          </Text>
+          <Text style={{ fontSize: '18px', fontWeight: 600, color: '#585858', display: 'block' }}>{title}</Text>
+          <Text style={{ fontSize: '31px', fontWeight: 700, color: '#111928' }}>{displayValue()}</Text>
         </div>
       </div>
     </Card>
@@ -115,13 +106,8 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
         <div style={{ flex: 1 }}>
           <Space size="small" style={{ marginBottom: '10px' }}>
             <Tag style={{ 
-              background: tagColor.background, 
-              color: tagColor.color, 
-              border: 'none', 
-              fontWeight: 600, 
-              fontSize: '14px', 
-              padding: '4px 10px', 
-              borderRadius: '6px' 
+              background: tagColor.background, color: tagColor.color, 
+              border: 'none', fontWeight: 600, fontSize: '14px', padding: '4px 10px', borderRadius: '6px' 
             }}>
               {categoryLabel}
             </Tag>
@@ -139,13 +125,19 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
           </Text>
           
           <Space>
+            {/* Tombol Detail Baru */}
+            <Button onClick={() => onDetailClick(expense.id)} icon={<EyeOutlined />} style={{ borderRadius: '8px' }}>
+                Detail
+            </Button>
+
             {canEdit && (
               <Button 
                 style={{ 
-                  minWidth: '128px', height: '40px', background: '#237804', borderColor: '#237804',
-                  borderRadius: '8px', color: '#FFFFFF', fontSize: '14px', fontWeight: 500 
+                  background: '#237804', borderColor: '#237804', borderRadius: '8px', 
+                  color: '#FFFFFF', fontSize: '14px', fontWeight: 500 
                 }} 
                 onClick={() => onEditClick(expense)}
+                icon={<EditOutlined />}
               >
                 Edit
               </Button>
@@ -176,12 +168,12 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
 
   const mutationOptions = {
     onSuccess: () => {
-      message.success(isEditMode ? 'Pengeluaran berhasil diperbarui' : 'Pengeluaran berhasil ditambahkan');
+      message.success(isEditMode ? 'Pengeluaran diperbarui' : 'Pengeluaran ditambahkan');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       onClose();
     },
     onError: (err) => {
-      const errorDetail = err.response?.data?.detail || JSON.stringify(err.response?.data) || err.message;
+      const errorDetail = err.response?.data?.detail || err.message;
       message.error(`Error: ${errorDetail}`);
     },
     onSettled: () => setIsSubmitting(false),
@@ -200,7 +192,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           date: moment(initialData.date),
           description: initialData.description,
           recipient: initialData.recipient,
-          // Reset filelist agar bersih saat buka edit
           proof_image: [] 
         });
       } else {
@@ -211,8 +202,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
 
   const onFinish = (values) => {
     setIsSubmitting(true);
-    
-    // Gunakan FormData untuk mengirim Data + File
     const formData = new FormData();
     formData.append('title', values.title);
     formData.append('category', values.category);
@@ -221,16 +210,8 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
     formData.append('description', values.description || '');
     formData.append('recipient', values.recipient || '');
 
-    // [REAL IMPLEMENTATION] Handle File Upload
-    if (values.proof_image && values.proof_image.fileList && values.proof_image.fileList.length > 0) {
-        // Ambil file asli dari objek antd upload
-        if (values.proof_image.fileList[0].originFileObj) {
-            formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
-        }
-    } else if (values.proof_image && Array.isArray(values.proof_image) && values.proof_image.length > 0) {
-         if (values.proof_image[0].originFileObj) {
-            formData.append('proof_image', values.proof_image[0].originFileObj);
-        }
+    if (values.proof_image && values.proof_image.fileList?.[0]?.originFileObj) {
+        formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
     }
     
     if (isEditMode) {
@@ -250,12 +231,12 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
       destroyOnClose={true}
     >
       <Form form={form} layout="vertical" onFinish={onFinish} style={{ marginTop: 24 }}>
-        <Form.Item name="title" label="Judul Pengeluaran" rules={[{ required: true, message: 'Judul harus diisi!' }]}>
+        <Form.Item name="title" label="Judul Pengeluaran" rules={[{ required: true }]}>
           <Input placeholder="Contoh: Beli Pakan Ayam" size="large" />
         </Form.Item>
 
-        <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori harus dipilih!' }]}>
-          <Select placeholder="Pilih kategori pengeluaran" size="large">
+        <Form.Item name="category" label="Kategori" rules={[{ required: true }]}>
+          <Select placeholder="Pilih kategori" size="large">
             {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
               <Option key={value} value={value}>{text}</Option>
             ))}
@@ -264,19 +245,18 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
 
         <Row gutter={16}>
           <Col span={12}>
-             <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah harus diisi!' }]}>
+             <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true }]}>
               <InputNumber
                 style={{ width: '100%' }}
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
                 min={0}
-                placeholder="Masukkan jumlah"
                 size="large"
               />
             </Form.Item>
           </Col>
            <Col span={12}>
-            <Form.Item name="date" label="Tanggal" rules={[{ required: true, message: 'Tanggal harus diisi!' }]}>
+            <Form.Item name="date" label="Tanggal" rules={[{ required: true }]}>
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" size="large" />
             </Form.Item>
           </Col>
@@ -290,7 +270,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
         
-        {/* [REAL FEATURE] Upload Bukti Pembayaran */}
         <Form.Item 
             label="Bukti Pembayaran / Struk" 
             name="proof_image"
@@ -302,7 +281,6 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
             </Upload>
         </Form.Item>
 
-        {/* Preview Gambar Lama saat Edit */}
         {isEditMode && initialData?.proof_image && (
             <div style={{ marginTop: -12, marginBottom: 24 }}>
                 <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -314,12 +292,7 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
         <Form.Item style={{ textAlign: 'right', marginTop: 32, marginBottom: 0 }}>
           <Space>
             <Button onClick={onClose}>Batal</Button>
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={isSubmitting}
-              style={{ backgroundColor: '#237804', borderColor: '#237804' }}
-            >
+            <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>
               {isEditMode ? 'Simpan Perubahan' : 'Tambah Pengeluaran'}
             </Button>
           </Space>
@@ -329,19 +302,17 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
   );
 };
 
+// --- MAIN PAGE ---
 function ExpenseManagementContent() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [form] = Form.useForm();
-  
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all'); // Filter State
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   const user = useAuthStore((state) => state.user);
   const userRole = user?.role?.name || user?.role;
-  const isAdmin = ['Admin', 'Superadmin'].includes(userRole);
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
   const { data: expenses, isLoading: isLoadingExpenses, isError, error } = useQuery({ 
@@ -352,33 +323,19 @@ function ExpenseManagementContent() {
   const filteredExpenses = useMemo(() => {
     if (!expenses) return [];
     return expenses.filter(e => {
-      // Filter Search
       const term = searchTerm.toLowerCase();
       const matchesSearch = (e.description || '').toLowerCase().includes(term) || (e.title || '').toLowerCase().includes(term);
-      
-      // Filter Kategori
       const matchesCategory = selectedCategory === 'all' || e.category === selectedCategory;
-      
       return matchesSearch && matchesCategory;
     });
   }, [expenses, searchTerm, selectedCategory]);
 
-  const showAddModal = () => { 
-    setEditingExpense(null); 
-    form.resetFields(); 
-    setIsModalOpen(true); 
-  };
-
-  const showEditModal = (expense) => { 
-    setEditingExpense(expense); 
-    setIsModalOpen(true); 
-  };
-
-  const handleCancel = () => { 
-    setIsModalOpen(false); 
-    setEditingExpense(null); 
-    form.resetFields(); 
-  };
+  const showAddModal = () => { setEditingExpense(null); form.resetFields(); setIsModalOpen(true); };
+  const showEditModal = (expense) => { setEditingExpense(expense); setIsModalOpen(true); };
+  const handleCancel = () => { setIsModalOpen(false); setEditingExpense(null); form.resetFields(); };
+  
+  // Handler Navigasi Detail
+  const handleDetail = (id) => { router.push(`/admin/pengeluaran/${id}`); };
 
   const totalPengeluaran = useMemo(() => {
       return filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -397,18 +354,8 @@ function ExpenseManagementContent() {
             Kelola semua pengeluaran operasional Integrated Estate.
           </Text>
         </div>
-        
         {canEdit && (
-          <Button
-            type="primary"
-            icon={<PlusCircleOutlined />}
-            size="large"
-            style={{ 
-              backgroundColor: '#237804', borderColor: '#237804', borderRadius: '24px',
-              height: '40px', padding: '8px 16px', fontSize: '16px'
-            }}
-            onClick={showAddModal}
-          >
+          <Button type="primary" icon={<PlusCircleOutlined />} size="large" style={{ backgroundColor: '#237804', borderRadius: '24px' }} onClick={showAddModal}>
             Tambah Pengeluaran
           </Button>
         )}
@@ -416,116 +363,59 @@ function ExpenseManagementContent() {
 
       <Row gutter={[18, 18]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12}>
-          <StatCard 
-            title="Total Pengeluaran" 
-            value={totalPengeluaran} 
-            icon={<GiPayMoney />}
-            loading={isLoadingExpenses}
-            iconColor="#0958D9"
-          />
+          <StatCard title="Total Pengeluaran" value={totalPengeluaran} icon={<GiPayMoney />} loading={isLoadingExpenses} iconColor="#0958D9" />
         </Col>
         <Col xs={24} sm={12}>
-          <StatCard 
-            title="Operasional" 
-            value={categoryTotals.OPERATIONAL}
-            icon={<FaMoneyBillWave />}
-            loading={isLoadingExpenses}
-            iconColor="#1E429F"
-          />
+          <StatCard title="Operasional" value={categoryTotals.OPERATIONAL} icon={<FaMoneyBillWave />} loading={isLoadingExpenses} iconColor="#1E429F" />
         </Col>
         <Col xs={24} sm={12}>
-          <StatCard 
-            title="Pembelian Aset" 
-            value={categoryTotals.ASSET_PURCHASE}
-            icon={<BiMoneyWithdraw />}
-            loading={isLoadingExpenses}
-            iconColor="#27AE60"
-          />
+          <StatCard title="Pembelian Aset" value={categoryTotals.ASSET_PURCHASE} icon={<BiMoneyWithdraw />} loading={isLoadingExpenses} iconColor="#27AE60" />
         </Col>
         <Col xs={24} sm={12}>
-          <StatCard 
-            title="Gaji" 
-            value={categoryTotals.SALARY}
-            icon={<GiPayMoney />}
-            loading={isLoadingExpenses}
-            iconColor="#E74C3C"
-          />
+          <StatCard title="Gaji" value={categoryTotals.SALARY} icon={<GiPayMoney />} loading={isLoadingExpenses} iconColor="#E74C3C" />
         </Col>
       </Row>
 
       <Card styles={{ body: { padding: '24px' } }} style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '12px' }}>
-        <Title level={4} style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 500, color: '#111928' }}>
-          Pencarian & Filter
-        </Title>
+        <Title level={4} style={{ marginBottom: '20px', fontSize: '24px', fontWeight: 500, color: '#111928' }}>Pencarian & Filter</Title>
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', flex: 1, maxWidth: '412px', background: '#FFFFFF', border: '1px solid #D9D9D9', borderRadius: '8px', overflow: 'hidden' }}>
-            <Input
-              placeholder="Cari Judul atau Deskripsi..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ border: 'none', flex: 1, padding: '8px 12px', fontSize: '16px' }}
-              suffix={searchTerm && <CloseCircleOutlined style={{ color: 'rgba(0, 0, 0, 0.25)', cursor: 'pointer' }} onClick={() => setSearchTerm('')} />}
-            />
-            <Button type="primary" icon={<SearchOutlined />} style={{ background: '#237804', borderRadius: '0px 2px 2px 0px', height: '40px', width: '46px' }} />
+            <Input placeholder="Cari Judul atau Deskripsi..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} style={{ border: 'none', flex: 1, padding: '8px 12px' }} suffix={searchTerm && <CloseCircleOutlined onClick={() => setSearchTerm('')} />} />
+            <Button type="primary" icon={<SearchOutlined />} style={{ background: '#237804', borderRadius: '0px', height: '40px', width: '46px' }} />
           </div>
-          
-          <Select
-            value={selectedCategory}
-            size="large"
-            style={{ width: 200, height: '40px' }}
-            onChange={setSelectedCategory}
-            placeholder="Semua Kategori"
-            suffixIcon={<ChevronDown size={12} />}
-          >
+          <Select value={selectedCategory} size="large" style={{ width: 200, height: '40px' }} onChange={setSelectedCategory} placeholder="Semua Kategori">
             <Option value="all">Semua Kategori</Option>
-            {Object.entries(EXPENSE_CATEGORIES).map(([val, label]) => 
-              <Option key={val} value={val}>{label}</Option>
-            )}
+            {Object.entries(EXPENSE_CATEGORIES).map(([val, label]) => <Option key={val} value={val}>{label}</Option>)}
           </Select>
         </div>
       </Card>
 
       <Card styles={{ body: { padding: '24px' } }} style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '8px' }}>
-        <Title level={4} style={{ marginBottom: '20px', fontSize: '22px', fontWeight: 700, color: '#111928' }}>
-          Daftar Pengeluaran
-        </Title>
-
-        {(isLoadingExpenses) && (
-          <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>
-        )}
-        
-        {isError && !isLoadingExpenses && (
-          <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />
-        )}
-        
+        <Title level={4} style={{ marginBottom: '20px', fontSize: '22px', fontWeight: 700, color: '#111928' }}>Daftar Pengeluaran</Title>
+        {isLoadingExpenses && <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>}
+        {isError && !isLoadingExpenses && <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />}
         {!isLoadingExpenses && !isError && (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <div>
             {filteredExpenses && filteredExpenses.length > 0 ? (
               filteredExpenses.map(exp => (
                 <ExpenseCard 
                   key={exp.id} 
-                  expense={exp}
-                  onEditClick={showEditModal}
-                  canEdit={canEdit}
+                  expense={exp} 
+                  onEditClick={showEditModal} 
+                  onDetailClick={handleDetail}
+                  canEdit={canEdit} 
                 />
               ))
             ) : (
               <div style={{ border: '1px dashed #d9d9d9', borderRadius: '8px', padding: '32px', textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: '16px', color: '#727272' }}>
-                  Tidak ada data pengeluaran ditemukan.
-                </Text>
+                <Text type="secondary">Tidak ada data pengeluaran ditemukan.</Text>
               </div>
             )}
           </div>
         )}
       </Card>
 
-      <ExpenseModal
-        visible={isModalOpen}
-        onClose={handleCancel}
-        initialData={editingExpense}
-        form={form}
-      />
+      <ExpenseModal visible={isModalOpen} onClose={handleCancel} initialData={editingExpense} form={form} />
     </>
   );
 }

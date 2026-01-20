@@ -1,58 +1,63 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   Card, Button, Typography, Space, Tag, Flex, Spin, Alert, Descriptions, Row, Col,
-  Modal, Form, Input, Select, DatePicker, InputNumber, message, Popconfirm
+  Modal, Form, Input, Select, DatePicker, InputNumber, message, Popconfirm, Upload
 } from 'antd';
 import {
-  ArrowLeftOutlined, EditOutlined, DollarCircleFilled, LinkOutlined,
-  DeleteOutlined
+  ArrowLeftOutlined, EditOutlined, DeleteOutlined, 
+  LinkOutlined, UploadOutlined, InfoCircleOutlined,
+  FileTextOutlined, CalendarOutlined, UserOutlined
 } from '@ant-design/icons';
 import { GiPayMoney } from 'react-icons/gi';
-import { MdLocationPin } from 'react-icons/md';
-import { BiSolidCalendar } from 'react-icons/bi';
-import { FaMoneyBillWave } from 'react-icons/fa6';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
+
+// API Imports (Hanya Expense, karena model tidak punya relasi lain)
 import { getExpense, updateExpense, deleteExpense } from '@/lib/api/expense';
-import { getProjects } from '@/lib/api/project';
-import { getAssets } from '@/lib/api/asset';
-import { getFundings } from '@/lib/api/funding';
-import { getFundingSources } from '@/lib/api/funding_source';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
+// Sesuai Choices di models.py
 const EXPENSE_CATEGORIES = {
-  'Proyek': 'Proyek',
-  'Operasional': 'Operasional',
-  'Pembelian': 'Pembelian',
+  'OPERATIONAL': 'Operational Cost',
+  'SALARY': 'Salary/Wages',
+  'ASSET_PURCHASE': 'Asset Purchase',
+  'TAX': 'Tax & Legal',
+  'OTHERS': 'Others',
 };
 
-const formatDate = (dateString) => dateString ? moment(dateString).format('DD/MM/YYYY') : '-';
-const formatRupiah = (value) => value != null ? `Rp ${Number(value).toLocaleString('id-ID')}` : 'Rp 0';
+const formatRupiah = (value) =>
+  value != null
+    ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0 })}`
+    : 'Rp 0';
+
+const formatDate = (dateString) => dateString ? moment(dateString).format('D MMMM YYYY') : '-';
+
+// --- COMPONENTS ---
 
 const InfoCard = ({ icon, label, value, iconColor }) => (
   <Card
     style={{
       border: '1px solid #E5E7EB',
       borderRadius: '12px',
-      boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
+      boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
     }}
   >
     <Flex align="center" gap={16}>
-      <div style={{ color: iconColor, fontSize: '32px', flexShrink: 0 }}>
+      <div style={{ color: iconColor, fontSize: '28px', flexShrink: 0 }}>
         {icon}
       </div>
       <div style={{ flex: 1 }}>
-        <Text style={{ fontSize: '14px', color: '#6B7280', display: 'block' }}>
+        <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
           {label}
         </Text>
-        <Text style={{ fontSize: '20px', fontWeight: 600, color: '#111928' }}>
+        <Text style={{ fontSize: '18px', fontWeight: 600, color: '#111928' }}>
           {value}
         </Text>
       </div>
@@ -61,36 +66,24 @@ const InfoCard = ({ icon, label, value, iconColor }) => (
 );
 
 const ExpenseFormModal = ({
-  open, expense, form, projects, fundings, fundingMap,
+  open, expense, form, 
   onCancel, onSubmit, isSubmitting
 }) => {
-  const selectedProject = Form.useWatch('project_id', form);
-
-  const filteredFundingOptions = useMemo(() => {
-    if (!fundings) return [];
-
-    return fundings.filter(f => {
-      const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-      const isPoolFund = !fProjectId;
-      const isProjectFund = selectedProject && fProjectId === selectedProject;
-      const isStatusEligible = f.status !== 'used' || (expense && expense.funding_id === f.id);
-
-      if (selectedProject) {
-        return (isPoolFund || isProjectFund) && isStatusEligible;
-      } else {
-        return isPoolFund && isStatusEligible;
-      }
-    });
-  }, [fundings, selectedProject, expense]);
-
   useEffect(() => {
-    if (!open) return;
-    const currentFunding = form.getFieldValue('funding_id');
-    if (currentFunding) {
-       const isValid = filteredFundingOptions.some(f => f.id === currentFunding);
-       if (!isValid) form.setFieldValue('funding_id', null);
+    if (open && expense) {
+      form.setFieldsValue({
+        title: expense.title,
+        category: expense.category,
+        amount: parseFloat(expense.amount),
+        date: moment(expense.date),
+        description: expense.description,
+        recipient: expense.recipient,
+        proof_image: [] // Reset tampilan upload
+      });
+    } else {
+        form.resetFields();
     }
-  }, [selectedProject, open, expense, form, filteredFundingOptions]);
+  }, [open, expense, form]);
 
   return (
     <Modal
@@ -106,13 +99,13 @@ const ExpenseFormModal = ({
         layout="vertical" 
         onFinish={onSubmit} 
         style={{ marginTop: 24 }} 
-        initialValues={{
-          ...expense,
-          date: expense?.date ? moment(expense.date) : null
-        }}
       >
-        <Form.Item name="category" label="Kategori" rules={[{ required: true, message: 'Kategori wajib dipilih' }]}>
-          <Select placeholder="Pilih kategori pengeluaran">
+        <Form.Item name="title" label="Judul" rules={[{ required: true }]}>
+          <Input />
+        </Form.Item>
+
+        <Form.Item name="category" label="Kategori" rules={[{ required: true }]}>
+          <Select>
             {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
               <Option key={value} value={value}>{text}</Option>
             ))}
@@ -121,76 +114,42 @@ const ExpenseFormModal = ({
 
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true, message: 'Jumlah wajib diisi' }]}>
+            <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true }]}>
               <InputNumber
                 style={{ width: '100%' }}
-                placeholder="Masukkan jumlah"
-                min={0}
                 formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                parser={(value) => value.replace(/Rp\s?|(\.*)/g, '').replace(/,/g, '')}
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
               />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="date" label="Tanggal" rules={[{ required: true, message: 'Tanggal wajib diisi' }]}>
+            <Form.Item name="date" label="Tanggal" rules={[{ required: true }]}>
               <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
             </Form.Item>
           </Col>
         </Row>
 
-        <Form.Item name="description" label="Deskripsi" rules={[{ required: true, message: 'Deskripsi wajib diisi' }]}>
-          <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
+        <Form.Item name="recipient" label="Penerima Dana">
+          <Input placeholder="Siapa yang menerima uang?" />
         </Form.Item>
 
-        <Form.Item name="project_id" label="Proyek Terkait (Opsional)">
-          <Select placeholder="Pilih proyek (kosongkan untuk operasional umum)" showSearch optionFilterProp="children" allowClear>
-            {projects?.map(p => (
-              <Option key={p.id} value={p.id}>{p.name}</Option>
-            ))}
-          </Select>
+        <Form.Item name="description" label="Deskripsi">
+          <Input.TextArea rows={3} />
         </Form.Item>
 
         <Form.Item 
-          name="funding_id" 
-          label="Sumber Dana" 
-          rules={[{ required: true, message: 'Sumber dana wajib dipilih' }]}
-          help={
-             selectedProject && filteredFundingOptions.length === 0 
-             ? <span style={{color: '#faad14'}}>Tidak ada dana tersedia (Pool maupun Proyek).</span> 
-             : <span style={{color: '#727272', fontSize: '12px'}}>Menampilkan Dana Proyek & Dana Pool (Umum).</span>
-          }
+            label="Upload Bukti Baru (Opsional)" 
+            name="proof_image"
+            valuePropName="fileList" 
+            getValueFromEvent={(e) => Array.isArray(e) ? e : e?.fileList}
         >
-          <Select 
-            placeholder="Pilih dana"
-            showSearch 
-            optionFilterProp="children"
-            disabled={selectedProject && filteredFundingOptions.length === 0}
-          >
-            {filteredFundingOptions.map(f => {
-               const fProjectId = typeof f.project === 'object' && f.project !== null ? f.project.id : f.project;
-               const labelType = fProjectId ? '(Khusus Proyek Ini)' : '(Pool / Umum)';
-               return (
-                  <Option key={f.id} value={f.id}>
-                    {fundingMap[f.id] || `Dana ID: ${f.id}`} <span style={{color: fProjectId ? '#237804' : '#0958D9', fontSize: '12px'}}>{labelType}</span>
-                  </Option>
-               );
-            })}
-          </Select>
+            <Upload beforeUpload={() => false} maxCount={1} listType="picture">
+                <Button icon={<UploadOutlined />}>Ganti File</Button>
+            </Upload>
         </Form.Item>
 
-        <Form.Item 
-          label="URL Bukti (Opsional)" 
-          name="proof_url"
-          rules={[{ type: 'url', message: 'Masukkan URL yang valid' }]}
-        >
-          <Input
-            placeholder="https://drive.google.com/file/d/..."
-            prefix={<LinkOutlined />}
-          />
-        </Form.Item>
-
-        <Form.Item style={{marginBottom: 0}}>
-          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+        <Form.Item style={{ textAlign: 'right', marginTop: 24, marginBottom: 0 }}>
+          <Space>
             <Button onClick={onCancel}>Batal</Button>
             <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>
               Simpan Perubahan
@@ -201,6 +160,8 @@ const ExpenseFormModal = ({
     </Modal>
   );
 };
+
+// --- MAIN CONTENT ---
 
 function ExpenseDetailContent() {
   const router = useRouter();
@@ -215,424 +176,188 @@ function ExpenseDetailContent() {
   const userRole = user?.role?.name || user?.role;
   const canEdit = ['Admin', 'Superadmin', 'Operator'].includes(userRole);
 
-  const { data: expense, isLoading: isLoadingExpense, isError, error } = useQuery({
+  // 1. Fetch Expense Detail
+  const { data: expense, isLoading: isLoadingExpense, isError } = useQuery({
     queryKey: ['expense', expenseId],
     queryFn: () => getExpense(expenseId),
+    enabled: !!expenseId,
   });
 
-  const { data: projects, isLoading: isLoadingProjects } = useQuery({
-    queryKey: ['projects'],
-    queryFn: getProjects,
-  });
-
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['assets'],
-    queryFn: getAssets,
-  });
-
-  const { data: fundings, isLoading: isLoadingFundings } = useQuery({
-    queryKey: ['fundings'],
-    queryFn: getFundings,
-  });
-
-  const { data: fundingSources } = useQuery({
-    queryKey: ['fundingSources'],
-    queryFn: getFundingSources,
-  });
-
-  const project = projects?.find(p => p.id === expense?.project_id);
-  const asset = assets?.find(a => a.id === project?.asset);
-  const funding = fundings?.find(f => f.id === expense?.funding_id);
-  const fundingSource = fundingSources?.find(fs => fs.id === funding?.source);
-
-  const isLoading = isLoadingExpense || isLoadingProjects || isLoadingAssets || isLoadingFundings;
-
-  const fundingMap = React.useMemo(() => {
-    if (!fundings || !fundingSources) return {};
-    const sourceMap = fundingSources.reduce((acc, s) => {
-      acc[s.id] = s.name;
-      return acc;
-    }, {});
-    return fundings.reduce((acc, f) => {
-      acc[f.id] = `${sourceMap[f.source] || 'Unknown'} - ${formatRupiah(f.amount)}`;
-      return acc;
-    }, {});
-  }, [fundings, fundingSources]);
-
+  // Logic Update
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => updateExpense(id, data),
     onSuccess: () => {
       message.success('Pengeluaran berhasil diperbarui');
-      queryClient.invalidateQueries({ queryKey: ['expense'] });
+      queryClient.invalidateQueries({ queryKey: ['expense', expenseId] });
       setIsModalOpen(false);
-      form.resetFields();
     },
-    onError: (err) => {
-      message.error(`Error: ${err.response?.data?.detail || err.message || 'Terjadi kesalahan'}`);
-    }
+    onError: (err) => message.error(`Gagal update: ${err.message}`)
   });
 
+  // Logic Delete
   const deleteMutation = useMutation({
     mutationFn: deleteExpense,
     onSuccess: () => {
-      message.success('Pengeluaran berhasil dihapus');
+      message.success('Pengeluaran dihapus');
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       router.push('/admin/pengeluaran');
     },
-    onError: (err) => {
-      message.error(`Error: ${err.response?.data?.detail || err.message || 'Gagal menghapus'}`);
-    }
+    onError: (err) => message.error(`Gagal hapus: ${err.message}`)
   });
 
-  const handleBack = () => {
-    router.push('/admin/pengeluaran');
-  };
+  if (isLoadingExpense) return <div style={{ textAlign: 'center', padding: 50 }}><Spin size="large" /></div>;
+  if (isError || !expense) return <Alert message="Data tidak ditemukan" type="error" showIcon />;
 
-  const handleEdit = () => {
-    if (!expense) return;
+  const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
+
+  const handleUpdate = (values) => {
+    const formData = new FormData();
+    formData.append('title', values.title);
+    formData.append('category', values.category);
+    formData.append('amount', values.amount);
+    formData.append('date', values.date.format('YYYY-MM-DD'));
+    formData.append('description', values.description || '');
+    formData.append('recipient', values.recipient || '');
     
-    form.setFieldsValue({
-      category: expense.category,
-      amount: parseFloat(expense.amount),
-      date: expense.date ? moment(expense.date) : null,
-      description: expense.description,
-      project_id: expense.project_id,
-      funding_id: expense.funding_id,
-      proof_url: expense.proof_url || '',
-    });
-    setIsModalOpen(true);
-  };
-
-  const handleModalCancel = () => {
-    setIsModalOpen(false);
-    form.resetFields();
-  };
-
-  const handleFormSubmit = async (values) => {
-    const formData = {
-      ...values,
-      date: values.date ? values.date.format('YYYY-MM-DD') : null,
-      proof_url: values.proof_url || null,
-    };
+    if (values.proof_image && values.proof_image.fileList?.[0]?.originFileObj) {
+        formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
+    }
 
     updateMutation.mutate({ id: expense.id, data: formData });
   };
 
-  const handleDelete = () => {
-     deleteMutation.mutate(expense.id);
-  };
-
-  if (isLoading) {
-    return (
-      <div style={{ textAlign: 'center', padding: 50 }}>
-        <Spin size="large" />
-      </div>
-    );
-  }
-
-  if (isError) {
-    return (
-      <Alert
-        message="Error Memuat Data"
-        description={error?.message || 'Gagal memuat data pengeluaran'}
-        type="error"
-        showIcon
-      />
-    );
-  }
-
-  if (!expense) {
-    return (
-      <Alert
-        message="Pengeluaran Tidak Ditemukan"
-        description="Pengeluaran yang Anda cari tidak tersedia"
-        type="warning"
-        showIcon
-      />
-    );
-  }
-
-  const categoryLabel = EXPENSE_CATEGORIES[expense.category] || expense.category;
-  
-  const getCategoryColor = () => {
-    switch (expense.category) {
-      case 'Operasional':
-        return 'blue';
-      case 'Proyek':
-        return 'green';
-      case 'Pembelian':
-        return 'red';
-      default:
-        return 'default';
-    }
-  };
-
   return (
     <>
+      {/* HEADER */}
       <Flex justify="space-between" align="center" style={{ marginBottom: 24 }} wrap="wrap" gap={16}>
         <Flex align="center" gap={16}>
-          <Button
-            icon={<ArrowLeftOutlined />}
-            onClick={handleBack}
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '8px',
-            }}
-          />
+          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/admin/pengeluaran')} style={{ borderRadius: '8px' }} />
           <div>
-            <Title level={2} style={{
-              margin: 0,
-              color: '#111928',
-              fontWeight: 700,
-              fontSize: '30px',
-              lineHeight: '125%',
-            }}>
-              Detail Pengeluaran
-            </Title>
-            <Text style={{
-              fontSize: '16px',
-              fontWeight: 500,
-              color: '#727272',
-              lineHeight: '19px',
-            }}>
-              Informasi lengkap mengenai pengeluaran
-            </Text>
+            <Title level={2} style={{ margin: 0 }}>Detail Pengeluaran</Title>
+            <Text type="secondary">ID Transaksi: #{expense.id}</Text>
           </div>
         </Flex>
         
         {canEdit && (
           <Space>
             <Popconfirm
-                title="Hapus Pengeluaran?"
-                description="Yakin hapus data ini?"
-                onConfirm={handleDelete}
-                okText="Ya, Hapus"
-                cancelText="Batal"
-                okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
+              title="Hapus Data?"
+              description="Tindakan ini tidak dapat dibatalkan."
+              onConfirm={() => deleteMutation.mutate(expense.id)}
+              okText="Ya, Hapus"
+              cancelText="Batal"
+              okButtonProps={{ danger: true, loading: deleteMutation.isPending }}
             >
-                <Button danger icon={<DeleteOutlined />} size="large" style={{borderRadius: 24}}>Hapus</Button>
+              <Button danger icon={<DeleteOutlined />} size="large" style={{ borderRadius: '24px' }}>Hapus</Button>
             </Popconfirm>
             <Button
               type="primary"
               icon={<EditOutlined />}
               size="large"
-              style={{
-                backgroundColor: '#237804',
-                borderRadius: '24px',
-                height: 'auto',
-                padding: '8px 16px',
-                fontSize: '16px'
-              }}
-              onClick={handleEdit}
+              style={{ backgroundColor: '#237804', borderRadius: '24px' }}
+              onClick={() => setIsModalOpen(true)}
             >
-              Edit Pengeluaran
+              Edit Data
             </Button>
           </Space>
         )}
       </Flex>
 
       <Row gutter={[24, 24]}>
+        {/* KOLOM KIRI: DETAIL UTAMA */}
         <Col xs={24} lg={16}>
-          <Card
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '12px',
-              boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-              marginBottom: 24,
-            }}
-          >
-            <Flex justify="space-between" align="start" style={{ marginBottom: 24 }}>
-              <div>
-                <Title level={3} style={{ margin: 0, marginBottom: 8 }}>
-                  {expense.description}
-                </Title>
-                <Tag
-                  color={getCategoryColor()}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    fontWeight: 600,
-                    fontSize: '14px',
-                  }}
-                >
-                  {categoryLabel}
-                </Tag>
-              </div>
-              <Text style={{
-                fontWeight: 600,
-                fontSize: '24px',
-                color: '#CF1322',
-              }}>
-                - {formatRupiah(expense.amount)}
-              </Text>
-            </Flex>
-
-            <Space direction="vertical" style={{ width: '100%' }} size={16}>
-              <Flex align="center" gap={12}>
-                <BiSolidCalendar style={{ color: '#531DAB', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Tanggal Pengeluaran
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {formatDate(expense.date)}
-                  </Text>
-                </div>
-              </Flex>
-
-              <Flex align="center" gap={12}>
-                <MdLocationPin style={{ color: '#CF1322', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Proyek Terkait
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {project?.name || '(Umum / Operasional)'}
-                  </Text>
-                </div>
-              </Flex>
-
-              <Flex align="center" gap={12}>
-                <FaMoneyBillWave style={{ color: '#7CB305', fontSize: '24px', flexShrink: 0 }} />
-                <div>
-                  <Text style={{ fontSize: '12px', color: '#6B7280', display: 'block' }}>
-                    Sumber Dana
-                  </Text>
-                  <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928' }}>
-                    {fundingSource?.name || '-'}
-                  </Text>
-                </div>
-              </Flex>
-            </Space>
+          <Card title="Informasi Utama" style={{ borderRadius: '12px', border: '1px solid #E5E7EB', marginBottom: 24 }}>
+            <Descriptions bordered column={1} labelStyle={{ width: '200px' }}>
+                <Descriptions.Item label="Judul Pengeluaran">
+                    <Text strong style={{ fontSize: '16px' }}>{expense.title}</Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Kategori">
+                    <Tag color="blue">{categoryLabel}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Tanggal">
+                    <Space><CalendarOutlined /> {formatDate(expense.date)}</Space>
+                </Descriptions.Item>
+                <Descriptions.Item label="Jumlah Nominal">
+                    <Text strong style={{ color: '#CF1322', fontSize: '18px' }}>
+                        - {formatRupiah(expense.amount)}
+                    </Text>
+                </Descriptions.Item>
+                <Descriptions.Item label="Penerima Dana">
+                    <Space><UserOutlined /> {expense.recipient || '-'}</Space>
+                </Descriptions.Item>
+                <Descriptions.Item label="Keterangan">
+                    {expense.description || '-'}
+                </Descriptions.Item>
+            </Descriptions>
           </Card>
 
-          <Card
-            title="Informasi Detail"
-            style={{
-              border: '1px solid #E5E7EB',
-              borderRadius: '12px',
-              boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-            }}
-          >
-            <Descriptions bordered column={1} size="middle">
-              <Descriptions.Item label="Kategori">
-                <Text style={{ fontWeight: 500 }}>
-                  {categoryLabel}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Jumlah">
-                <Text strong style={{ fontSize: '16px', color: '#CF1322' }}>
-                  {formatRupiah(expense.amount)}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Tanggal">
-                <Text style={{ fontWeight: 500 }}>
-                  {formatDate(expense.date)}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Deskripsi">
-                <Text style={{ fontWeight: 500 }}>
-                  {expense.description}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Proyek">
-                <Text style={{ fontWeight: 500 }}>
-                  {project?.name || '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Aset Terkait">
-                <Text style={{ fontWeight: 500 }}>
-                  {asset?.name || '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Sumber Dana">
-                <Text style={{ fontWeight: 500 }}>
-                  {fundingSource?.name || '-'}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Jumlah Dana">
-                <Text style={{ fontWeight: 500, color: '#7CB305' }}>
-                  {formatRupiah(funding?.amount)}
-                </Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Bukti">
-                {expense.proof_url ? (
-                  <a
-                    href={expense.proof_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ fontWeight: 500, color: '#1890ff' }}
-                  >
-                    Lihat Bukti
-                  </a>
-                ) : (
-                  <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>
-                )}
-              </Descriptions.Item>
-            </Descriptions>
+          {/* BUKTI PEMBAYARAN */}
+          <Card title="Bukti Pembayaran / Dokumen" style={{ borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+             {expense.proof_image ? (
+                 <div style={{ textAlign: 'center' }}>
+                    <img 
+                        src={expense.proof_image} 
+                        alt="Bukti Pengeluaran" 
+                        style={{ maxWidth: '100%', maxHeight: '400px', borderRadius: '8px', border: '1px solid #eee', marginBottom: 16 }} 
+                    />
+                    <br/>
+                    <Button type="primary" href={expense.proof_image} target="_blank" icon={<LinkOutlined />}>
+                        Buka di Tab Baru
+                    </Button>
+                 </div>
+             ) : (
+                 <div style={{ textAlign: 'center', padding: '32px', color: '#999' }}>
+                    <InfoCircleOutlined style={{ fontSize: '24px', marginBottom: 8 }} />
+                    <p>Tidak ada bukti pembayaran yang diunggah.</p>
+                 </div>
+             )}
           </Card>
         </Col>
 
+        {/* KOLOM KANAN: STATS & METADATA */}
         <Col xs={24} lg={8}>
-          <Space direction="vertical" style={{ width: '100%' }} size={24}>
-            <InfoCard
-              icon={<DollarCircleFilled />}
-              label="Total Pengeluaran"
-              value={formatRupiah(expense.amount)}
-              iconColor="#CF1322"
-            />
-            
-            <InfoCard
-              icon={<GiPayMoney />}
-              label="Sumber Dana"
-              value={fundingSource?.name || '-'}
-              iconColor="#7CB305"
-            />
+           <Space direction="vertical" style={{ width: '100%' }} size={24}>
+              <InfoCard 
+                 icon={<FileTextOutlined />} 
+                 label="Total Keluar" 
+                 value={formatRupiah(expense.amount)} 
+                 iconColor="#CF1322" 
+              />
+              
+              <InfoCard 
+                 icon={<GiPayMoney />} 
+                 label="Penerima" 
+                 value={expense.recipient || 'Tidak Tercatat'} 
+                 iconColor="#7CB305" 
+              />
 
-            <Card
-              title="Informasi Tambahan"
-              style={{
-                border: '1px solid #E5E7EB',
-                borderRadius: '12px',
-                boxShadow: '0px 4px 6px -1px rgba(0, 0, 0, 0.1), 0px 2px 4px -2px rgba(0, 0, 0, 0.05)',
-              }}
-            >
-              <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>ID Pengeluaran</Text>
-                  <Text style={{ fontWeight: 600 }}>#{expense.id}</Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>Kategori</Text>
-                  <Text style={{ fontWeight: 600 }}>{categoryLabel}</Text>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>Status</Text>
-                  <Tag color="red">Pengeluaran</Tag>
-                </Flex>
-                <Flex justify="space-between">
-                  <Text style={{ color: '#6B7280' }}>Aset</Text>
-                  <Text style={{ fontWeight: 600 }}>{asset?.name || '-'}</Text>
-                </Flex>
-              </Space>
-            </Card>
-          </Space>
+              <Card title="Metadata" style={{ borderRadius: '12px', border: '1px solid #E5E7EB' }}>
+                 <Space direction="vertical" style={{ width: '100%' }}>
+                    <Flex justify="space-between">
+                        <Text type="secondary">Dibuat Pada</Text>
+                        <Text strong>{moment(expense.created_at).format('DD/MM/YYYY HH:mm')}</Text>
+                    </Flex>
+                    {expense.updated_at && (
+                        <Flex justify="space-between">
+                            <Text type="secondary">Terakhir Update</Text>
+                            <Text strong>{moment(expense.updated_at).format('DD/MM/YYYY HH:mm')}</Text>
+                        </Flex>
+                    )}
+                 </Space>
+              </Card>
+           </Space>
         </Col>
       </Row>
 
-      {canEdit && (
-        <ExpenseFormModal
-          open={isModalOpen}
-          expense={expense}
-          form={form}
-          projects={projects}
-          fundings={fundings}
-          fundingMap={fundingMap}
-          onCancel={handleModalCancel}
-          onSubmit={handleFormSubmit}
-          isSubmitting={updateMutation.isPending}
-        />
-      )}
+      {/* MODAL EDIT */}
+      <ExpenseFormModal 
+        open={isModalOpen}
+        onCancel={() => setIsModalOpen(false)}
+        expense={expense}
+        form={form}
+        onSubmit={handleUpdate}
+        isSubmitting={updateMutation.isPending}
+      />
     </>
   );
 }
