@@ -5,28 +5,26 @@ import { useRouter } from 'next/navigation';
 import {
   Button, Modal, Form, Select, InputNumber, DatePicker,
   Input, Typography, Space, message, Spin, Alert, Card, Row, Col,
-  Skeleton, Tag, Statistic
+  Skeleton
 } from 'antd';
 import {
   PlusCircleOutlined, SearchOutlined, CloseCircleOutlined,
-  DollarCircleOutlined, ShoppingCartOutlined, UserOutlined
+  ShoppingCartOutlined, UserOutlined, EyeOutlined, EditOutlined
 } from '@ant-design/icons';
-import { FaMoneyBillWave, FaBoxOpen } from 'react-icons/fa6';
+import { FaMoneyBillWave } from 'react-icons/fa6';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import moment from 'moment';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import useAuthStore from '@/lib/store/authStore';
 
 // API Imports
-import { getSales, createSale, updateSale, deleteSale } from '@/lib/api/sales';
+import { getSales, createSale, updateSale } from '@/lib/api/sales';
 import { getProducts } from '@/lib/api/product';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
 
-// =================================================================
-// === HELPERS ===
-// =================================================================
+// --- HELPERS ---
 const formatRupiah = (value) =>
   value != null
     ? `Rp ${Number(value).toLocaleString('id-ID', { minimumFractionDigits: 0 })}`
@@ -34,9 +32,7 @@ const formatRupiah = (value) =>
 
 const formatDate = (dateString) => dateString ? moment(dateString).format('D/M/YYYY') : '-';
 
-// =================================================================
-// === KOMPONEN STAT CARD (Sama persis dengan Produksi/Pengeluaran) ===
-// =================================================================
+// --- STAT CARD ---
 const StatCard = ({ title, value, icon, loading, format = "rupiah", iconColor }) => {
   const displayValue = () => {
     if (loading) return <Skeleton.Input active size="small" style={{ width: 120, height: 38 }} />;
@@ -51,39 +47,19 @@ const StatCard = ({ title, value, icon, loading, format = "rupiah", iconColor })
         background: '#FFFFFF',
         border: '1px solid #F0F0F0',
         borderRadius: '12px',
-        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1), 0px 1px 4px rgba(12, 12, 13, 0.05)',
+        boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.1)',
         height: '100%'
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '28px', height: '100%' }}>
-        <div
-          style={{
-            flexShrink: 0,
-            color: iconColor || '#7CB305',
-            fontSize: '34px',
-          }}
-        >
+        <div style={{ flexShrink: 0, color: iconColor || '#7CB305', fontSize: '34px' }}>
           {icon}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', flex: 1 }}>
-          <Text
-            style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#585858',
-              lineHeight: '150%',
-            }}
-          >
+          <Text style={{ fontSize: '18px', fontWeight: 600, color: '#585858', lineHeight: '150%' }}>
             {title}
           </Text>
-          <Text
-            style={{
-              fontSize: '30px',
-              fontWeight: 700,
-              color: '#111928',
-              lineHeight: '125%',
-            }}
-          >
+          <Text style={{ fontSize: '30px', fontWeight: 700, color: '#111928', lineHeight: '125%' }}>
             {displayValue()}
           </Text>
         </div>
@@ -92,81 +68,50 @@ const StatCard = ({ title, value, icon, loading, format = "rupiah", iconColor })
   );
 };
 
-// =================================================================
-// === KOMPONEN SALE CARD (Style mirip ProductionCard) ===
-// =================================================================
-const SaleCard = ({ item, onEdit, onDelete, canEdit }) => {
-  const productName = item.product_details?.name || 'Produk Dihapus';
-  const unit = item.product_details?.unit || 'Unit';
+// --- SALE CARD ---
+const SaleCard = ({ item, onEdit, onDetail, canEdit }) => {
+  const productName = item.product_name || item.product_details?.name || 'Produk Tidak Dikenal';
+  const unit = item.product_unit || item.product_details?.unit || '';
 
   return (
     <Card
       bodyStyle={{ padding: '20px' }}
       style={{
         width: '100%',
-        marginBottom: '16px', // Jarak antar card
+        marginBottom: '16px', 
         border: '1px solid #E5E7EB',
         borderRadius: '8px',
-        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.05)',
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        {/* BAGIAN KIRI */}
         <div style={{ flex: 1 }}>
           <Space size="small" style={{ marginBottom: '10px' }}>
             <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '4px 10px',
-              background: '#E1EFFE',
-              borderRadius: '6px',
+              display: 'inline-flex', alignItems: 'center', padding: '4px 10px',
+              background: '#E1EFFE', borderRadius: '6px',
             }}>
               <UserOutlined style={{ color: '#1E429F', marginRight: 6 }} />
               <Text style={{ fontWeight: 600, fontSize: '14px', color: '#1E429F' }}>
-                {item.buyer_name}
-              </Text>
-            </div>
-            <div style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '4px 10px',
-              background: '#DEF7EC',
-              borderRadius: '6px',
-            }}>
-              <Text style={{ fontWeight: 600, fontSize: '14px', color: '#057A55' }}>
-                Terjual
+                {item.buyer_name || 'Pembeli Umum'}
               </Text>
             </div>
           </Space>
           
-          <Title level={4} style={{
-            margin: '0 0 10px 0',
-            fontSize: '20px',
-            fontWeight: 600,
-            lineHeight: '24px',
-            color: '#111928',
-          }}>
+          <Title level={4} style={{ margin: '0 0 10px 0', fontSize: '20px', fontWeight: 600, color: '#111928' }}>
             {productName}
           </Title>
           
-          <Text style={{
-            fontSize: '16px',
-            fontWeight: 500,
-            lineHeight: '19px',
-            color: '#111928',
-            display: 'block',
-            marginBottom: '16px',
-          }}>
+          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#111928', display: 'block', marginBottom: '16px' }}>
             {formatDate(item.date)}
           </Text>
           
-          {/* Info Detail Grid */}
           <div style={{ display: 'flex', gap: '24px', marginBottom: '20px' }}>
             <div>
               <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block', marginBottom: '4px' }}>
                 Kuantitas
               </Text>
-              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#111928' }}>
+              <Text style={{ fontSize: '16px', fontWeight: 600, color: '#111928' }}>
                 {Number(item.quantity).toLocaleString('id-ID')} {unit}
               </Text>
             </div>
@@ -174,55 +119,41 @@ const SaleCard = ({ item, onEdit, onDelete, canEdit }) => {
               <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272', display: 'block', marginBottom: '4px' }}>
                 Harga Satuan
               </Text>
-              <Text style={{ fontSize: '14px', fontWeight: 500, color: '#111928' }}>
+              <Text style={{ fontSize: '16px', fontWeight: 600, color: '#111928' }}>
                 {formatRupiah(item.price_per_unit)}
               </Text>
             </div>
           </div>
           
           <Space>
+             <Button onClick={() => onDetail(item.id)} icon={<EyeOutlined />} style={{ borderRadius: '8px' }}>
+                Detail
+             </Button>
              {canEdit && (
-               <>
-                 <Button
-                    style={{
-                      minWidth: '100px', height: '40px',
-                      border: '1px solid #237804', borderRadius: '8px',
-                      color: '#237804', fontSize: '14px', fontWeight: 500
-                    }}
-                    onClick={() => onEdit(item)}
-                  >
-                    Edit
-                  </Button>
-                  <Button 
-                    danger
-                    type="text"
-                    onClick={() => onDelete(item.id)}
-                  >
-                    Hapus
-                  </Button>
-               </>
-            )}
+                <Button
+                  style={{
+                    minWidth: '80px', 
+                    border: '1px solid #237804', borderRadius: '8px',
+                    color: '#237804', fontWeight: 500
+                  }}
+                  icon={<EditOutlined />}
+                  onClick={() => onEdit(item)}
+                >
+                  Edit
+                </Button>
+             )}
+             {/* Tombol Hapus SUDAH DIHAPUS DARI SINI sesuai permintaan */}
           </Space>
         </div>
 
-        {/* BAGIAN KANAN (NILAI) */}
         <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
           <Text style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            color: '#057A55', // Hijau Pendapatan
-            display: 'block',
-            lineHeight: '29px',
-            marginBottom: '0px',
+            fontSize: '24px', fontWeight: 700, color: '#057A55',
+            display: 'block', lineHeight: '29px', marginBottom: '4px',
           }}>
             + {formatRupiah(item.total_price)}
           </Text>
-          <Text style={{
-            fontSize: '14px',
-            fontWeight: 500,
-            color: '#727272',
-            display: 'block',
-          }}>
+          <Text style={{ fontSize: '14px', fontWeight: 500, color: '#727272' }}>
             Total Pendapatan
           </Text>
         </div>
@@ -231,9 +162,7 @@ const SaleCard = ({ item, onEdit, onDelete, canEdit }) => {
   );
 };
 
-// =================================================================
-// === MODAL FORM ===
-// =================================================================
+// --- MODAL FORM ---
 const SalesModal = ({ visible, onClose, initialData, products, isLoadingProducts }) => {
   const [form] = Form.useForm();
   const queryClient = useQueryClient();
@@ -269,7 +198,7 @@ const SalesModal = ({ visible, onClose, initialData, products, isLoadingProducts
     onSuccess: () => {
       message.success(isEdit ? 'Data penjualan diperbarui' : 'Penjualan berhasil dicatat');
       queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] }); // Refresh stok gudang
+      queryClient.invalidateQueries({ queryKey: ['products'] }); 
       onClose();
     },
     onError: (err) => {
@@ -397,10 +326,9 @@ const SalesModal = ({ visible, onClose, initialData, products, isLoadingProducts
   );
 };
 
-// =================================================================
-// === MAIN PAGE ===
-// =================================================================
+// --- MAIN CONTENT ---
 function SalesManagementContent() {
+  const router = useRouter();
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
@@ -419,29 +347,10 @@ function SalesManagementContent() {
     queryFn: getProducts
   });
 
-  const queryClient = useQueryClient();
-
-  const handleDelete = async (id) => {
-    Modal.confirm({
-      title: 'Hapus data penjualan?',
-      content: 'Data stok di gudang akan otomatis dikembalikan.',
-      okText: 'Ya, Hapus',
-      okType: 'danger',
-      cancelText: 'Batal',
-      onOk: async () => {
-        try {
-          await deleteSale(id);
-          message.success('Data dihapus');
-          queryClient.invalidateQueries({ queryKey: ['sales'] });
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-        } catch (error) {
-          message.error('Gagal menghapus');
-        }
-      }
-    });
+  const handleDetail = (id) => {
+      router.push(`/admin/penjualan/${id}`);
   };
 
-  // Kalkulasi Stats Sederhana (Client Side)
   const stats = useMemo(() => {
     if (!salesData) return { totalRevenue: 0, totalTx: 0 };
     return salesData.reduce((acc, curr) => ({
@@ -452,13 +361,12 @@ function SalesManagementContent() {
 
   return (
     <>
-      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px', lineHeight: '125%' }}>
+          <Title level={2} style={{ margin: 0, color: '#111928', fontWeight: 700, fontSize: '30px' }}>
             Manajemen Penjualan
           </Title>
-          <Text style={{ fontSize: '16px', fontWeight: 500, color: '#727272', lineHeight: '19px' }}>
+          <Text style={{ fontSize: '16px', color: '#727272' }}>
             Kelola barang keluar dan pendapatan penjualan.
           </Text>
         </div>
@@ -467,15 +375,7 @@ function SalesManagementContent() {
             type="primary"
             icon={<PlusCircleOutlined />}
             size="large"
-            style={{
-              backgroundColor: '#237804', // Konsisten dengan Pengeluaran/Produksi
-              borderColor: '#237804',
-              borderRadius: '24px',
-              height: '40px',
-              padding: '8px 16px',
-              fontSize: '16px',
-              boxShadow: '0px 2px 0px rgba(0, 0, 0, 0.043)'
-            }}
+            style={{ backgroundColor: '#237804', borderRadius: '24px' }}
             onClick={() => { setEditingItem(null); setIsModalOpen(true); }}
           >
             Catat Penjualan
@@ -483,8 +383,7 @@ function SalesManagementContent() {
         )}
       </div>
 
-      {/* STATS ROW */}
-      <Row gutter={[18, 18]} style={{ marginBottom: '24px' }}>
+      <Row gutter={[24, 24]} style={{ marginBottom: '24px' }}>
         <Col xs={24} sm={12}>
           <StatCard
             title="Total Pendapatan (Revenue)"
@@ -506,33 +405,23 @@ function SalesManagementContent() {
         </Col>
       </Row>
 
-      {/* FILTER & LIST CARD */}
       <Card style={{ marginBottom: 24, border: '1px solid #E5E7EB', borderRadius: '8px', boxShadow: '0px 1px 4px rgba(12, 12, 13, 0.05)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-             <Title level={4} style={{ margin: 0, fontSize: '22px', fontWeight: 700, color: '#111928' }}>
-                Riwayat Penjualan
-             </Title>
-             
-             {/* SEARCH BAR (Mirip Produksi) */}
+             <Title level={4} style={{ margin: 0 }}>Riwayat Penjualan</Title>
              <div style={{ display: 'flex', alignItems: 'center', maxWidth: '300px', width: '100%', background: '#FFFFFF', border: '1px solid #D9D9D9', borderRadius: '8px', overflow: 'hidden' }}>
                 <Input
                   placeholder="Cari pembeli / produk..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  style={{ border: 'none', flex: 1, padding: '8px 12px', fontSize: '16px' }}
-                  suffix={searchTerm && <CloseCircleOutlined style={{ color: 'rgba(0, 0, 0, 0.25)', cursor: 'pointer' }} onClick={() => setSearchTerm('')} />}
+                  style={{ border: 'none', flex: 1, padding: '8px 12px' }}
+                  suffix={searchTerm && <CloseCircleOutlined style={{ color: '#ccc', cursor: 'pointer' }} onClick={() => setSearchTerm('')} />}
                 />
                 <Button type="primary" icon={<SearchOutlined />} style={{ background: '#237804', borderRadius: '0px', height: '40px', width: '46px', border: 'none' }} />
              </div>
         </div>
 
-        {loadingSales && (
-          <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>
-        )}
-        
-        {isError && !loadingSales && (
-           <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />
-        )}
+        {loadingSales && <div style={{ textAlign: 'center', padding: '48px' }}><Spin size="large" /></div>}
+        {isError && !loadingSales && <Alert message="Error Memuat Data" description={error?.message} type="error" showIcon />}
 
         {!loadingSales && !isError && (
           <div>
@@ -543,14 +432,12 @@ function SalesManagementContent() {
                   item={item}
                   canEdit={canEdit}
                   onEdit={(d) => { setEditingItem(d); setIsModalOpen(true); }}
-                  onDelete={handleDelete}
+                  onDetail={handleDetail}
                 />
               ))
             ) : (
               <div style={{ border: '1px dashed #d9d9d9', borderRadius: '8px', padding: '32px', textAlign: 'center' }}>
-                <Text type="secondary" style={{ fontSize: '16px', color: '#727272' }}>
-                  Belum ada data penjualan.
-                </Text>
+                <Text type="secondary">Belum ada data penjualan.</Text>
               </div>
             )}
           </div>
