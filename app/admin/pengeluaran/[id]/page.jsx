@@ -219,8 +219,12 @@ function ExpenseDetailContent() {
     formData.append('description', values.description || '');
     formData.append('recipient', values.recipient || '');
     
-    if (values.proof_image && values.proof_image.fileList?.[0]?.originFileObj) {
-        formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
+    // PERBAIKAN: Cek dengan benar apakah ada file
+    if (values.proof_image && values.proof_image.length > 0) {
+        const file = values.proof_image[0];
+        if (file.originFileObj) {
+            formData.append('proof_image', file.originFileObj);
+        }
     }
 
     updateMutation.mutate({ id: expense.id, data: formData });

@@ -161,7 +161,7 @@ const AssetFormModal = ({
       </Form.Item>
 
       {/* [FIX] Ganti Document URL jadi Upload Image sesuai backend */}
-      <Form.Item 
+      {/* <Form.Item 
         label="Foto / Dokumen" 
         name="image"
         valuePropName="fileList"
@@ -173,7 +173,7 @@ const AssetFormModal = ({
         <Upload beforeUpload={() => false} maxCount={1} listType="picture">
             <Button icon={<UploadOutlined />}>Upload Gambar</Button>
         </Upload>
-      </Form.Item>
+      </Form.Item> */}
 
       <Form.Item style={{marginBottom: 0}}>
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>

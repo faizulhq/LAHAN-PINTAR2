@@ -85,7 +85,7 @@ const ProductStockSummary = ({ products, loading }) => {
         <div style={{ padding: '24px', background: '#F9FAFB', borderBottom: '1px solid #F0F0F0' }}>
             <Row align="middle" justify="space-between">
                 <Col>
-                    <Text type="secondary" style={{ fontSize: '14px' }}>Total Aset Tersedia (Global)</Text>
+                    <Text type="secondary" style={{ fontSize: '14px' }}>Total Stok Tersedia (Global)</Text>
                     <div style={{ fontSize: '28px', fontWeight: 700, color: '#D97706', marginTop: '4px' }}>
                         {Number(totalStock).toLocaleString('id-ID')} <span style={{fontSize: '16px', fontWeight: 400, color: '#6B7280'}}>Unit</span>
                     </div>
@@ -185,23 +185,6 @@ const ProductionCard = ({ production, onEditClick, onDetailClick, onDelete, canE
             <Button onClick={() => onDetailClick(production.id)} icon={<EyeOutlined />}>
                 Detail
             </Button>
-
-            {canEdit && (
-              <Button
-                style={{
-                  background: '#237804', borderColor: '#237804', color: '#FFFFFF', fontWeight: 500,
-                }}
-                onClick={() => onEditClick(production)}
-                icon={<EditOutlined />}
-              >
-                Edit
-              </Button>
-            )}
-            {canEdit && (
-               <Popconfirm title="Hapus data ini?" onConfirm={() => onDelete(production.id)} okText="Ya" cancelText="Batal">
-                  <Button danger icon={<DeleteOutlined />} />
-               </Popconfirm>
-            )}
           </Space>
         </div>
       </div>

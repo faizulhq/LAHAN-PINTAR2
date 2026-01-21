@@ -1,10 +1,8 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import React, { useEffect } from 'react';
 import {
   Row, Col, Card, Statistic, Typography,
-  Divider, Spin, Alert, Flex, Progress, Tag
   Divider, Spin, Alert, Flex, Progress, Tag
 } from 'antd';
 import {
@@ -12,11 +10,7 @@ import {
   WalletOutlined, ShoppingOutlined, ExperimentOutlined,
   ArrowRightOutlined, ShopOutlined, BarChartOutlined,
   PieChartOutlined
-  ArrowRightOutlined, ShopOutlined, BarChartOutlined,
-  PieChartOutlined
 } from '@ant-design/icons';
-// Import icon dari library yang benar
-import { GiReceiveMoney, GiPayMoney } from 'react-icons/gi'; 
 // Import icon dari library yang benar
 import { GiReceiveMoney, GiPayMoney } from 'react-icons/gi'; 
 import { useQuery } from '@tanstack/react-query';
@@ -31,12 +25,6 @@ const { Title, Text } = Typography;
 
 const formatRupiah = (value) => {
   if (value == null) return 'Rp 0';
-  return `Rp ${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
-};
-
-const formatNumber = (value) => {
-    if (value == null) return '0';
-    return Number(value).toLocaleString('id-ID');
   return `Rp ${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })}`;
 };
 
@@ -65,14 +53,8 @@ const OperatorDashboard = ({ dashboardData, user }) => {
             <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #1890ff' }}>
               <Statistic title="Aset Dikelola" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
             </Card>
-            <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #1890ff' }}>
-              <Statistic title="Aset Dikelola" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
-            </Card>
         </Col>
         <Col xs={24} sm={12}>
-            <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #52c41a' }}>
-              <Statistic title="Nilai Produksi" value={formatRupiah(dashboardData?.total_yield)} prefix={<RiseOutlined />} valueStyle={{ color: '#237804' }}/>
-            </Card>
             <Card hoverable className="border-l-4" style={{ borderLeft: '4px solid #52c41a' }}>
               <Statistic title="Nilai Produksi" value={formatRupiah(dashboardData?.total_yield)} prefix={<RiseOutlined />} valueStyle={{ color: '#237804' }}/>
             </Card>
@@ -148,11 +130,7 @@ const InvestorDashboard = ({ dashboardData }) => {
 };
 
 // --- EXECUTIVE DASHBOARD ---
-// --- EXECUTIVE DASHBOARD ---
 const ExecutiveDashboard = ({ dashboardData }) => {
-  const omzetAmount = dashboardData?.total_revenue || 0;
-  const expenseAmount = dashboardData?.total_expense || 0;
-  const labaAmount = omzetAmount - expenseAmount;
   const omzetAmount = dashboardData?.total_revenue || 0;
   const expenseAmount = dashboardData?.total_expense || 0;
   const labaAmount = omzetAmount - expenseAmount;
@@ -161,9 +139,6 @@ const ExecutiveDashboard = ({ dashboardData }) => {
   const isProfit = labaAmount >= 0;
 
   const financialData = [
-    { name: 'Omzet', value: omzetAmount, color: '#1890ff' },
-    { name: 'Pengeluaran', value: expenseAmount, color: '#ff4d4f' },
-    { name: 'Laba Bersih', value: labaAmount, color: '#52c41a' },
     { name: 'Omzet', value: omzetAmount, color: '#1890ff' },
     { name: 'Pengeluaran', value: expenseAmount, color: '#ff4d4f' },
     { name: 'Laba Bersih', value: labaAmount, color: '#52c41a' },
@@ -194,7 +169,7 @@ const ExecutiveDashboard = ({ dashboardData }) => {
                 {formatRupiah(dashboardData?.total_cash_on_hand)}
              </div>
              <Text style={{ color: '#D1D5DB' }}>
-                Saldo Aktif = (Dana Masuk) - (Dana Keluar Real) - (Sisa Bagi Hasil).
+                Saldo Aktif = (Dana Masuk) - (Dana Keluar Real) + (Sisa Bagi Hasil).
              </Text>
           </Col>
           <Col>
@@ -210,19 +185,15 @@ const ExecutiveDashboard = ({ dashboardData }) => {
 
       <Row gutter={[24, 24]}>
          <Col xs={24} sm={12} lg={8}>
-         <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-              <Statistic title="Total Aset Fisik" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
               <Statistic title="Total Aset Fisik" value={dashboardData?.total_assets || 0} prefix={<ContainerOutlined />} />
             </Card>
          </Col>
-         <Col xs={24} sm={12} lg={8}>
          <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <Statistic title="Total Dana Kelolaan" value={formatRupiah(dashboardData?.total_funding)} prefix={<GiReceiveMoney />} valueStyle={{ color: '#237804' }} />
             </Card>
          </Col>
-         <Col xs={24} sm={12} lg={8}>
          <Col xs={24} sm={12} lg={8}>
             <Card hoverable bordered={false} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
               <Statistic title="Total Pengeluaran" value={formatRupiah(expenseAmount)} prefix={<GiPayMoney />} valueStyle={{ color: '#cf1322' }} />
@@ -233,13 +204,11 @@ const ExecutiveDashboard = ({ dashboardData }) => {
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
          <Col xs={24} lg={14}>
             <Card title={<><BarChartOutlined /> Analisis Arus Kas</>} bordered={false} style={{ height: '100%' }}>
-            <Card title={<><BarChartOutlined /> Analisis Arus Kas</>} bordered={false} style={{ height: '100%' }}>
                <ResponsiveContainer width="100%" height={300}>
                   <BarChart data={financialData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="name" />
                     <YAxis tickFormatter={(value) => `${value / 1000000}jt`} />
-                    <RechartsTooltip formatter={(value) => formatRupiah(value)} cursor={{ fill: 'transparent' }} />
                     <RechartsTooltip formatter={(value) => formatRupiah(value)} cursor={{ fill: 'transparent' }} />
                     <Bar dataKey="value" name="Jumlah (Rp)" radius={[4, 4, 0, 0]} barSize={60}>
                       {financialData.map((entry, index) => (
@@ -272,10 +241,7 @@ const ExecutiveDashboard = ({ dashboardData }) => {
                 <Card title="Status Saham Global" bordered={false} style={{ flex: 2 }}>
                    <div style={{ textAlign: 'center', marginBottom: 20 }}>
                        <Statistic title="Saham Tersedia" value={formatNumber(dashboardData?.shares_available)} suffix="Lembar" valueStyle={{ color: '#fa8c16' }} />
-                       <Statistic title="Saham Tersedia" value={formatNumber(dashboardData?.shares_available)} suffix="Lembar" valueStyle={{ color: '#fa8c16' }} />
                    </div>
-                   <div style={{ textAlign: 'center' }}>
-                       <Text type="secondary">Total Saham: {formatNumber(dashboardData?.total_system_shares)}</Text>
                    <div style={{ textAlign: 'center' }}>
                        <Text type="secondary">Total Saham: {formatNumber(dashboardData?.total_system_shares)}</Text>
                    </div>
@@ -294,19 +260,8 @@ function AdminDashboardContent() {
   const isInvestor = userRole === 'Investor';
 
   const { data: rawData, isLoading, isError } = useQuery({
-  const { data: rawData, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboardData,
-    refetchInterval: 5000, 
-  });
-
-  useEffect(() => {
-    // Debug log untuk memastikan data masuk
-    console.log("Live Dashboard Data:", rawData);
-  }, [rawData]);
-
-  // Handle Array vs Object dengan benar
-  const dashboardData = Array.isArray(rawData) ? rawData[0] : (rawData || {});
     refetchInterval: 5000, 
   });
 
@@ -322,8 +277,6 @@ function AdminDashboardContent() {
     return <div style={{ padding: 100, textAlign: 'center' }}><Spin size="large" tip="Memuat Dashboard..." /></div>;
   }
   
-  if (isError) {
-    return <Alert message="Gagal memuat data dashboard." type="error" showIcon />;
   if (isError) {
     return <Alert message="Gagal memuat data dashboard." type="error" showIcon />;
   }

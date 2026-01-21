@@ -161,6 +161,8 @@ const ExpenseCard = ({ expense, onEditClick, onDetailClick, canEdit }) => {
   );
 };
 
+// ===== PERBAIKAN DI ExpenseModal Component =====
+
 const ExpenseModal = ({ visible, onClose, initialData, form }) => {
   const queryClient = useQueryClient();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -192,7 +194,8 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           date: moment(initialData.date),
           description: initialData.description,
           recipient: initialData.recipient,
-          proof_image: [] 
+          // PERBAIKAN: Jangan set proof_image di edit mode, biarkan kosong
+          proof_image: undefined
         });
       } else {
         form.resetFields();
@@ -210,15 +213,32 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
     formData.append('description', values.description || '');
     formData.append('recipient', values.recipient || '');
 
-    if (values.proof_image && values.proof_image.fileList?.[0]?.originFileObj) {
-        formData.append('proof_image', values.proof_image.fileList[0].originFileObj);
+    // PERBAIKAN: Cek dengan benar apakah ada file yang di-upload
+    if (values.proof_image && values.proof_image.length > 0) {
+        const file = values.proof_image[0];
+        if (file.originFileObj) {
+            formData.append('proof_image', file.originFileObj);
+        }
     }
+    
+    // DEBUG: Uncomment untuk cek isi FormData
+    // for (let pair of formData.entries()) {
+    //     console.log(pair[0], pair[1]);
+    // }
     
     if (isEditMode) {
       updateMutation.mutate({ id: initialData.id, data: formData });
     } else {
       createMutation.mutate(formData);
     }
+  };
+
+  // PERBAIKAN: normFile untuk handle Upload component
+  const normFile = (e) => {
+    if (Array.isArray(e)) {
+      return e;
+    }
+    return e?.fileList;
   };
 
   return (
@@ -270,13 +290,20 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
           <Input.TextArea rows={3} placeholder="Jelaskan detail pengeluaran" />
         </Form.Item>
         
+        {/* PERBAIKAN UTAMA: Form.Item untuk Upload */}
         <Form.Item 
             label="Bukti Pembayaran / Struk" 
             name="proof_image"
-            valuePropName="fileList" 
-            getValueFromEvent={(e) => Array.isArray(e) ? e : e?.fileList}
+            valuePropName="fileList"
+            getValueFromEvent={normFile}
+            rules={[{ required: true, message: 'Wajib Upload Bukti Pembayaran/Struk!' }]}
         >
-            <Upload beforeUpload={() => false} maxCount={1} listType="picture">
+            <Upload 
+                beforeUpload={() => false} 
+                maxCount={1} 
+                listType="picture"
+                accept="image/*"
+            >
                 <Button icon={<UploadOutlined />}>Upload File</Button>
             </Upload>
         </Form.Item>
@@ -294,6 +321,126 @@ const ExpenseModal = ({ visible, onClose, initialData, form }) => {
             <Button onClick={onClose}>Batal</Button>
             <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>
               {isEditMode ? 'Simpan Perubahan' : 'Tambah Pengeluaran'}
+            </Button>
+          </Space>
+        </Form.Item>
+      </Form>
+    </Modal>
+  );
+};
+
+// ===== PERBAIKAN DI ExpenseFormModal (Detail Page) =====
+
+const ExpenseFormModal = ({
+  open, expense, form, 
+  onCancel, onSubmit, isSubmitting
+}) => {
+  useEffect(() => {
+    if (open && expense) {
+      form.setFieldsValue({
+        title: expense.title,
+        category: expense.category,
+        amount: parseFloat(expense.amount),
+        date: moment(expense.date),
+        description: expense.description,
+        recipient: expense.recipient,
+        proof_image: undefined // PERBAIKAN: Biarkan kosong
+      });
+    } else {
+        form.resetFields();
+    }
+  }, [open, expense, form]);
+
+  // PERBAIKAN: Tambahkan normFile
+  const normFile = (e) => {
+    if (Array.isArray(e)) {
+      return e;
+    }
+    return e?.fileList;
+  };
+
+  return (
+    <Modal
+      title="Edit Pengeluaran"
+      open={open}
+      onCancel={onCancel}
+      footer={null}
+      width={700}
+      destroyOnClose
+    >
+      <Form 
+        form={form} 
+        layout="vertical" 
+        onFinish={onSubmit} 
+        style={{ marginTop: 24 }} 
+      >
+        <Form.Item name="title" label="Judul" rules={[{ required: true }]}>
+          <Input />
+        </Form.Item>
+
+        <Form.Item name="category" label="Kategori" rules={[{ required: true }]}>
+          <Select>
+            {Object.entries(EXPENSE_CATEGORIES).map(([value, text]) => (
+              <Option key={value} value={value}>{text}</Option>
+            ))}
+          </Select>
+        </Form.Item>
+
+        <Row gutter={16}>
+          <Col span={12}>
+            <Form.Item name="amount" label="Jumlah (Rp)" rules={[{ required: true }]}>
+              <InputNumber
+                style={{ width: '100%' }}
+                formatter={(value) => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                parser={(value) => value.replace(/\$\s?|(,*)/g, '')}
+              />
+            </Form.Item>
+          </Col>
+          <Col span={12}>
+            <Form.Item name="date" label="Tanggal" rules={[{ required: true }]}>
+              <DatePicker style={{ width: '100%' }} format="DD/MM/YYYY" />
+            </Form.Item>
+          </Col>
+        </Row>
+
+        <Form.Item name="recipient" label="Penerima Dana">
+          <Input placeholder="Siapa yang menerima uang?" />
+        </Form.Item>
+
+        <Form.Item name="description" label="Deskripsi">
+          <Input.TextArea rows={3} />
+        </Form.Item>
+
+        {/* PERBAIKAN: Upload dengan normFile */}
+        <Form.Item 
+            label="Upload Bukti Baru (Opsional)" 
+            name="proof_image"
+            valuePropName="fileList"
+            getValueFromEvent={normFile}
+        >
+            <Upload 
+                beforeUpload={() => false} 
+                maxCount={1} 
+                listType="picture"
+                accept="image/*"
+            >
+                <Button icon={<UploadOutlined />}>Ganti File</Button>
+            </Upload>
+        </Form.Item>
+
+        {expense?.proof_image && (
+            <div style={{ marginTop: -12, marginBottom: 24 }}>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                    File saat ini: <a href={expense.proof_image} target="_blank" rel="noopener noreferrer">Lihat Bukti</a>
+                </Text>
+            </div>
+        )}
+
+        <Form.Item style={{ textAlign: 'right', marginTop: 24, marginBottom: 0 }}>
+          <Space>
+            <Button onClick={onCancel}>Batal</Button>
+            <Button type="primary" htmlType="submit" loading={isSubmitting} style={{ backgroundColor: '#237804', borderColor: '#237804' }}>
+              Simpan Perubahan
             </Button>
           </Space>
         </Form.Item>
