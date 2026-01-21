@@ -349,12 +349,7 @@ function AssetDetailContent() {
               <Descriptions.Item label="Status Kepemilikan"><Text style={{ fontWeight: 500 }}>{OWNERSHIP_STATUS_CHOICES[asset.ownership_status] || asset.ownership_status}</Text></Descriptions.Item>
               <Descriptions.Item label="Pemilik Lahan"><Text style={{ fontWeight: 500 }}>{asset.landowner || '-'}</Text></Descriptions.Item>
               <Descriptions.Item label="% Bagi Hasil Pemilik"><Text style={{ fontWeight: 500, color: '#7CB305' }}>{asset.landowner_share_percentage ? `${asset.landowner_share_percentage}%` : '-'}</Text></Descriptions.Item>
-              <Descriptions.Item label="Dokumen">
-                {asset.image ? 
-                    <a href={asset.image} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 500, color: '#1890ff' }}>Lihat Foto/Dokumen</a> 
-                    : <Text style={{ fontWeight: 500, color: '#999' }}>-</Text>
-                }
-              </Descriptions.Item>
+              
             </Descriptions>
           </Card>
         </Col>

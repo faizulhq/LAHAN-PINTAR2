@@ -406,7 +406,8 @@ const FundingModal = ({ visible, onClose, initialData, form, totalSoldShares }) 
                         }
                         // 3. Jika tidak keduanya -> Gagal
                         return Promise.reject(new Error('Bukti transfer wajib diupload!'));
-                    } 
+                    },
+                    required: true
                 }
             ]}
         >
